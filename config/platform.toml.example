@@ -1,0 +1,55 @@
+# ── Chat engine ─────────────────────────────────────────────────────────────
+# The model used by the Synte chat assistant.
+#
+# model_id   : LiteLLM model string (provider/model_id).
+#              Examples: azure_ai/gpt-5.3-chat  |  openai/gpt-4o  |  anthropic/claude-sonnet-4-6
+# secret_name: matches a PLATFORM_SECRET_<NAME> entry in .env.local that
+#              holds the provider credentials as a JSON object.
+
+[chat]
+model_id    = "openai/gpt-4o"
+secret_name = "openai"
+
+# ── Platform default models ──────────────────────────────────────────────────
+# Models offered to all agentlets that declare `secrets: [default]` in their YAML.
+# Credentials are loaded at execution time from PLATFORM_SECRET_<secret_name>
+# defined in .env.local — no per-agentlet API key setup is needed.
+#
+# Fields:
+#   id                  — internal identifier (used in API responses)
+#   label               — display name shown in the platform UI
+#   provider            — LiteLLM provider prefix (azure_ai, openai, anthropic, bedrock, …)
+#   model_id            — provider-specific model name
+#   secret_name         — key of the PLATFORM_SECRET_* credential in .env.local
+#   default_temperature — temperature used when the agentlet does not override it
+#   min_temperature     — optional lower bound enforced at execution time
+#   description         — shown to users in the model picker
+#   best_for            — list of use-case tags shown in the model picker
+
+[[model]]
+id                  = "platform_gpt4o"
+label               = "GPT-4o"
+provider            = "openai"
+model_id            = "gpt-4o"
+secret_name         = "openai"
+default_temperature = 1.0
+description         = "OpenAI's flagship multimodal model. Fast, capable, and well-rounded."
+best_for            = [
+  "general-purpose tasks",
+  "coding & analysis",
+  "document Q&A",
+]
+
+[[model]]
+id                  = "platform_claude"
+label               = "Claude Sonnet 4.6"
+provider            = "anthropic"
+model_id            = "claude-sonnet-4-6"
+secret_name         = "anthropic"
+default_temperature = 1.0
+description         = "Anthropic's balanced model — strong at reasoning, coding, and long-context tasks."
+best_for            = [
+  "complex reasoning",
+  "coding & software development",
+  "long document analysis",
+]

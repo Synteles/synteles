@@ -1,0 +1,89 @@
+http:
+  middlewares:
+    api-auth:
+      forwardAuth:
+        address: "http://core-service:8000/auth/verify"
+        authResponseHeaders:
+          - "X-User-Id"
+          - "X-Org-Id"
+
+  routers:
+    # Keycloak: /auth/* — no authentication, highest priority
+    keycloak:
+      rule: "PathPrefix(`/auth`)"
+      priority: 100
+      entryPoints:
+        - web
+      service: keycloak
+
+    # Public: GET single agentlet definition — no auth, goes to core-service
+    public-agentlet-get:
+      rule: "PathPrefix(`/api/public/agentlets`) && Method(`GET`) && !PathRegexp(`executions`)"
+      priority: 60
+      entryPoints:
+        - web
+      service: core-service
+
+    # Public: POST execute + GET execution status — no auth, goes to scheduler-service
+    public-scheduler:
+      rule: "PathPrefix(`/api/public`)"
+      priority: 50
+      entryPoints:
+        - web
+      service: scheduler-service
+
+    # Authenticated: execution files endpoint — core-service (must be higher than scheduler-executions)
+    core-execution-files:
+      rule: "PathRegexp(`^/api/executions/[^/]+/files`)"
+      priority: 35
+      entryPoints:
+        - web
+      middlewares:
+        - api-auth
+      service: core-service
+
+    # Authenticated: execution routes — scheduler-service
+    scheduler-executions:
+      rule: "PathPrefix(`/api/executions`)"
+      priority: 30
+      entryPoints:
+        - web
+      middlewares:
+        - api-auth
+      service: scheduler-service
+
+    # Authenticated: POST create execution under org/agentlet — scheduler-service
+    scheduler-create-execution:
+      rule: "PathRegexp(`^/api/organizations/[^/]+/agentlets/[^/]+/executions`) && Method(`POST`)"
+      priority: 25
+      entryPoints:
+        - web
+      middlewares:
+        - api-auth
+      service: scheduler-service
+
+    # Authenticated: everything else — core-service (catch-all)
+    core:
+      rule: "PathPrefix(`/api`)"
+      priority: 10
+      entryPoints:
+        - web
+      middlewares:
+        - api-auth
+      service: core-service
+
+  services:
+    keycloak:
+      loadBalancer:
+        servers:
+          - url: "http://keycloak:9090"
+
+    core-service:
+      loadBalancer:
+        servers:
+          - url: "http://core-service:8000"
+
+    scheduler-service:
+      loadBalancer:
+        servers:
+          - url: "http://scheduler-service:8000"

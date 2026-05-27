@@ -1,0 +1,17 @@
+entryPoints:
+  web:
+    address: ":8080"
+  traefik:
+    address: ":8081"
+
+api:
+  dashboard: true
+  insecure: true  # dev only — do not expose port 8081 in production
+
+providers:
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
+
+log:
+  level: INFO

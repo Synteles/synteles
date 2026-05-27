@@ -1,0 +1,60 @@
+/* Synteles login page branding */
+
+.login-pf body {
+  background: url('../img/background-light.png') center / cover no-repeat fixed;
+}
+
+@media (prefers-color-scheme: dark) {
+  .login-pf body {
+    background-image: url('../img/background-dark.png');
+  }
+}
+
+/* Logo above the login card */
+#kc-header-wrapper {
+  background: url('../img/logo-light.png') center / contain no-repeat;
+  height: 64px;
+  text-indent: -9999px;
+  overflow: hidden;
+}
+
+@media (prefers-color-scheme: dark) {
+  #kc-header-wrapper {
+    background-image: url('../img/logo-dark.png');
+  }
+}
+
+/* Frosted glass card over background */
+.login-pf-page .card-pf {
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  background-color: rgba(255, 255, 255, 0.85);
+  border-top-color: #A47FA7;
+}
+
+/* Primary button */
+.login-pf-page .btn-primary,
+.login-pf-page .pf-c-button.pf-m-primary {
+  background-color: #A47FA7;
+  border-color: #A47FA7;
+}
+
+.login-pf-page .btn-primary:hover,
+.login-pf-page .btn-primary:focus,
+.login-pf-page .pf-c-button.pf-m-primary:hover,
+.login-pf-page .pf-c-button.pf-m-primary:focus {
+  background-color: #8e6991;
+  border-color: #8e6991;
+}
+
+@media (prefers-color-scheme: dark) {
+  .login-pf-page .card-pf {
+    background-color: rgba(20, 20, 30, 0.85);
+  }
+
+  .login-pf-page .card-pf h1#kc-page-title,
+  .login-pf-page .card-pf label,
+  .login-pf-page .card-pf .control-label {
+    color: #EBECDF;
+  }
+}

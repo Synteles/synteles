@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+
+# uv — lock file is committed; cache is not
+.uv/
+
+# Type checker
+.mypy_cache/
+
+# Linter / formatter
+.ruff_cache/
+
+# Tests
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# Local env overrides
+.env
+*.env

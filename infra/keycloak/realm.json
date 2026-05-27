@@ -1,0 +1,69 @@
+{
+  "realm": "synteles",
+  "displayName": "Synteles",
+  "enabled": true,
+  "loginTheme": "synteles",
+  "accessTokenLifespan": 300,
+  "ssoSessionMaxLifespan": 36000,
+  "ssoSessionIdleTimeout": 1800,
+  "clients": [
+    {
+      "clientId": "synteles-app",
+      "name": "Synteles Console",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "synteles-dev-secret",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3000/login"
+      },
+      "redirectUris": [
+        "http://localhost:3000/callback"
+      ],
+      "webOrigins": [
+        "http://localhost:3000"
+      ],
+      "protocolMappers": [
+        {
+          "name": "org_id-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "org_id",
+            "claim.name": "org_id",
+            "jsonType.label": "String",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "synteles-provisioner",
+      "name": "Synteles Provisioner",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "provisioner-dev-secret",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true
+    }
+  ],
+  "roles": {
+    "realm": [],
+    "client": {}
+  },
+  "groups": [],
+  "users": [],
+  "scopeMappings": [],
+  "clientScopeMappings": {}
+}

@@ -1,0 +1,578 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://synteles.dev/schemas/agentlet/v1/agentlet-schema.json",
+  "title": "AgentletConfig",
+  "description": "Complete configuration schema for a Synteles Agentlet. The `secrets` field is platform-only and silently ignored by agentlet-core — secrets are injected into the process environment before startup.",
+  "type": "object",
+  "required": ["agentlet", "system_prompt", "model"],
+  "additionalProperties": true,
+
+  "$defs": {
+
+    "RetryConfig": {
+      "title": "RetryConfig",
+      "description": "Retry configuration for handling transient LLM API errors.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_retries": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 5,
+          "description": "Maximum number of retry attempts."
+        },
+        "initial_retry_interval": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 30.0,
+          "description": "Initial retry wait in seconds. Subsequent waits grow by backoff_factor."
+        },
+        "backoff_factor": {
+          "type": "number",
+          "exclusiveMinimum": 1.0,
+          "default": 2.0,
+          "description": "Exponential backoff multiplier. Each retry interval = previous × backoff_factor."
+        },
+        "max_retry_interval": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 300.0,
+          "description": "Maximum retry wait in seconds. Caps exponential growth."
+        },
+        "retry_on_errors": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [
+            "RateLimitError",
+            "EventLoopException",
+            "APIConnectionError",
+            "APITimeoutError",
+            "litellm.RateLimitError"
+          ],
+          "description": "Error class names that trigger a retry. Add custom types as needed."
+        }
+      }
+    },
+
+    "ModelConfig": {
+      "title": "ModelConfig",
+      "description": "LLM model provider and parameters. Model ID is passed to LiteLLM as `{provider}/{model_id}`.",
+      "type": "object",
+      "required": ["provider", "model_id"],
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "type": "string",
+          "description": "LiteLLM provider name (e.g. 'bedrock', 'anthropic', 'openai', 'azure', 'vertex_ai'). See https://docs.litellm.ai/docs/providers"
+        },
+        "model_id": {
+          "type": "string",
+          "description": "Provider-specific model identifier (e.g. 'claude-sonnet-4-5', 'gpt-4o', 'your-azure-deployment')."
+        },
+        "parameters": {
+          "type": "object",
+          "default": {},
+          "description": "Model-specific parameters passed directly to the LLM API (e.g. temperature, top_p, top_k, max_tokens, stop_sequences).",
+          "additionalProperties": true
+        },
+        "retry": {
+          "$ref": "#/$defs/RetryConfig",
+          "description": "Retry configuration for this model."
+        }
+      }
+    },
+
+    "ToolFilters": {
+      "title": "ToolFilters",
+      "description": "Controls which tools from an MCP server are exposed. 'allowed' and 'rejected' are mutually exclusive.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allowed": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Whitelist — only these tool names are loaded. Mutually exclusive with 'rejected'."
+        },
+        "rejected": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Blacklist — these tool names are excluded. Mutually exclusive with 'allowed'."
+        }
+      }
+    },
+
+    "MCPToolConfig": {
+      "title": "MCPToolConfig",
+      "description": "Model Context Protocol tool server configuration. Transport type determines which fields are required.",
+      "type": "object",
+      "required": ["name", "server"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$",
+          "description": "Identifier for this MCP server (used in logs and error messages). Must start with a letter or digit; may contain letters, digits, underscores, and hyphens; max 128 chars."
+        },
+        "server": {
+          "type": "string",
+          "enum": ["stdio", "http", "sse"],
+          "description": "Transport type. 'stdio' launches a subprocess; 'http' uses streamable HTTP; 'sse' uses Server-Sent Events."
+        },
+        "command": {
+          "type": "string",
+          "description": "Executable to launch (required when server='stdio'). Example: 'npx'."
+        },
+        "args": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Arguments passed to the command (stdio only). Example: ['-y', '@modelcontextprotocol/server-filesystem']."
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Server URL (required when server='http' or 'sse'). Supports ${VAR} expansion."
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "default": {},
+          "description": "HTTP headers sent with requests (http only). Not supported for sse."
+        },
+        "api_key_env": {
+          "type": "string",
+          "description": "Name of the environment variable holding the API key. Added as 'Authorization: Bearer <value>' if no Authorization header is present. Ignored for sse."
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "default": {},
+          "description": "Environment variables injected into the subprocess (stdio only). ${WORK_DIR} expands to the working directory."
+        },
+        "prefix": {
+          "type": "string",
+          "pattern": "^[a-zA-Z_][a-zA-Z0-9_]{0,127}$",
+          "description": "String prepended to all tool names from this server to prevent conflicts (e.g. prefix='fs' turns 'read_file' into 'fs_read_file'). Must be a valid Python identifier (letters/digits/underscores, no leading digit, no hyphens, max 128 chars) — the combined name is registered as a callable in Strands."
+        },
+        "tool_filters": {
+          "$ref": "#/$defs/ToolFilters",
+          "description": "Filter which tools from this server are loaded."
+        }
+      },
+      "if": { "properties": { "server": { "const": "stdio" } } },
+      "then": { "required": ["command"] },
+      "else": { "required": ["url"] }
+    },
+
+    "OutputConfig": {
+      "title": "OutputConfig",
+      "description": "Controls what agentlet-core renders to the console during execution.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": ["markdown", "json", "text"],
+          "default": "markdown",
+          "description": "Output rendering format. Can be overridden with --output-format."
+        },
+        "show_messages": {
+          "type": "boolean",
+          "default": true,
+          "description": "Print full assistant message text each turn. When false, only metadata and tool calls are shown."
+        },
+        "show_reasoning": {
+          "type": "boolean",
+          "default": true,
+          "description": "Print extended thinking / reasoning blocks when the model supports them."
+        },
+        "show_tool_calls": {
+          "type": "boolean",
+          "default": true,
+          "description": "Print tool invocations and their results."
+        },
+        "show_turn_boundaries": {
+          "type": "boolean",
+          "default": false,
+          "description": "Print visual separators between conversation turns. Useful for debugging multi-turn interactions."
+        }
+      }
+    },
+
+    "SubAgentletOutputConfig": {
+      "title": "SubAgentletOutputConfig",
+      "description": "Output display options for a sub-agentlet. All default to false (silent) — the orchestrator's own output is shown instead.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "show_messages": {
+          "type": "boolean",
+          "default": false,
+          "description": "Print this sub-agentlet's response text inline."
+        },
+        "show_reasoning": {
+          "type": "boolean",
+          "default": false,
+          "description": "Print this sub-agentlet's reasoning blocks inline."
+        },
+        "show_tool_calls": {
+          "type": "boolean",
+          "default": false,
+          "description": "Print this sub-agentlet's tool invocations inline."
+        }
+      }
+    },
+
+    "SubAgentletConfig": {
+      "title": "SubAgentletConfig",
+      "description": "Inline sub-agentlet that the orchestrator's LLM can call as a tool. Runs in-process — no subprocess or IPC overhead. Cannot have nested sub_agentlets.",
+      "type": "object",
+      "required": ["name", "description", "system_prompt"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-zA-Z_][a-zA-Z0-9_]{0,127}$",
+          "description": "Tool name exposed to the orchestrator. Must be unique across all sub-agentlets and other tools. Must be a valid Python identifier (letters/digits/underscores, no leading digit, no hyphens, max 128 chars) — agentlet-core registers it as a callable."
+        },
+        "description": {
+          "type": "string",
+          "description": "Tool docstring the orchestrator LLM reads when deciding which sub-agentlet to call. Be specific — start with a verb ('Searches…', 'Transforms…')."
+        },
+        "system_prompt": {
+          "type": "string",
+          "description": "Specialisation instructions for this sub-agentlet."
+        },
+        "model": {
+          "$ref": "#/$defs/ModelConfig",
+          "description": "Model override. Inherits the orchestrator's model when absent."
+        },
+        "tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "strands_tools module names to load (e.g. 'shell', 'editor', 'http_request')."
+        },
+        "mcp_tools": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/MCPToolConfig" },
+          "default": [],
+          "description": "MCP tool servers for this sub-agentlet. Same schema as top-level mcp_tools."
+        },
+        "output": {
+          "$ref": "#/$defs/SubAgentletOutputConfig",
+          "description": "Display options for this sub-agentlet's execution (all default false)."
+        }
+      }
+    },
+
+    "SwarmParticipantConfig": {
+      "title": "SwarmParticipantConfig",
+      "description": "One agent type in a swarm panel. When count > 1, multiple named instances are created: {name}_1, {name}_2, …",
+      "type": "object",
+      "required": ["name", "description", "system_prompt"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-zA-Z_][a-zA-Z0-9_]{0,127}$",
+          "description": "Base name for this agent type. Used as-is when count=1; gets _N suffix when count>1 (e.g. solutions_architect_1). Must be a valid Python identifier (letters/digits/underscores, no leading digit, no hyphens, max 128 chars) — expanded node names must also be valid identifiers."
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Number of identical instances to create. count=1 → name unchanged; count>1 → name_1, name_2, …"
+        },
+        "description": {
+          "type": "string",
+          "description": "Shown to peer agents so they know when to hand off to this type. Be specific."
+        },
+        "system_prompt": {
+          "type": "string",
+          "description": "Specialisation instructions for this agent type."
+        },
+        "model": {
+          "$ref": "#/$defs/ModelConfig",
+          "description": "Model override for this participant. Inherits top-level model when absent."
+        },
+        "tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "strands_tools module names to load (e.g. 'shell', 'http_request', 'tavily')."
+        },
+        "mcp_tools": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/MCPToolConfig" },
+          "default": [],
+          "description": "MCP tool servers for this participant. Same schema as top-level mcp_tools."
+        }
+      }
+    },
+
+    "SwarmConfig": {
+      "title": "SwarmConfig",
+      "description": "Declarative swarm configuration. When present, the agentlet runs as a strands.multiagent.Swarm — agents hand off peer-to-peer with no central coordinator. MUTUALLY EXCLUSIVE with sub_agentlets — setting both raises a ValidationError at config load time.",
+      "type": "object",
+      "required": ["participants"],
+      "additionalProperties": false,
+      "properties": {
+        "participants": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/SwarmParticipantConfig" },
+          "minItems": 1,
+          "description": "Agent types in the panel. At least one required."
+        },
+        "entry_point": {
+          "type": "string",
+          "description": "Base name of the participant that receives the initial prompt. Must match a participant name (not the expanded _N name). Defaults to the first participant's first instance."
+        },
+        "max_handoffs": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 20,
+          "description": "Maximum total handoffs before the swarm halts."
+        },
+        "max_iterations": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 20,
+          "description": "Maximum total agent iterations."
+        },
+        "execution_timeout": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 900.0,
+          "description": "Total swarm wall-clock limit in seconds, enforced by the Strands SDK (default: 900). Set swarm timeouts here in the YAML — NOT via --timeout. The --timeout CLI flag (resource_limits.max_execution_time) is an independent outer process ceiling and should be set to match or exceed this value."
+        },
+        "node_timeout": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 300.0,
+          "description": "Per-agent turn limit in seconds, enforced by the Strands SDK (default: 300). Prevents one agent from blocking the panel indefinitely."
+        },
+        "repetitive_handoff_detection_window": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Sliding window size for handoff loop detection. 0 = disabled (Strands SDK default)."
+        },
+        "repetitive_handoff_min_unique_agents": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Minimum unique agents required within the detection window. 0 = disabled (Strands SDK default)."
+        }
+      }
+    },
+
+    "ResourceLimits": {
+      "title": "ResourceLimits",
+      "description": "Execution constraints to prevent runaway token costs and tool loops. Timeout model: singleton/sub-agentlet — do NOT set max_execution_time in YAML; use --timeout at launch time instead. Swarm — use swarm.execution_timeout and swarm.node_timeout (Strands SDK-enforced); --timeout remains an independent outer process ceiling.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_execution_time": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 300,
+          "description": "Process-level execution ceiling in seconds, applied by asyncio.wait_for() in the CLI. For singleton/sub-agentlet runs, set this via --timeout at launch — do NOT add it to the YAML config. For swarm runs, set swarm.execution_timeout instead; this field acts as an outer ceiling above the swarm's own timeouts."
+        },
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 10000,
+          "description": "Maximum LLM token budget (input + output). Overridable with --max-tokens."
+        },
+        "max_tool_calls": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 20,
+          "description": "Maximum number of tool invocations per run. Prevents infinite tool loops."
+        }
+      }
+    },
+
+    "OTELConfig": {
+      "title": "OTELConfig",
+      "description": "OpenTelemetry configuration for trace and metrics export.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable OTLP trace export. Overridable with --otel-enabled."
+        },
+        "otlp_endpoint": {
+          "type": "string",
+          "format": "uri",
+          "description": "Base OTLP endpoint URL. Used as fallback when signal-specific endpoints are absent. Defaults to OTEL_EXPORTER_OTLP_ENDPOINT env var or the OpenTelemetry SDK default. Overridable with --otlp-endpoint."
+        },
+        "otlp_traces_endpoint": {
+          "type": "string",
+          "format": "uri",
+          "description": "OTLP endpoint for traces. Overrides otlp_endpoint for traces. Overridable with --otlp-traces-endpoint."
+        },
+        "otlp_metrics_endpoint": {
+          "type": "string",
+          "format": "uri",
+          "description": "OTLP endpoint for metrics. Overrides otlp_endpoint for metrics. Overridable with --otlp-metrics-endpoint."
+        },
+        "otlp_headers": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "default": {},
+          "description": "HTTP headers sent with every OTLP request (e.g. authentication). Also readable from OTEL_EXPORTER_OTLP_HEADERS."
+        },
+        "console_exporter": {
+          "type": "boolean",
+          "default": false,
+          "description": "Print trace spans to stdout for local debugging. Overridable with --otel-console."
+        },
+        "sampler": {
+          "type": "string",
+          "enum": ["always_on", "always_off", "traceidratio", "parentbased_always_on"],
+          "description": "Trace sampler strategy. Also readable from OTEL_TRACES_SAMPLER."
+        },
+        "sampler_arg": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Argument for the sampler. For 'traceidratio': fraction of traces to export (0.0–1.0). Also readable from OTEL_TRACES_SAMPLER_ARG."
+        },
+        "enable_metrics": {
+          "type": "boolean",
+          "default": false,
+          "description": "Export metrics in addition to traces."
+        },
+        "trace_attributes": {
+          "type": "object",
+          "default": {},
+          "description": "Custom key-value attributes added to every trace span (e.g. environment, service.name, deployment).",
+          "additionalProperties": true
+        }
+      }
+    },
+
+    "ObservabilityConfig": {
+      "title": "ObservabilityConfig",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "otel": {
+          "$ref": "#/$defs/OTELConfig"
+        }
+      }
+    },
+
+    "AgentletMetadata": {
+      "title": "AgentletMetadata",
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$",
+          "description": "Agentlet name. Must start with a letter or digit; may contain letters, digits, underscores, and hyphens; max 128 chars."
+        },
+        "version": {
+          "type": "string",
+          "default": "1.0.0",
+          "description": "Agentlet version string."
+        }
+      }
+    }
+
+  },
+
+  "properties": {
+
+    "secrets": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Platform-only. List of secret names owned by this agentlet's creator. The Synteles Platform resolves each name relative to the owner's UserId and injects the values into the process environment before startup. agentlet-core itself ignores this field."
+    },
+
+    "agentlet": {
+      "$ref": "#/$defs/AgentletMetadata",
+      "description": "Agentlet identity metadata (required)."
+    },
+
+    "prompt": {
+      "type": "string",
+      "description": "Default user prompt. Overridable with --prompt. Required either here or on the command line."
+    },
+
+    "system_prompt": {
+      "type": "string",
+      "description": "System instructions sent to the LLM. Defines the agentlet's behaviour, persona, and capabilities (required)."
+    },
+
+    "model": {
+      "$ref": "#/$defs/ModelConfig",
+      "description": "LLM provider and model settings (required)."
+    },
+
+    "tools": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "strands_tools module names to load lazily (e.g. 'shell', 'editor', 'file_read', 'file_write', 'http_request', 'tavily', 'python_repl', 'calculator', 'environment', 'current_time', 'use_computer', 'use_llm', 'think', 'workflow', 'batch', 'swarm'). BYPASS_TOOL_CONSENT=true is set automatically."
+    },
+
+    "mcp_tools": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/MCPToolConfig" },
+      "default": [],
+      "description": "MCP tool server definitions. Supports stdio, HTTP, and SSE transports."
+    },
+
+    "sub_agentlets": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/SubAgentletConfig" },
+      "default": [],
+      "description": "Inline sub-agentlets exposed as tools to this orchestrator agentlet. Each runs in-process as a Strands tool the orchestrator LLM calls by name. MUTUALLY EXCLUSIVE with 'swarm' — setting both raises a ValidationError. Note: the 'combined' swarm mode (swarm block + 'swarm' in tools list) is not an exception; it still uses no sub_agentlets."
+    },
+
+    "swarm": {
+      "$ref": "#/$defs/SwarmConfig",
+      "description": "Declarative swarm configuration. When set, the agentlet runs as a strands.multiagent.Swarm — agents hand off peer-to-peer with no central coordinator. MUTUALLY EXCLUSIVE with 'sub_agentlets' — setting both raises a ValidationError. The 'combined' mode (swarm block + 'swarm' in tools list) allows a pre-defined panel where one participant can spawn ad-hoc sub-swarms dynamically; it does not involve sub_agentlets."
+    },
+
+    "resource_limits": {
+      "$ref": "#/$defs/ResourceLimits",
+      "description": "Execution constraints."
+    },
+
+    "output": {
+      "$ref": "#/$defs/OutputConfig",
+      "description": "Console output display options."
+    },
+
+    "observability": {
+      "$ref": "#/$defs/ObservabilityConfig",
+      "description": "OpenTelemetry observability configuration."
+    }
+
+  },
+
+  "if": {
+    "required": ["swarm"],
+    "properties": {
+      "swarm": { "not": { "type": "null" } }
+    }
+  },
+  "then": {
+    "properties": {
+      "sub_agentlets": {
+        "type": "array",
+        "maxItems": 0,
+        "description": "Cannot be non-empty when 'swarm' is set — these patterns are mutually exclusive."
+      }
+    }
+  }
+}

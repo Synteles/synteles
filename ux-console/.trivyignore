@@ -1,0 +1,6 @@
+# CVE-2026-33671 — picomatch ReDoS in npm's own bundled node_modules
+# Affected path: /usr/local/lib/node_modules/npm/node_modules/picomatch
+# This is part of the npm binary shipped with node:22-alpine, not our app code.
+# Our pnpm workspace already pins picomatch@4.0.4 (the fixed version).
+# Will auto-resolve when the base image ships npm with picomatch>=4.0.4.
+CVE-2026-33671

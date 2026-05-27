@@ -1,0 +1,53 @@
+Synteles
+Copyright 2026 Emin Askerov
+
+This product includes software developed by the Synteles project.
+The Synteles source code is licensed under the Apache License, Version 2.0.
+See the LICENSE file for the full license text.
+
+The Synteles name, logo, and related brand assets are not licensed under
+the Apache License, Version 2.0. See TRADEMARKS.md for details.
+
+---
+
+This product includes or depends upon the following third-party software
+distributed under the Apache License, Version 2.0, whose NOTICE files
+are reproduced below as required by Section 4(d) of that license.
+
+---
+
+AWS SDK for Python (Boto3)
+Copyright 2013-2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+https://github.com/boto/boto3
+
+Botocore
+Copyright 2012-2022 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+https://github.com/boto/botocore
+
+AWS Strands Agents SDK
+Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+https://github.com/strands-agents/sdk-python
+
+Docker SDK for Python (docker-py)
+Copyright 2016 Docker, Inc.
+https://github.com/docker/docker-py
+
+Requests
+Copyright 2019 Kenneth Reitz
+https://github.com/psf/requests
+
+asyncpg
+Copyright (C) 2016-present MagicStack Inc. and asyncpg authors.
+https://github.com/MagicStack/asyncpg
+
+cryptography
+Copyright (c) Individual contributors.
+https://github.com/pyca/cryptography
+
+class-variance-authority
+Copyright 2022 Joe Bell
+https://github.com/joe-bell/cva
+
+TypeScript
+Copyright (c) Microsoft Corporation.
+https://github.com/microsoft/TypeScript

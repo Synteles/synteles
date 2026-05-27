@@ -1,0 +1,164 @@
+@import "tailwindcss";
+@config "../tailwind.config.ts";
+
+/* ── LIGHT ── */
+:root,
+[data-theme='light'] {
+  --radius:           0.5rem;
+  --bg:               #EBECDF;
+  --surface:          #F2F1E8;
+  --card:             #FAFAF6;
+  --card-hover:       #F5F4EE;
+
+  --sidebar-bg:       #E4E3D4;
+  --sidebar-hover:    #D9D8C8;
+  --sidebar-active:   #CFCEBB;
+  --sidebar-border:   #D6D5C4;
+
+  --text:             #393840;
+  --text-2:           #55535E;
+  --text-muted:       #8A8894;
+  --text-faint:       #C0BDC8;
+  --text-inv:         #393840;
+  --text-inv-2:       #55535E;
+  --text-inv-muted:   #8A8894;
+
+  --accent:           #A47FA7;
+  --accent-hover:     #906C93;
+  --accent-light:     #F2EBF3;
+  --accent-border:    rgba(164,127,167,0.28);
+  --accent-focus:     rgba(164,127,167,0.60);
+  --accent-muted:     rgba(164,127,167,0.40);
+
+  --border:           #DDDCD0;
+  --border-2:         #CCCBBE;
+
+  --running:          #5C8FBF;
+  --running-bg:       #EDF3FA;
+  --running-border:   rgba(92,143,191,0.30);
+  --success:          #5C9E6E;
+  --success-bg:       #EDF5F0;
+  --success-border:   rgba(92,158,110,0.30);
+  --error:            #BF5C5C;
+  --error-bg:         #FAF0F0;
+  --error-border:     rgba(191,92,92,0.30);
+  --error-focus:      rgba(191,92,92,0.60);
+
+  --shadow-sm:        0 1px 3px rgba(57,56,64,.06), 0 1px 2px rgba(57,56,64,.04);
+  --shadow-md:        0 4px 12px rgba(57,56,64,.08), 0 2px 4px rgba(57,56,64,.04);
+  --shadow-lg:        0 8px 24px rgba(57,56,64,.10);
+  --shadow-xl:        0 16px 48px rgba(57,56,64,.14);
+}
+
+/* ── DARK ── */
+[data-theme='dark'] {
+  --radius:           0.5rem;
+  --bg:               #1A1920;
+  --surface:          #222030;
+  --card:             #2A2838;
+  --card-hover:       #312F42;
+
+  --sidebar-bg:       #100F18;
+  --sidebar-hover:    #1D1B2A;
+  --sidebar-active:   #282540;
+  --sidebar-border:   #1E1C2C;
+
+  --text:             #EBECDF;
+  --text-2:           #C8C6D4;
+  --text-muted:       #8A8898;
+  --text-faint:       #48465C;
+  --text-inv:         #EBECDF;
+  --text-inv-2:       #C8C6D4;
+  --text-inv-muted:   #8A8898;
+
+  --accent:           #A47FA7;
+  --accent-hover:     #B890BB;
+  --accent-light:     #251E32;
+  --accent-border:    rgba(164,127,167,0.22);
+  --accent-focus:     rgba(164,127,167,0.55);
+  --accent-muted:     rgba(164,127,167,0.35);
+
+  --border:           #333148;
+  --border-2:         #3E3C52;
+
+  --running:          #6B9FD0;
+  --running-bg:       #1A2535;
+  --running-border:   rgba(107,159,208,0.30);
+  --success:          #6BAE7E;
+  --success-bg:       #1A2820;
+  --success-border:   rgba(107,174,126,0.30);
+  --error:            #CF7575;
+  --error-bg:         #2E1A1A;
+  --error-border:     rgba(207,117,117,0.30);
+  --error-focus:      rgba(207,117,117,0.55);
+
+  --shadow-sm:        0 1px 3px rgba(0,0,0,.20), 0 1px 2px rgba(0,0,0,.15);
+  --shadow-md:        0 4px 12px rgba(0,0,0,.25), 0 2px 4px rgba(0,0,0,.15);
+  --shadow-lg:        0 8px 24px rgba(0,0,0,.30);
+  --shadow-xl:        0 16px 48px rgba(0,0,0,.40);
+}
+
+@layer base {
+  html, body {
+    height: 100%;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    transition: background-color 0.2s, color 0.2s;
+  }
+
+  * {
+    @apply border-[var(--border)];
+  }
+}
+
+@keyframes gradient-ring-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@layer utilities {
+  /* !important overrides Tailwind preflight's prefers-reduced-motion:reduce rule
+     which would otherwise clamp iteration-count to 1 and freeze the ring after
+     the first cycle. The ring is a functional status indicator, not decoration. */
+  .animate-gradient-ring-spin {
+    animation: gradient-ring-spin 2s linear infinite !important;
+  }
+}
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-2) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar { width: 4px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: var(--border-2);
+    border-radius: 2px;
+  }
+}
+
+/* Code block scrollbar — always visible on hover, hidden when idle */
+pre {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.2s;
+}
+pre:hover {
+  scrollbar-color: var(--border-2) transparent;
+}
+pre::-webkit-scrollbar {
+  height: 4px;
+}
+pre::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 2px;
+  transition: background 0.2s;
+}
+pre:hover::-webkit-scrollbar-thumb {
+  background: var(--border-2);
+}

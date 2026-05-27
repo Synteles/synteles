@@ -1,0 +1,44 @@
+# Version control
+.git/
+.gitignore
+
+# Virtual environments — Docker installs deps via uv sync
+.venv/
+venv/
+
+# uv cache
+.uv/
+
+# Tests — not needed at runtime
+tests/
+
+# Dev tool caches
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Coverage reports
+.coverage
+coverage.xml
+htmlcov/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Dev tooling
+Makefile
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Local env overrides — secrets must come from env at runtime
+.env
+*.env
+
+# CI / documentation
+*.md
+.github/
