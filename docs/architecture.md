@@ -8,7 +8,7 @@ Synteles is committed to principle of open, pluggable and extensible architectur
 
 | Service | Technology | Responsibility |
 |---|---|---|
-| **core-service** | FastAPI (Python) | Primary REST API: agentlets, users, secrets, files, org management |
+| **core-service** | FastAPI (Python) | Primary REST API: agentlets, users, orgs, API keys, secrets, files, connectors, conversations, model presets |
 | **scheduler-service** | FastAPI (Python) | Execution engine: launches and monitors agentlet containers |
 | **synte-service** | FastAPI (Python) | AI chat assistant (Synte) conversational interface powered by LiteLLM and Strands Agents ADK |
 | **ux-console** | Next.js (TypeScript) | Web frontend: App Router, Tailwind CSS, shadcn/ui |
@@ -27,7 +27,7 @@ Synteles is designed to be portable. Depending on environment where it is deploy
 
 ## Architecture Diagram
 
-```mermaid
+```mermaid 
 graph TB
     User["User"]
 
@@ -67,7 +67,8 @@ graph TB
     UX -->|"/chat/stream"| Synte
     Traefik --> Core
     Traefik --> Scheduler
-    Traefik -->|"api-auth"| KC
+    Traefik -->|"/auth"| KC
+    Core -->|"ForwardAuth / JWKS"| KC
     Synte -->|"/api"| Traefik
     Core --> PG
     Core --> Minio
@@ -83,10 +84,10 @@ graph TB
 
 1. The browser opens the **ux-console** at `:3000` and authenticates via **Keycloak** (OIDC Authorization Code + PKCE).
 2. API calls from the UI flow through **Traefik** (`:8080`), which routes traffic to the appropriate backend service and validates JWT tokens.
-3. **core-service** handles all agentlet lifecycle operations and persists state in **PostgreSQL**. Uploaded files are stored in **MinIO**.
+3. **core-service** handles all agentlet lifecycle operations and persists state in **PostgreSQL**. Uploaded files and conversation blobs are stored in **MinIO**.
 4. When an agentlet execution is triggered, **scheduler-service** launches a dedicated **agentlet container**, monitors it until completion, and uploads execution logs and output artifacts to **MinIO**.
-5. Agentlet containers call **LLM providers** (via LiteLLM) and optional tools such as web search (Tavily).
-6. **synte-service** powers the Synte chat interface, also routing through LiteLLM for model-agnostic access.
+5. Agentlets call **LLM providers** (via LiteLLM).
+6. **synte-service** powers the Synte chat interface, routing through LiteLLM for model-agnostic access.
 
 ## Scheduler Pluggable Backend Architecture
 
