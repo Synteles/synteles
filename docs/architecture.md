@@ -1,6 +1,6 @@
 # Architecture
 
-Synteles is a multi-service platform for AI workers and enterprise workflows. This document gives a high-level overview of the system structure.
+This document gives a high-level overview of the system design.
 
 Synteles is committed to principle of open, pluggable and extensible architecture.
 
@@ -8,22 +8,22 @@ Synteles is committed to principle of open, pluggable and extensible architectur
 
 | Service | Technology | Responsibility |
 |---|---|---|
-| **core-service** | FastAPI (Python) | Primary REST API — agentlets, users, secrets, files, org management |
-| **scheduler-service** | FastAPI (Python) | Execution engine — launches and monitors agentlet containers |
-| **synte-service** | FastAPI (Python) | AI chat assistant — conversational interface powered by LiteLLM and Strands Agents ADK |
-| **ux-console** | Next.js (TypeScript) | Web frontend — App Router, Tailwind CSS, shadcn/ui |
+| **core-service** | FastAPI (Python) | Primary REST API: agentlets, users, secrets, files, org management |
+| **scheduler-service** | FastAPI (Python) | Execution engine: launches and monitors agentlet containers |
+| **synte-service** | FastAPI (Python) | AI chat assistant (Synte) conversational interface powered by LiteLLM and Strands Agents ADK |
+| **ux-console** | Next.js (TypeScript) | Web frontend: App Router, Tailwind CSS, shadcn/ui |
 | **platform-db** | Python library | Shared SQLAlchemy models and Alembic migrations, used by core and scheduler |
 
 ## Infrastructure
 
-Synteles is designed to be portable. Depending on environment where it is deployed, components below can be deployed as managed services self-operated components.
+Synteles is designed to be portable. Depending on environment where it is deployed, components below can be represented as managed services or self-operated components.
 
 | Component | Role |
 |---|---|
-| **Traefik** | API gateway and reverse proxy — single entry point for all API traffic |
+| **Traefik** | API gateway and reverse proxy is a single entry point for all API traffic |
 | **Keycloak** | Identity provider/Identity broker OIDC-based authentication and authorization |
-| **PostgreSQL** | Primary relational database — agentlets, users, workflow state, secrets |
-| **MinIO** | S3-compatible object storage — uploaded files, execution artifacts, conversation blobs |
+| **PostgreSQL** | Platform database to store agentlets, users, workflow state, secrets data |
+| **MinIO** | S3-compatible object storage to store uploaded files, execution artifacts, conversation blobs |
 
 ## Architecture Diagram
 
@@ -51,7 +51,7 @@ graph TB
 
         KC["Identity Provider/Broker </br> (Keycloak)"]
         
-        subgraph EE["Agentlet Execution Environment"]
+        subgraph EE["Agentlet Execution Environment (K8S/Docker/Custom)"]
             Agentlet1["Agentlet1 (Container)"]
             AgentletN["AgentletN (Container)"]
         end
@@ -87,6 +87,29 @@ graph TB
 4. When an agentlet execution is triggered, **scheduler-service** launches a dedicated **agentlet container**, monitors it until completion, and uploads execution logs and output artifacts to **MinIO**.
 5. Agentlet containers call **LLM providers** (via LiteLLM) and optional tools such as web search (Tavily).
 6. **synte-service** powers the Synte chat interface, also routing through LiteLLM for model-agnostic access.
+
+## Scheduler Pluggable Backend Architecture
+
+The scheduler-service uses an abstract `ExecutionBackend` interface. The active backend is selected at startup via the `EXECUTION_BACKEND` environment variable — no code changes are required to switch runtimes.
+
+```mermaid
+flowchart TB
+    Scheduler["scheduler-service"]
+    Factory["get_backend() — factory\nreads EXECUTION_BACKEND env var"]
+    ABC["&lt;&lt;abstract&gt;&gt; ExecutionBackend\nsubmit() · status() · logs() · stop()"]
+
+    Docker["DockerBackend\n(available)"]
+    K8s["KubernetesBackend\n(planned)"]
+    Custom["CustomBackend\n(extensible)"]
+
+    Scheduler -->|"requests backend"| Factory
+    Factory -->|"returns"| ABC
+    ABC -.->|"implements"| Docker
+    ABC -.->|"implements"| K8s
+    ABC -.->|"implements"| Custom
+```
+
+`ExecutionBackend` is an abstract base class. The factory selects the concrete implementation at startup via `EXECUTION_BACKEND` — the scheduler only ever talks to the abstract interface, making new runtimes a drop-in addition.
 
 ## Identity and Authentication
 
