@@ -2,7 +2,7 @@
 
 **Open-source platform for AI workers and enterprise workflows.**
 
-Synteles is a platform for AI workers (agentlets) that execute workflows. Business users describe work in plain language and Synteles launches AI workers in minutes. Engineers integrate what works into existing systems via API/workflow definitions. Runs on public cloud, on-premise, or air-gapped infrastructure.
+Synteles is a platform for AI workers (agentlets) that execute workflows. Business users describe tasks in plain language and Synteles launches AI workers in minutes. Engineers integrate what works into existing systems via API/workflow definitions. Runs on public cloud, on-premise, or air-gapped infrastructure.
 
 ⚠️ **Early Development**: Synteles is pre-v1.0. APIs and definitions and deployment structure may change.
 
@@ -13,7 +13,6 @@ Synteles is a platform for AI workers (agentlets) that execute workflows. Busine
 ### Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) 24+ with Docker Compose v2
-- `openssl` (for generating a secret key — ships with macOS and most Linux distros)
 - ~4 GB free RAM for the full stack
 
 ### First-time setup
@@ -31,7 +30,7 @@ cd synteles
 bash install.sh
 ```
 
-This copies `.env.example` to `.env` and `config/platform.toml.example` to `config/platform.toml` (if they don't exist yet), and generates a `SECRET_ENCRYPTION_KEY` automatically.
+This walks you through selecting LLM providers, collecting credentials, and generates `.env` and `config/platform.toml`.
 
 **3. Start the stack**
 
@@ -44,9 +43,9 @@ Docker Compose will:
 - Start MinIO and create the required buckets
 - Start Keycloak and provision the realm, client, and default user
 - Start the core and scheduler API services
-- Start the web UI and API gateway (Traefik)
+- Start the web UI, synte service and API gateway (Traefik)
 
-First boot takes approximately 60–90 seconds while Keycloak initialises. You can watch progress with:
+First boot takes approximately 60–90 seconds while Keycloak initializes. You can watch progress with:
 
 ```bash
 docker compose logs -f
@@ -144,7 +143,7 @@ model_id    = "openai/gpt-4o"
 secret_name = "openai"
 ```
 
-`model_id` is a [LiteLLM-supported model string](https://docs.litellm.ai/docs/providers). `secret_name` references the matching `PLATFORM_SECRET_*` credential in `.env`. E.g. if secret_name is "openai", then PLATFORM_SECRET_OPENAI define the platform secret (see below the format of PLATFORM_SECRET_*).
+`model_id` is a [LiteLLM-supported model string](https://docs.litellm.ai/docs/providers). `secret_name` references the matching `PLATFORM_SECRET_*` credential in `.env`. E.g. if secret_name is "openai", then PLATFORM_SECRET_OPENAI defines the platform secret itself (see below the format of PLATFORM_SECRET_*).
 
 #### Web search (Tavily)
 
@@ -254,14 +253,13 @@ Not yet guaranteed:
 
 Planned areas of work include:
 
-- More example workflows
-- Connector framework improvements
-- Local model support
-- Enterprise deployment guides
+- Governance, identity and access management enhancements
+- Kubernetes deployment support (Helm charts) 
+- Connector framework expansion
+- Agentlet durable execution support
 - Security hardening
-- Workflow versioning
-- Better observability and traceability
-- SDK and API stabilization
+- Agentlet versioning
+- API stabilization
 
 The roadmap may change based on user feedback and maintainer capacity.
 
@@ -271,12 +269,13 @@ Contributions are welcome.
 
 Good first contribution areas include:
 
-- Documentation improvements
-- Example workflows
-- Connector examples
-- Tests
-- Developer experience improvements
 - Bug reports and reproducible issues
+- Governance, identity and access management capabilities
+- Kubernetes deployment support (Helm charts) 
+- Security hardening
+- Documentation improvements
+- Tests
+
 
 Please read:
 
