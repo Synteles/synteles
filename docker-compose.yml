@@ -138,8 +138,6 @@ services:
     env_file:
       - path: .env
         required: false
-      - path: .env.local
-        required: false
     environment:
       DATABASE_URL: postgresql+asyncpg://synteles:synteles@postgres:5432/synteles
       S3_ENDPOINT_URL: http://minio:9000
@@ -179,8 +177,6 @@ services:
     env_file:
       - path: .env
         required: false
-      - path: .env.local
-        required: false
     environment:
       DATABASE_URL: postgresql+asyncpg://synteles:synteles@postgres:5432/synteles
       S3_ENDPOINT_URL: http://minio:9000
@@ -217,8 +213,6 @@ services:
     env_file:
       - path: .env
         required: false
-      - path: .env.local
-        required: false
     environment:
       OIDC_ISSUER_URL: http://localhost:8080/auth/realms/synteles
       OIDC_JWKS_URL: http://keycloak:9090/auth/realms/synteles/protocol/openid-connect/certs
@@ -240,8 +234,6 @@ services:
       - "3000:3000"
     env_file:
       - path: .env
-        required: false
-      - path: .env.local
         required: false
     environment:
       OIDC_ISSUER_URL: http://keycloak:9090/auth/realms/synteles

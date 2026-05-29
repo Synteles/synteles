@@ -40,9 +40,7 @@ terraform.rc
 # Local environment files with secrets — never commit
 .env
 *.env
-.env.local
 !*.env.example
-!.env.local.example
 
 # Local platform config — customised per deployment, not committed
 config/platform.toml
