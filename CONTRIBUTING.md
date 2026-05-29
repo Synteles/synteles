@@ -80,26 +80,29 @@ A good proposal should explain:
 
 ## Development Setup
 
-Clone the repository:
+Clone the repository and run the setup script:
 
 ```bash
 git clone https://github.com/Synteles/synteles.git
 cd synteles
+bash install.sh
 ```
 
-Copy the example environment file:
+`install.sh` configures your LLM providers, generates `.env` and `config/platform.toml`, and pulls the agentlet image. Then start the stack:
 
 ```bash
-cp .env.example .env
+docker compose up -d
 ```
 
-Start the local environment:
+See the README for full setup details and a list of local URLs once the stack is running.
 
-```bash
-docker compose up
-```
+If the setup fails, please open an issue with:
 
-See the README and documentation in the `docs/` directory for detailed setup instructions.
+- Operating system
+- Docker version
+- Error logs
+- Steps to reproduce
+- Any local configuration differences
 
 If the setup fails, please open an issue with:
 

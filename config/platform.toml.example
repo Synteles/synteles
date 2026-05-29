@@ -3,7 +3,7 @@
 #
 # model_id   : LiteLLM model string (provider/model_id).
 #              Examples: azure_ai/gpt-5.3-chat  |  openai/gpt-4o  |  anthropic/claude-sonnet-4-6
-# secret_name: matches a PLATFORM_SECRET_<NAME> entry in .env.local that
+# secret_name: matches a PLATFORM_SECRET_<NAME> entry in .env that
 #              holds the provider credentials as a JSON object.
 
 [chat]
@@ -13,14 +13,14 @@ secret_name = "openai"
 # ── Platform default models ──────────────────────────────────────────────────
 # Models offered to all agentlets that declare `secrets: [default]` in their YAML.
 # Credentials are loaded at execution time from PLATFORM_SECRET_<secret_name>
-# defined in .env.local — no per-agentlet API key setup is needed.
+# defined in .env — no per-agentlet API key setup is needed.
 #
 # Fields:
 #   id                  — internal identifier (used in API responses)
 #   label               — display name shown in the platform UI
 #   provider            — LiteLLM provider prefix (azure_ai, openai, anthropic, bedrock, …)
 #   model_id            — provider-specific model name
-#   secret_name         — key of the PLATFORM_SECRET_* credential in .env.local
+#   secret_name         — key of the PLATFORM_SECRET_* credential in .env
 #   default_temperature — temperature used when the agentlet does not override it
 #   min_temperature     — optional lower bound enforced at execution time
 #   description         — shown to users in the model picker

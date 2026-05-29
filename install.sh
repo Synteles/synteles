@@ -43,7 +43,7 @@ print_banner() {
   printf "${BOLD}${CYAN}  │      Synteles  ·  Platform Setup       │${RESET}\n"
   printf "${BOLD}${CYAN}  └────────────────────────────────────────┘${RESET}\n"
   printf "\n"
-  dim  "Configures LLM providers, generates .env.local"
+  dim  "Configures LLM providers, generates .env"
   dim  "and config/platform.toml, then pulls the stack image."
   printf "\n"
 }
@@ -63,17 +63,10 @@ check_prereqs() {
   [ "$failed" -eq 0 ] || exit 1
 }
 
-# ─── Base .env setup ──────────────────────────────────────────────────────────
-setup_base_env() {
-  step "Base environment"
+# ─── Repo root check ──────────────────────────────────────────────────────────
+check_repo_root() {
   if [ ! -f .env.example ]; then
     die "Run this script from the repo root (can't find .env.example)"
-  fi
-  if [ ! -f .env ]; then
-    cp .env.example .env
-    ok "Created .env from .env.example"
-  else
-    ok ".env already exists"
   fi
 }
 
@@ -316,15 +309,15 @@ ask_tavily() {
   fi
 }
 
-# ─── .env.local generation ────────────────────────────────────────────────────
-generate_env_local() {
-  step ".env.local"
+# ─── .env generation ──────────────────────────────────────────────────────────
+generate_env() {
+  step ".env"
 
-  if [ -f .env.local ]; then
-    ask ".env.local already exists. Overwrite? [y/N]:"
+  if [ -f .env ]; then
+    ask ".env already exists. Overwrite? [y/N]:"
     read -r confirm
     if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-      warn "Skipping .env.local — using existing file"
+      warn "Skipping .env — using existing file"
       return
     fi
   fi
@@ -363,9 +356,9 @@ generate_env_local() {
     printf "KEYCLOAK_ADMIN_PASSWORD=admin\n"
     printf "OIDC_CLIENT_SECRET=synteles-dev-secret\n"
     printf "KEYCLOAK_PROVISIONER_CLIENT_SECRET=provisioner-dev-secret\n"
-  } > .env.local
+  } > .env
 
-  ok "Generated .env.local"
+  ok "Generated .env"
 }
 
 # ─── platform.toml generation ─────────────────────────────────────────────────
@@ -438,10 +431,10 @@ print_done() {
   printf "  Start the platform:\n\n"
   printf "    ${BOLD}docker compose up -d${RESET}\n\n"
   printf "  Files written:\n"
-  printf "    ${DIM}.env.local${RESET}            provider credentials & encryption key\n"
+  printf "    ${DIM}.env${RESET}                  provider credentials & encryption key\n"
   printf "    ${DIM}config/platform.toml${RESET}  model wiring\n"
   printf "\n"
-  printf "  ${YELLOW}Never commit .env.local — it contains secrets.${RESET}\n"
+  printf "  ${YELLOW}Never commit .env — it contains secrets.${RESET}\n"
   printf "\n"
 }
 
@@ -449,13 +442,13 @@ print_done() {
 main() {
   print_banner
   check_prereqs
-  setup_base_env
+  check_repo_root
   select_providers
   collect_credentials
   select_models
   select_chat_model
   ask_tavily
-  generate_env_local
+  generate_env
   generate_platform_toml
   pull_docker_image
   print_done
