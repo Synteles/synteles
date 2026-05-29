@@ -236,7 +236,6 @@ Planned areas of work include:
 
 - Governance, identity and access management enhancements
 - Kubernetes deployment support (Helm charts) 
-- Connector framework expansion
 - Agentlet durable execution support
 - Security hardening
 - Agentlet versioning
