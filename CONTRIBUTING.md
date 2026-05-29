@@ -136,16 +136,19 @@ git commit -s -m "Add document processing workflow example"
 
 ## Branch Naming
 
-Use short, descriptive branch names.
+Use short, descriptive branch names with a consistent prefix.
 
-Examples:
-
-```text
-feature/document-processing-example
-fix/workflow-retry-handling
-docs/quickstart-update
-test/connector-runtime
-```
+| Prefix | Use for | Example |
+|---|---|---|
+| `feature/` | New features or capabilities | `feature/document-processing-example` |
+| `fix/` | Bug fixes | `fix/workflow-retry-handling` |
+| `docs/` | Documentation changes only | `docs/quickstart-update` |
+| `test/` | Adding or improving tests | `test/connector-runtime` |
+| `refactor/` | Code restructuring without behavior change | `refactor/scheduler-error-handling` |
+| `chore/` | Maintenance — config, tooling, CI, scripts | `chore/update-docker-compose-healthchecks` |
+| `bump/` | Dependency or version bumps | `bump/litellm-1.50` |
+| `security/` | Security fixes or hardening | `security/sanitize-execution-logs` |
+| `perf/` | Performance improvements | `perf/agentlet-startup-time` |
 
 ## Commit Messages
 

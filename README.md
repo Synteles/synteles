@@ -2,7 +2,7 @@
 
 **Open-source platform for AI workers and enterprise workflows.**
 
-Synteles is a platform for AI workers (agentlets) that execute workflows. Business users describe tasks in plain language and Synteles launches AI workers in minutes. Engineers integrate what works into existing systems via API/workflow definitions. Runs on public cloud, on-premise, or air-gapped infrastructure.
+Synteles is a platform for AI workers (agentlets) that execute tasks and workflows. Business users can describe tasks in plain language and Synteles creates and launches AI workers in minutes. Engineers can customize created AI workers using YAML DSL and then integrate them into existing systems via REST APIs and connectors. Runs on public cloud, on-premise, or air-gapped infrastructure.
 
 ⚠️ **Early Development**: Synteles is pre-v1.0. APIs and definitions and deployment structure may change.
 
@@ -13,7 +13,7 @@ Synteles is a platform for AI workers (agentlets) that execute workflows. Busine
 ### Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) 24+ with Docker Compose v2
-- ~4 GB free RAM for the full stack
+- ~5 GB free RAM for the full stack
 
 ### First-time setup
 
@@ -143,7 +143,7 @@ model_id    = "openai/gpt-4o"
 secret_name = "openai"
 ```
 
-`model_id` is a [LiteLLM-supported model string](https://docs.litellm.ai/docs/providers). `secret_name` references the matching `PLATFORM_SECRET_*` credential in `.env`. E.g. if secret_name is "openai", then PLATFORM_SECRET_OPENAI defines the platform secret itself (see below the format of PLATFORM_SECRET_*).
+`model_id` is a [LiteLLM-supported model string](https://docs.litellm.ai/docs/providers). `secret_name` references the matching `PLATFORM_SECRET_*` credential in `.env`. E.g. if secret_name is `openai`, then `PLATFORM_SECRET_OPENAI` defines the platform secret itself (see below the format of `PLATFORM_SECRET_*`).
 
 #### Web search (Tavily)
 
@@ -197,16 +197,6 @@ Run all tests:
 uv run pytest
 ```
 
-## Example Workflows
-
-Example workflows are planned and will be added in a future release:
-
-- Hello AI worker
-- Document processing
-- Human approval flow
-- Lead qualification
-- Workflow traceability demo
-
 ## Repository Structure
 
 ```text
@@ -232,15 +222,6 @@ synteles/
 ## Project Status
 
 Synteles is in early development.
-
-Current focus:
-
-- Local `git clone` and `docker compose up` setup
-- AI worker creation and workflow execution
-- Human approval flows
-- Example connectors and workflow templates
-- Workflow traceability
-- Documentation and developer experience
 
 Not yet guaranteed:
 
