@@ -15,6 +15,7 @@ Contributions are welcome across code, documentation, examples, workflow templat
 - [Branch Naming](#branch-naming)
 - [Commit Messages](#commit-messages)
 - [Pull Request Guidelines](#pull-request-guidelines)
+- [CI Checks](#ci-checks)
 - [Coding Guidelines](#coding-guidelines)
 - [Documentation Guidelines](#documentation-guidelines)
 - [Testing Guidelines](#testing-guidelines)
@@ -125,8 +126,8 @@ If the setup fails, please open an issue with:
    make test    # run tests (pytest)
 
    # Frontend — run from ux-console/
-   npm run lint
-   npm test
+   pnpm lint
+   pnpm test
    ```
 
 8. Commit your changes with a sign-off.
@@ -212,6 +213,30 @@ How was this tested?
 
 Anything reviewers should pay attention to.
 ```
+
+## CI Checks
+
+Every pull request triggers automated checks that must pass before merging.
+
+**Quality checks** run for each affected service:
+
+| Check | Tool | Scope |
+|---|---|---|
+| Lint + format | Ruff | All Python services |
+| Type checking | Mypy (strict) | All Python services |
+| Security scan | Bandit | All Python services |
+| Unit tests | pytest | All Python services |
+| Lint | ESLint (Next.js) | `ux-console` |
+| Unit tests | Vitest | `ux-console` |
+| Build | Next.js | `ux-console` |
+
+**Security checks** also run on every PR:
+
+- **Dependency review** — blocks the PR if a newly introduced package has a known CVE
+- **Trivy filesystem scan** — scans dependency lockfiles for vulnerabilities; findings appear in the Security → Code scanning tab
+- **CodeQL** — static analysis of Python and TypeScript code for common vulnerability patterns (OWASP Top 10, injection flaws, unsafe APIs)
+
+If CI fails on your PR, check the failed job for details. Run `make check && make test` locally in the affected service directory, or `pnpm lint && pnpm test && pnpm build` in `ux-console/`, to reproduce failures before pushing a fix.
 
 ## Coding Guidelines
 
@@ -321,6 +346,8 @@ Security-related changes should consider:
 - Logging of sensitive data
 - Safe defaults
 - Dependency risk
+
+Automated security scanning runs on every PR and on a weekly schedule. See [CI Checks](#ci-checks) for details. If a scan flags a finding in your PR, address it or explain in the PR description why it is a false positive.
 
 Please report security vulnerabilities privately. Do not open public GitHub issues for vulnerabilities.
 
