@@ -104,14 +104,6 @@ If the setup fails, please open an issue with:
 - Steps to reproduce
 - Any local configuration differences
 
-If the setup fails, please open an issue with:
-
-- Operating system
-- Docker version
-- Error logs
-- Steps to reproduce
-- Any local configuration differences
-
 ## Contribution Workflow
 
 1. Fork the repository.
@@ -124,15 +116,29 @@ If the setup fails, please open an issue with:
 3. Make your changes.
 4. Add or update tests where relevant.
 5. Add or update documentation where relevant.
-6. Run local checks.
-7. Commit your changes with a sign-off.
-8. Open a pull request against `main`.
+6. Add a `CHANGELOG.md` entry under `[Unreleased]` for user-visible changes.
+7. Run local checks:
+
+   ```bash
+   # Python services — run from each affected service directory
+   make check   # lint (Ruff), type-check (Mypy), security scan (Bandit)
+   make test    # run tests (pytest)
+
+   # Frontend — run from ux-console/
+   npm run lint
+   npm test
+   ```
+
+8. Commit your changes with a sign-off.
+9. Open a pull request against `main`.
 
 Example:
 
 ```bash
 git commit -s -m "Add document processing workflow example"
 ```
+
+> **Tip:** If your change only affects a single service, you only need to run checks for that service.
 
 ## Branch Naming
 
@@ -256,10 +262,9 @@ When contributing documentation:
 If you add a feature, please consider whether it needs updates to:
 
 - `README.md`
-- `docs/quickstart.md`
-- `docs/configuration.md`
 - `docs/architecture.md`
-- `docs/security.md`
+- `docs/api-contracts.md`
+- `SECURITY.md`
 - Example workflows
 
 ## Testing Guidelines

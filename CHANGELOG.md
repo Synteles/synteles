@@ -14,7 +14,8 @@ Before `v1.0`, breaking changes may occur without a major version bump.
 
 ### Changed
 
-- None
+- Consolidated `.env.local` into `.env` — a single `.env` file now covers all configuration; `install.sh` no longer requires `openssl` (uses `/dev/urandom` via `od`) and overwrite prompts default to yes
+- Documentation accuracy improvements: fixed architecture diagram arrows and descriptions, corrected API contract bucket names and backend defaults, updated third-party copyright holders in `NOTICE` and `THIRD_PARTY_NOTICES.md`, and overhauled `CONTRIBUTING.md` (removed duplicate section, added local checks guidance, fixed broken doc references)
 
 ### Fixed
 
