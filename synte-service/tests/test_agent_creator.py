@@ -120,7 +120,7 @@ class TestAgentCreatorBasic:
 class TestAgentCreatorPlatformDefaultForcesSecret:
     def test_platform_default_model_adds_default_to_secrets(self, mocker):
         mocker.patch(
-            "agents.agent_creator.PLATFORM_DEFAULT_MODELS",
+            "tools.model_catalog.PLATFORM_DEFAULT_MODELS",
             _FAKE_PLATFORM_DEFAULTS,
         )
         _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
@@ -140,7 +140,7 @@ class TestAgentCreatorPlatformDefaultForcesSecret:
 
     def test_platform_default_appends_default_when_secrets_exist(self, mocker):
         mocker.patch(
-            "agents.agent_creator.PLATFORM_DEFAULT_MODELS",
+            "tools.model_catalog.PLATFORM_DEFAULT_MODELS",
             _FAKE_PLATFORM_DEFAULTS,
         )
         _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
@@ -159,7 +159,7 @@ class TestAgentCreatorPlatformDefaultForcesSecret:
 
     def test_non_platform_default_does_not_add_default_secret(self, mocker):
         mocker.patch(
-            "agents.agent_creator.PLATFORM_DEFAULT_MODELS",
+            "tools.model_catalog.PLATFORM_DEFAULT_MODELS",
             _FAKE_PLATFORM_DEFAULTS,
         )
         _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
@@ -185,7 +185,7 @@ class TestAgentCreatorPlatformDefaultForcesSecret:
 class TestAgentCreatorTemperatureClamped:
     def test_temperature_below_min_is_clamped(self, mocker):
         mocker.patch(
-            "agents.agent_creator.PLATFORM_DEFAULT_MODELS",
+            "tools.model_catalog.PLATFORM_DEFAULT_MODELS",
             _FAKE_PLATFORM_DEFAULTS,
         )
         _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
@@ -205,7 +205,7 @@ class TestAgentCreatorTemperatureClamped:
 
     def test_temperature_above_min_not_changed(self, mocker):
         mocker.patch(
-            "agents.agent_creator.PLATFORM_DEFAULT_MODELS",
+            "tools.model_catalog.PLATFORM_DEFAULT_MODELS",
             _FAKE_PLATFORM_DEFAULTS,
         )
         _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
@@ -224,7 +224,7 @@ class TestAgentCreatorTemperatureClamped:
 
     def test_no_min_temperature_field_means_no_clamping(self, mocker):
         mocker.patch(
-            "agents.agent_creator.PLATFORM_DEFAULT_MODELS",
+            "tools.model_catalog.PLATFORM_DEFAULT_MODELS",
             _FAKE_PLATFORM_DEFAULTS,
         )
         _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
@@ -383,7 +383,7 @@ class TestAgentCreatorAvailableSecrets:
         _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
         # Use a non-platform-default model so "default" is not forced in
-        mocker.patch("agents.agent_creator.PLATFORM_DEFAULT_MODELS", [])
+        mocker.patch("tools.model_catalog.PLATFORM_DEFAULT_MODELS", [])
 
         agent_creator_assistant(
             "Create agent",

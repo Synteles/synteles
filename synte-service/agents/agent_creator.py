@@ -19,7 +19,6 @@ from strands import Agent, tool
 from strands.models.litellm import LiteLLMModel
 from strands_tools import calculator, current_time
 
-from tools.model_catalog import PLATFORM_DEFAULT_MODELS
 from tools.yaml_validator import validate_yaml
 
 _MAX_VALIDATION_RETRIES = 2
@@ -805,6 +804,8 @@ def agent_creator_assistant(
         submitted to create_agentlet or update_agentlet.
     """
     try:
+        from tools.model_catalog import PLATFORM_DEFAULT_MODELS
+
         # ── Resolve platform default entry for the requested model ───────────────
         # Also handle the implicit default (when no model is specified, the system
         # prompt falls back to azure_ai / gpt-5.3-chat).

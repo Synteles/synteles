@@ -28,8 +28,6 @@ from typing import Any, cast
 import requests
 from strands import ToolContext, tool
 
-from .model_catalog import _SECRET_PROVIDER_HINTS, PLATFORM_DEFAULT_MODELS
-
 log = logging.getLogger("synteles.ux.tools")
 
 _API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.synteles.dev/v1")
@@ -613,6 +611,8 @@ class PlatformTools:
               "recommendation_reason": str,
             }
         """
+        from .model_catalog import _SECRET_PROVIDER_HINTS, PLATFORM_DEFAULT_MODELS
+
         token = tool_context.invocation_state.get("access_token", "")
         use_case_lower = (use_case or "").lower()
 
