@@ -691,7 +691,7 @@ _LITELLM_ENV_MAP: dict[str, dict[str, str]] = {
     "gemini": {"api_key": "GEMINI_API_KEY"},
     "bedrock": {
         "aws_access_key_id": "AWS_ACCESS_KEY_ID",
-        "aws_secret_access_key": "AWS_SECRET_ACCESS_KEY",
+        "aws_secret_access_key": "AWS_SECRET_ACCESS_KEY",  # nosec B105
         "aws_region_name": "AWS_REGION_NAME",
     },
 }
@@ -725,7 +725,7 @@ def _load_chat_config() -> tuple[str, dict[str, str]]:
         raw = os.environ.get(env_key, "")
         if raw:
             try:
-                secret_dict: dict = json.loads(raw)
+                secret_dict: dict[str, Any] = json.loads(raw)
                 provider = model_id.split("/")[0] if "/" in model_id else ""
                 key_map = _LITELLM_ENV_MAP.get(provider, {})
                 for json_key, value in secret_dict.items():
@@ -737,7 +737,7 @@ def _load_chat_config() -> tuple[str, dict[str, str]]:
                     elif json_key == json_key.upper():
                         # JSON key is already a standard env var name — pass through as-is
                         env_vars[json_key] = value
-            except Exception:
+            except Exception:  # nosec B110
                 pass
 
     return model_id, env_vars

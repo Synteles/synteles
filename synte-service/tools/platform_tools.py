@@ -619,7 +619,7 @@ class PlatformTools:
         # ── Platform defaults (always first in the list) ──────────────────────
         options: list[dict[str, Any]] = []
         for model in PLATFORM_DEFAULT_MODELS:
-            score = sum(1 for kw in model["best_for"] if kw in use_case_lower)
+            score = sum(1 for kw in model.get("best_for", []) if kw in use_case_lower)
             options.append(
                 {
                     "id": model["id"],
@@ -628,7 +628,7 @@ class PlatformTools:
                     "model_id": model["model_id"],
                     "secret": model["secret_literal"],
                     "default_temperature": model["default_temperature"],
-                    "description": model["description"],
+                    "description": model.get("description", ""),
                     "is_platform_default": True,
                     "requires_input": False,
                     "recommended": False,
@@ -640,7 +640,9 @@ class PlatformTools:
         try:
             response = self._make_request("GET", "/api/secrets", token)
             data = response.json()
-            user_secrets: list[dict] = data if isinstance(data, list) else data.get("secrets", [])
+            user_secrets: list[dict[str, Any]] = (
+                data if isinstance(data, list) else data.get("secrets", [])
+            )
         except Exception:
             user_secrets = []
 

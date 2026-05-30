@@ -65,6 +65,7 @@ indent-style = "space"
 python_version = "3.13"
 strict = true
 ignore_missing_imports = false
+explicit_package_bases = true
 
 [[tool.mypy.overrides]]
 module = [
@@ -76,6 +77,15 @@ module = [
     "jsonschema.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+# call-arg: strands @tool decorator produces DecoratedFunctionTool whose __call__
+# signature mypy misreads when strands stubs are absent — suppress in tests only.
+disable_error_code = ["call-arg"]
 
 # ---------------------------------------------------------------------------
 # Bandit

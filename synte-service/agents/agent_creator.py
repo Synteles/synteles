@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+from typing import Any
 
 from strands import Agent, tool
 from strands.models.litellm import LiteLLMModel
@@ -809,7 +810,7 @@ def agent_creator_assistant(
         # prompt falls back to azure_ai / gpt-5.3-chat).
         _resolve_provider = model_provider or "azure_ai"
         _resolve_model_id = model_id or "gpt-5.3-chat"
-        _platform_default_entry: dict | None = next(
+        _platform_default_entry: dict[str, Any] | None = next(
             (
                 m
                 for m in PLATFORM_DEFAULT_MODELS

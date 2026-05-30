@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import AsyncGenerator
-from typing import Annotated
+from typing import Annotated, Any
 
 import jwt
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -83,8 +83,8 @@ def _extract_token(authorization: Annotated[str, Header()]) -> str:
 
 class ChatRequest(BaseModel):
     message: str
-    messages: list[dict] = []
-    manager_state: dict = {}
+    messages: list[dict[str, Any]] = []
+    manager_state: dict[str, Any] = {}
     org_id: str | None = None
     pending_input_objects: list[str] | None = None
 
@@ -125,5 +125,5 @@ async def chat_stream(req: ChatRequest, access_token: Token) -> StreamingRespons
 
 
 @app.get("/health")
-async def health() -> dict:
+async def health() -> dict[str, str]:
     return {"status": "ok"}

@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -28,7 +29,7 @@ from tools.platform_tools import PlatformAPIError, PlatformTools, _normalize_lis
 
 
 def _make_response(
-    status_code: int, body: dict | list | str, headers: dict | None = None
+    status_code: int, body: dict[str, Any] | list[Any] | str, headers: dict[str, str] | None = None
 ) -> MagicMock:
     """Build a mock requests.Response."""
     mock_resp = MagicMock(spec=requests.Response)
@@ -43,10 +44,10 @@ def _make_response(
 
 
 def _make_tool_context(
-    token: str = "test-token", org_id: str | None = None, pending_files: list | None = None
+    token: str = "test-token", org_id: str | None = None, pending_files: list[str] | None = None
 ) -> MagicMock:
     ctx = MagicMock()
-    state: dict = {"access_token": token}
+    state: dict[str, Any] = {"access_token": token}
     if org_id is not None:
         state["org_id"] = org_id
     if pending_files is not None:

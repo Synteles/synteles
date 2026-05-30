@@ -16,6 +16,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi.testclient import TestClient
 
 from adapters.server import app
@@ -156,7 +158,7 @@ class TestChatStreamSuccess:
 
 class TestChatStreamOptionalFields:
     def test_org_id_passed_to_stream_turn(self, mocker):
-        received_kwargs: dict = {}
+        received_kwargs: dict[str, Any] = {}
 
         async def _fake_stream(
             message, messages, manager_state, access_token, org_id=None, pending_input_objects=None
@@ -174,7 +176,7 @@ class TestChatStreamOptionalFields:
         assert received_kwargs.get("org_id") == "org-abc"
 
     def test_pending_input_objects_passed_to_stream_turn(self, mocker):
-        received_kwargs: dict = {}
+        received_kwargs: dict[str, Any] = {}
 
         async def _fake_stream(
             message, messages, manager_state, access_token, org_id=None, pending_input_objects=None
@@ -192,7 +194,7 @@ class TestChatStreamOptionalFields:
         assert received_kwargs.get("pending_input_objects") == ["file1.csv", "file2.xlsx"]
 
     def test_messages_and_manager_state_passed(self, mocker):
-        received_kwargs: dict = {}
+        received_kwargs: dict[str, Any] = {}
 
         async def _fake_stream(
             message, messages, manager_state, access_token, org_id=None, pending_input_objects=None

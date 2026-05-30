@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 from unittest.mock import MagicMock
 
 from core.agent import stream_turn
@@ -167,7 +168,7 @@ class TestStreamTurnNoneEventsFiltered:
         assert non_protocol_types == []
 
     def test_empty_event_not_forwarded(self, mocker):
-        raw = [{}]
+        raw: list[dict[str, Any]] = [{}]
         agent = _make_mock_agent(stream_events=raw)
         mocker.patch("core.agent._build_agent", return_value=agent)
 
@@ -227,7 +228,7 @@ class TestStreamTurnWithPriorMessages:
 class TestStreamTurnInvocationKwargs:
     def test_access_token_always_passed(self, mocker):
         agent = _make_mock_agent()
-        received_kwargs: dict = {}
+        received_kwargs: dict[str, Any] = {}
 
         async def _capture_stream(msg, **kwargs):
             received_kwargs.update(kwargs)
@@ -242,7 +243,7 @@ class TestStreamTurnInvocationKwargs:
 
     def test_org_id_passed_when_provided(self, mocker):
         agent = _make_mock_agent()
-        received_kwargs: dict = {}
+        received_kwargs: dict[str, Any] = {}
 
         async def _capture_stream(msg, **kwargs):
             received_kwargs.update(kwargs)
@@ -257,7 +258,7 @@ class TestStreamTurnInvocationKwargs:
 
     def test_org_id_not_passed_when_none(self, mocker):
         agent = _make_mock_agent()
-        received_kwargs: dict = {}
+        received_kwargs: dict[str, Any] = {}
 
         async def _capture_stream(msg, **kwargs):
             received_kwargs.update(kwargs)
@@ -272,7 +273,7 @@ class TestStreamTurnInvocationKwargs:
 
     def test_pending_input_objects_passed_when_provided(self, mocker):
         agent = _make_mock_agent()
-        received_kwargs: dict = {}
+        received_kwargs: dict[str, Any] = {}
 
         async def _capture_stream(msg, **kwargs):
             received_kwargs.update(kwargs)
@@ -287,7 +288,7 @@ class TestStreamTurnInvocationKwargs:
 
     def test_pending_input_objects_not_passed_when_none(self, mocker):
         agent = _make_mock_agent()
-        received_kwargs: dict = {}
+        received_kwargs: dict[str, Any] = {}
 
         async def _capture_stream(msg, **kwargs):
             received_kwargs.update(kwargs)

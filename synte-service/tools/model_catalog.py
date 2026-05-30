@@ -23,10 +23,11 @@ from __future__ import annotations
 
 import tomllib
 from pathlib import Path
+from typing import Any
 
 from strands import tool
 
-PROVIDERS: dict[str, dict] = {
+PROVIDERS: dict[str, Any] = {
     "anthropic": {
         "name": "Anthropic",
         "description": "Direct Anthropic API — requires ANTHROPIC_API_KEY secret",
@@ -996,7 +997,7 @@ PROVIDERS: dict[str, dict] = {
 # Users never need to configure API keys for these models.
 
 
-def _load_platform_defaults() -> list[dict]:
+def _load_platform_defaults() -> list[dict[str, Any]]:
     # Search upward from this file for config/platform.toml.
     # Works both in the repo (ux/ is the root) and inside Docker (/app is the root).
     needle = Path("config") / "platform.toml"
@@ -1011,7 +1012,7 @@ def _load_platform_defaults() -> list[dict]:
         config_path = search_root.parents[3] / needle  # keep a useful path in the error
     try:
         with open(config_path, "rb") as f:
-            raw: list[dict] = tomllib.load(f).get("model", [])
+            raw: list[dict[str, Any]] = tomllib.load(f).get("model", [])
     except FileNotFoundError:
         raise FileNotFoundError(f"Platform config not found: {config_path}") from None
     except Exception as exc:
@@ -1022,11 +1023,11 @@ def _load_platform_defaults() -> list[dict]:
     return raw
 
 
-PLATFORM_DEFAULT_MODELS: list[dict] = _load_platform_defaults()
+PLATFORM_DEFAULT_MODELS: list[dict[str, Any]] = _load_platform_defaults()
 
 # Maps keywords in user secret names to provider hints for the chatbot shortlist.
 # Used by get_model_options to surface user-configured providers without guessing model IDs.
-_SECRET_PROVIDER_HINTS: list[dict] = [
+_SECRET_PROVIDER_HINTS: list[dict[str, Any]] = [
     {
         "keyword": "anthropic",
         "provider": "anthropic",
@@ -1066,11 +1067,11 @@ _SECRET_PROVIDER_HINTS: list[dict] = [
 ]
 
 
-def get_providers_summary() -> list[dict]:
+def get_providers_summary() -> list[dict[str, Any]]:
     """Return a concise list of providers for display to users."""
     result = []
     for pid, pdata in PROVIDERS.items():
-        entry: dict = {
+        entry: dict[str, Any] = {
             "id": pid,
             "name": pdata["name"],
             "description": pdata["description"],
@@ -1085,7 +1086,7 @@ def get_providers_summary() -> list[dict]:
     return result
 
 
-def resolve_model(provider_id: str, model_input: str) -> dict:
+def resolve_model(provider_id: str, model_input: str) -> dict[str, Any]:
     """
     Resolve a provider + model input (number, name, or full ID) into validated YAML values.
 
@@ -1112,8 +1113,8 @@ def resolve_model(provider_id: str, model_input: str) -> dict:
         return {"provider": provider_id, "model_id": model_id, "secret_hint": secret_hint}
 
     # Catalog-based providers: resolve by index, name substring, or exact ID
-    models: list[dict] = pdata.get("models", [])
-    resolved: dict | None = None
+    models: list[dict[str, Any]] = pdata.get("models", [])
+    resolved: dict[str, Any] | None = None
 
     stripped = model_input.strip()
 
@@ -1149,7 +1150,7 @@ def resolve_model(provider_id: str, model_input: str) -> dict:
     else:
         secret_hint = "Uses IAM permissions — no API key secret needed"  # nosec B105
 
-    result: dict = {
+    result: dict[str, Any] = {
         "provider": provider_id,
         "model_id": resolved["id"],
         "model_name": resolved["name"],
@@ -1166,7 +1167,7 @@ def resolve_model(provider_id: str, model_input: str) -> dict:
 
 
 @tool
-def get_model_catalog() -> dict:
+def get_model_catalog() -> dict[str, Any]:
     """
     Returns the full catalog of supported LLM providers and their available models.
 
@@ -1184,7 +1185,7 @@ def get_model_catalog() -> dict:
 
 
 @tool
-def resolve_model_selection(provider_id: str, model_input: str) -> dict:
+def resolve_model_selection(provider_id: str, model_input: str) -> dict[str, Any]:
     """
     Validates and resolves the user's provider + model selection into YAML-ready values.
 
