@@ -21,7 +21,11 @@ module-level singletons (e.g. _JWKS_CLIENT) initialise with test values.
 from __future__ import annotations
 
 import os
+from contextlib import contextmanager
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 def pytest_configure(config: object) -> None:
@@ -38,10 +42,7 @@ def pytest_configure(config: object) -> None:
     toml_path.parent.mkdir(parents=True, exist_ok=True)
     if not toml_path.exists():
         toml_path.touch()
-from contextlib import contextmanager
-from unittest.mock import MagicMock, patch
 
-import pytest
 
 # ── Set environment variables before any service code is imported ────────────
 os.environ.setdefault("COGNITO_USER_POOL_ID", "us-east-1_TESTPOOL")
