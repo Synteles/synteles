@@ -33,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: astral-sh/setup-uv@v8
+      - uses: astral-sh/setup-uv@v6
         with:
           enable-caching: true
           cache-dependency-glob: "${{ matrix.service }}/uv.lock"
@@ -72,7 +72,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Lint
-        run: pnpm lint
+        run: pnpm exec next lint .
 
       - name: Unit tests
         run: pnpm test
