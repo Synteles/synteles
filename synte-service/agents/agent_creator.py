@@ -17,6 +17,7 @@ import os
 from strands import Agent, tool
 from strands.models.litellm import LiteLLMModel
 from strands_tools import calculator, current_time
+
 from tools.model_catalog import PLATFORM_DEFAULT_MODELS
 from tools.yaml_validator import validate_yaml
 
@@ -692,30 +693,57 @@ Return the complete YAML configuration. No preamble, no explanation — just the
 """
 
 _OUTPUT_FORMAT_INSTRUCTIONS: dict[str, tuple[str, str, str]] = {
-    "pdf":  ("PDF",                       "reportlab",   "/tmp/output/report.pdf"),   # nosec B108
-    "docx": ("Microsoft Word DOCX",       "python-docx", "/tmp/output/report.docx"),  # nosec B108
-    "xlsx": ("Microsoft Excel XLSX",      "openpyxl",    "/tmp/output/report.xlsx"),  # nosec B108
+    "pdf": ("PDF", "reportlab", "/tmp/output/report.pdf"),  # nosec B108
+    "docx": ("Microsoft Word DOCX", "python-docx", "/tmp/output/report.docx"),  # nosec B108
+    "xlsx": ("Microsoft Excel XLSX", "openpyxl", "/tmp/output/report.xlsx"),  # nosec B108
     "pptx": ("Microsoft PowerPoint PPTX", "python-pptx", "/tmp/output/presentation.pptx"),  # nosec B108
 }
 
 # (library, is_preinstalled, usage_example)
 _INPUT_FORMAT_INSTRUCTIONS: dict[str, tuple[str, str, bool, str]] = {
-    "csv":  ("CSV",                         "csv (standard library)", True,
-             "import csv; reader = csv.DictReader(open('/tmp/input/file.csv'))"),
-    "xlsx": ("Microsoft Excel XLSX",        "openpyxl",               True,
-             "import openpyxl; wb = openpyxl.load_workbook('/tmp/input/file.xlsx'); ws = wb.active"),
-    "xls":  ("Microsoft Excel XLS",         "openpyxl",               True,
-             "import openpyxl; wb = openpyxl.load_workbook('/tmp/input/file.xls'); ws = wb.active"),
-    "docx": ("Microsoft Word DOCX",         "python-docx",            True,
-             "from docx import Document; doc = Document('/tmp/input/file.docx'); text = '\\n'.join(p.text for p in doc.paragraphs)"),
-    "pdf":  ("PDF",                         "pdfplumber",             True,
-             "import pdfplumber; pdf = pdfplumber.open('/tmp/input/file.pdf'); text = '\\n'.join(p.extract_text() or '' for p in pdf.pages)"),
-    "pptx": ("Microsoft PowerPoint PPTX",   "python-pptx",            True,
-             "from pptx import Presentation; prs = Presentation('/tmp/input/file.pptx')"),
-    "json": ("JSON",                         "json (standard library)", True,
-             "import json; data = json.load(open('/tmp/input/file.json'))"),
-    "txt":  ("plain text",                   "open() built-in",        True,
-             "text = open('/tmp/input/file.txt').read()"),
+    "csv": (
+        "CSV",
+        "csv (standard library)",
+        True,
+        "import csv; reader = csv.DictReader(open('/tmp/input/file.csv'))",
+    ),
+    "xlsx": (
+        "Microsoft Excel XLSX",
+        "openpyxl",
+        True,
+        "import openpyxl; wb = openpyxl.load_workbook('/tmp/input/file.xlsx'); ws = wb.active",
+    ),
+    "xls": (
+        "Microsoft Excel XLS",
+        "openpyxl",
+        True,
+        "import openpyxl; wb = openpyxl.load_workbook('/tmp/input/file.xls'); ws = wb.active",
+    ),
+    "docx": (
+        "Microsoft Word DOCX",
+        "python-docx",
+        True,
+        "from docx import Document; doc = Document('/tmp/input/file.docx'); text = '\\n'.join(p.text for p in doc.paragraphs)",
+    ),
+    "pdf": (
+        "PDF",
+        "pdfplumber",
+        True,
+        "import pdfplumber; pdf = pdfplumber.open('/tmp/input/file.pdf'); text = '\\n'.join(p.extract_text() or '' for p in pdf.pages)",
+    ),
+    "pptx": (
+        "Microsoft PowerPoint PPTX",
+        "python-pptx",
+        True,
+        "from pptx import Presentation; prs = Presentation('/tmp/input/file.pptx')",
+    ),
+    "json": (
+        "JSON",
+        "json (standard library)",
+        True,
+        "import json; data = json.load(open('/tmp/input/file.json'))",
+    ),
+    "txt": ("plain text", "open() built-in", True, "text = open('/tmp/input/file.txt').read()"),
 }
 
 
@@ -782,8 +810,11 @@ def agent_creator_assistant(
         _resolve_provider = model_provider or "azure_ai"
         _resolve_model_id = model_id or "gpt-5.3-chat"
         _platform_default_entry: dict | None = next(
-            (m for m in PLATFORM_DEFAULT_MODELS
-             if m["model_id"] == _resolve_model_id and m["provider"] == _resolve_provider),
+            (
+                m
+                for m in PLATFORM_DEFAULT_MODELS
+                if m["model_id"] == _resolve_model_id and m["provider"] == _resolve_provider
+            ),
             None,
         )
 
@@ -793,19 +824,26 @@ def agent_creator_assistant(
             if not available_secrets:
                 available_secrets = ["default"]
             elif "default" not in available_secrets:
-                available_secrets = list(available_secrets) + ["default"]
+                available_secrets = [*list(available_secrets), "default"]
 
         # Clamp temperature to the model's minimum (e.g. GPT-5.3 requires temp >= 1).
         _min_temperature: float | None = (
             _platform_default_entry.get("min_temperature") if _platform_default_entry else None
         )
-        if temperature is not None and _min_temperature is not None and temperature < _min_temperature:
+        if (
+            temperature is not None
+            and _min_temperature is not None
+            and temperature < _min_temperature
+        ):
             temperature = _min_temperature
 
         # Build platform defaults table from config (single source of truth)
-        _defaults_table = "| provider | model_id | default_temperature | min_temperature |\n|---|---|---|---|\n" + "\n".join(
-            f"| {m['provider']} | {m['model_id']} | {m['default_temperature']} | {m.get('min_temperature', 'none')} |"
-            for m in PLATFORM_DEFAULT_MODELS
+        _defaults_table = (
+            "| provider | model_id | default_temperature | min_temperature |\n|---|---|---|---|\n"
+            + "\n".join(
+                f"| {m['provider']} | {m['model_id']} | {m['default_temperature']} | {m.get('min_temperature', 'none')} |"
+                for m in PLATFORM_DEFAULT_MODELS
+            )
         )
         context_note = (
             f"\n\nPLATFORM DEFAULT MODELS (ALWAYS add `secrets: [default]` when using any of these — no other secret is needed for model auth):\n"
@@ -819,7 +857,11 @@ def agent_creator_assistant(
                 "Use these exact names in the YAML 'secrets' list — do not invent new names."
             )
         if model_provider and model_id:
-            temp_line = f"\n    parameters:\n      temperature: {temperature}" if temperature is not None else ""
+            temp_line = (
+                f"\n    parameters:\n      temperature: {temperature}"
+                if temperature is not None
+                else ""
+            )
             platform_default_note = ""
             if _platform_default_entry is not None:
                 platform_default_note = (
@@ -876,13 +918,9 @@ def agent_creator_assistant(
                 f"Do not suggest alternative libraries."
             )
         if default_prompt:
-            context_note += (
-                f"\n\nDEFAULT PROMPT: Set the top-level `prompt` field in the YAML to exactly: {default_prompt!r}"
-            )
+            context_note += f"\n\nDEFAULT PROMPT: Set the top-level `prompt` field in the YAML to exactly: {default_prompt!r}"
 
-        model = LiteLLMModel(
-            model_id=os.environ.get("CHAT_MODEL_ID", "azure_ai/gpt-5.3-chat")
-        )
+        model = LiteLLMModel(model_id=os.environ.get("CHAT_MODEL_ID", "azure_ai/gpt-5.3-chat"))
 
         agent_creator_agent = Agent(
             model=model,

@@ -38,6 +38,7 @@ os.environ.setdefault("API_BASE_URL", "https://api.test.synteles.dev/v1")
 
 # ── mock_context fixture ─────────────────────────────────────────────────────
 
+
 class _FakeStream:
     """Minimal response-stream object — records every write() call."""
 
@@ -69,6 +70,7 @@ def mock_context():
 
 # ── reset_jwks_client autouse fixture ────────────────────────────────────────
 
+
 @pytest.fixture(autouse=True)
 def reset_jwks_client():
     """Reset the JWKS singleton and bypass JWT validation for every test."""
@@ -83,8 +85,10 @@ def reset_jwks_client():
     mock_jwks = MagicMock()
     mock_jwks.get_signing_key_from_jwt.return_value = mock_signing_key
 
-    with patch.object(mod, "_get_jwks_client", return_value=mock_jwks), \
-         patch("adapters.server.jwt.decode", return_value={"token_use": "access"}):
+    with (
+        patch.object(mod, "_get_jwks_client", return_value=mock_jwks),
+        patch("adapters.server.jwt.decode", return_value={"token_use": "access"}),
+    ):
         yield
 
     mod._JWKS_CLIENT = None

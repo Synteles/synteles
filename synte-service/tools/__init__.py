@@ -20,7 +20,7 @@ from .yaml_validator import validate_agentlet_yaml
 
 __all__ = [
     "PlatformTools",
-    "validate_agentlet_yaml",
     "get_model_catalog",
     "resolve_model_selection",
+    "validate_agentlet_yaml",
 ]

@@ -54,10 +54,7 @@ def validate_yaml(content: str) -> str:
     try:
         data = yaml.safe_load(cleaned)
     except yaml.YAMLError as exc:
-        return (
-            f"INVALID - YAML syntax error: {exc}\n\n"
-            "Fix the YAML syntax and regenerate."
-        )
+        return f"INVALID - YAML syntax error: {exc}\n\nFix the YAML syntax and regenerate."
 
     if not isinstance(data, dict):
         return (
@@ -80,9 +77,7 @@ def validate_yaml(content: str) -> str:
         path = " -> ".join(str(p) for p in err.absolute_path) or "(root)"
         lines.append(f"  {i}. Field '{path}': {err.message}")
 
-    lines.append(
-        "\nPlease fix the above issues and regenerate the YAML definition."
-    )
+    lines.append("\nPlease fix the above issues and regenerate the YAML definition.")
     return "\n".join(lines)
 
 

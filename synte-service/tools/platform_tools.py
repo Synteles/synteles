@@ -48,7 +48,11 @@ def _normalize_list(data: dict[str, Any] | list[dict[str, Any]], key: str) -> di
     if isinstance(data, list):
         return {key: data, "count": len(data), "next_token": None}  # nosec B105
     items = data.get(key, data.get("items", []))
-    return {key: items, "count": data.get("count", len(items)), "next_token": data.get("next_token")}
+    return {
+        key: items,
+        "count": data.get("count", len(items)),
+        "next_token": data.get("next_token"),
+    }
 
 
 class PlatformTools:
@@ -103,7 +107,9 @@ class PlatformTools:
                         error_msg = response.json().get("error", response.text[:200])
                     except Exception:
                         error_msg = response.text[:200]
-                raise PlatformAPIError(f"API request failed (HTTP {response.status_code}): {error_msg}")
+                raise PlatformAPIError(
+                    f"API request failed (HTTP {response.status_code}): {error_msg}"
+                )
             return response
         except requests.exceptions.RequestException as e:
             raise PlatformAPIError(f"Request failed: {e}") from e
@@ -158,9 +164,7 @@ class PlatformTools:
             body["description"] = description
         if yaml_definition is not None:
             body["YAML"] = yaml_definition
-        response = self._make_request(
-            "POST", "/api/agentlets", token, json_data=body
-        )
+        response = self._make_request("POST", "/api/agentlets", token, json_data=body)
         return cast(dict[str, Any], response.json())
 
     @tool(context=True)
@@ -186,13 +190,15 @@ class PlatformTools:
             params["limit"] = str(limit)
         if next_token is not None:
             params["next_token"] = next_token
-        response = self._make_request(
-            "GET", "/api/agentlets", token, params=params
+        response = self._make_request("GET", "/api/agentlets", token, params=params)
+        return _normalize_list(
+            cast(dict[str, Any] | list[dict[str, Any]], response.json()), "agentlets"
         )
-        return _normalize_list(cast(dict[str, Any] | list[dict[str, Any]], response.json()), "agentlets")
 
     @tool(context=True)
-    def get_agentlet(self, org_id: str, agentlet_id: str, tool_context: ToolContext) -> dict[str, Any]:
+    def get_agentlet(
+        self, org_id: str, agentlet_id: str, tool_context: ToolContext
+    ) -> dict[str, Any]:
         """Get the full agentlet definition including its YAML configuration.
 
         Args:
@@ -200,9 +206,7 @@ class PlatformTools:
             agentlet_id: Agentlet identifier
         """
         token = tool_context.invocation_state.get("access_token", "")
-        response = self._make_request(
-            "GET", f"/api/agentlets/{agentlet_id}", token
-        )
+        response = self._make_request("GET", f"/api/agentlets/{agentlet_id}", token)
         return cast(dict[str, Any], response.json())
 
     @tool(context=True)
@@ -263,7 +267,9 @@ class PlatformTools:
         if next_token is not None:
             params["next_token"] = next_token
         response = self._make_request("GET", "/api/users/apikeys", token, params=params)
-        return _normalize_list(cast(dict[str, Any] | list[dict[str, Any]], response.json()), "api_keys")
+        return _normalize_list(
+            cast(dict[str, Any] | list[dict[str, Any]], response.json()), "api_keys"
+        )
 
     # ── Secrets ────────────────────────────────────────────────────
 
@@ -295,7 +301,9 @@ class PlatformTools:
         token = tool_context.invocation_state.get("access_token", "")
         try:
             response = self._make_request("GET", "/api/models", token)
-            return _normalize_list(cast(dict[str, Any] | list[dict[str, Any]], response.json()), "presets")
+            return _normalize_list(
+                cast(dict[str, Any] | list[dict[str, Any]], response.json()), "presets"
+            )
         except PlatformAPIError as e:
             return {"error": str(e)}
 
@@ -434,9 +442,7 @@ class PlatformTools:
         return cast(dict[str, Any], response.json())
 
     @tool(context=True)
-    def get_execution_status(
-        self, execution_id: str, tool_context: ToolContext
-    ) -> dict[str, Any]:
+    def get_execution_status(self, execution_id: str, tool_context: ToolContext) -> dict[str, Any]:
         """Get the current status and metadata of an agentlet execution.
 
         Status lifecycle: deploying → running → completed / failed / terminated
@@ -445,9 +451,7 @@ class PlatformTools:
             execution_id: Execution UUID
         """
         token = tool_context.invocation_state.get("access_token", "")
-        response = self._make_request(
-            "GET", f"/api/executions/{execution_id}", token
-        )
+        response = self._make_request("GET", f"/api/executions/{execution_id}", token)
         return cast(dict[str, Any], response.json())
 
     @tool(context=True)
@@ -485,9 +489,7 @@ class PlatformTools:
         return cast(dict[str, Any], response.json())
 
     @tool(context=True)
-    def get_execution_files(
-        self, execution_id: str, tool_context: ToolContext
-    ) -> dict[str, Any]:
+    def get_execution_files(self, execution_id: str, tool_context: ToolContext) -> dict[str, Any]:
         """List input files and check for output archive for a completed execution.
 
         Returns presigned download URLs for input files and output.zip (if it exists).
@@ -504,15 +506,11 @@ class PlatformTools:
             }
         """
         token = tool_context.invocation_state.get("access_token", "")
-        response = self._make_request(
-            "GET", f"/api/executions/{execution_id}/files", token
-        )
+        response = self._make_request("GET", f"/api/executions/{execution_id}/files", token)
         return cast(dict[str, Any], response.json())
 
     @tool(context=True)
-    def terminate_execution(
-        self, execution_id: str, tool_context: ToolContext
-    ) -> dict[str, Any]:
+    def terminate_execution(self, execution_id: str, tool_context: ToolContext) -> dict[str, Any]:
         """Terminate a running agentlet execution.
 
         If the execution is already completed/failed/terminated, only the database
@@ -622,19 +620,21 @@ class PlatformTools:
         options: list[dict[str, Any]] = []
         for model in PLATFORM_DEFAULT_MODELS:
             score = sum(1 for kw in model["best_for"] if kw in use_case_lower)
-            options.append({
-                "id": model["id"],
-                "label": f"{model['label']} ✦ platform default",
-                "provider": model["provider"],
-                "model_id": model["model_id"],
-                "secret": model["secret_literal"],
-                "default_temperature": model["default_temperature"],
-                "description": model["description"],
-                "is_platform_default": True,
-                "requires_input": False,
-                "recommended": False,
-                "_score": score,
-            })
+            options.append(
+                {
+                    "id": model["id"],
+                    "label": f"{model['label']} ✦ platform default",
+                    "provider": model["provider"],
+                    "model_id": model["model_id"],
+                    "secret": model["secret_literal"],
+                    "default_temperature": model["default_temperature"],
+                    "description": model["description"],
+                    "is_platform_default": True,
+                    "requires_input": False,
+                    "recommended": False,
+                    "_score": score,
+                }
+            )
 
         # ── User secrets → infer available custom providers ───────────────────
         try:
@@ -652,19 +652,21 @@ class PlatformTools:
             for hint in _SECRET_PROVIDER_HINTS:
                 if hint["keyword"] in name and hint["provider"] not in seen_providers:
                     seen_providers.add(hint["provider"])
-                    options.append({
-                        "id": f"user_{hint['provider']}",
-                        "label": f"{hint['label']} (your key: {secret['name']})",
-                        "provider": hint["provider"],
-                        "model_id": hint["model_id"],
-                        "secret": secret["name"],
-                        "default_temperature": hint["default_temperature"],
-                        "description": f"Uses your '{secret['name']}' secret.",
-                        "is_platform_default": False,
-                        "requires_input": hint["model_id"] is None,
-                        "recommended": False,
-                        "_score": 0,
-                    })
+                    options.append(
+                        {
+                            "id": f"user_{hint['provider']}",
+                            "label": f"{hint['label']} (your key: {secret['name']})",
+                            "provider": hint["provider"],
+                            "model_id": hint["model_id"],
+                            "secret": secret["name"],
+                            "default_temperature": hint["default_temperature"],
+                            "description": f"Uses your '{secret['name']}' secret.",
+                            "is_platform_default": False,
+                            "requires_input": hint["model_id"] is None,
+                            "recommended": False,
+                            "_score": 0,
+                        }
+                    )
                     break
 
         # ── Pick recommendation ───────────────────────────────────────────────
@@ -677,8 +679,8 @@ class PlatformTools:
 
         _reason_map = {
             "platform_deepseek": "Strong reasoning model — well suited for this use case.",
-            "platform_qwen3":    "Large multilingual model — well suited for this use case.",
-            "platform_gpt53":    "Fast general-purpose model — solid default choice.",
+            "platform_qwen3": "Large multilingual model — well suited for this use case.",
+            "platform_gpt53": "Fast general-purpose model — solid default choice.",
         }
         reason = _reason_map.get(best["id"], "Recommended based on your use case.")
 

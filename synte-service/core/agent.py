@@ -28,15 +28,15 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
 
-from agents.agent_creator import agent_creator_assistant
 from strands import Agent
 from strands.models.litellm import LiteLLMModel
 from strands_tools import calculator, current_time
 from strands_tools.tavily import tavily_search
+
+from agents.agent_creator import agent_creator_assistant
+from core.protocol import map_strands_event
 from tools import PlatformTools
 from tools.yaml_validator import validate_agentlet_yaml
-
-from core.protocol import map_strands_event
 
 _SYSTEM_PROMPT = """
     # SYNTE — System Instructions
@@ -684,15 +684,15 @@ _SYSTEM_PROMPT = """
 
 # Maps generic PLATFORM_SECRET JSON keys to the env var names LiteLLM reads.
 _LITELLM_ENV_MAP: dict[str, dict[str, str]] = {
-    "openai":    {"api_key": "OPENAI_API_KEY"},
+    "openai": {"api_key": "OPENAI_API_KEY"},
     "anthropic": {"api_key": "ANTHROPIC_API_KEY"},
-    "azure_ai":  {"api_key": "AZURE_AI_API_KEY", "api_base": "AZURE_AI_API_BASE"},
-    "azure":     {"api_key": "AZURE_API_KEY", "api_base": "AZURE_API_BASE"},
-    "gemini":    {"api_key": "GEMINI_API_KEY"},
+    "azure_ai": {"api_key": "AZURE_AI_API_KEY", "api_base": "AZURE_AI_API_BASE"},
+    "azure": {"api_key": "AZURE_API_KEY", "api_base": "AZURE_API_BASE"},
+    "gemini": {"api_key": "GEMINI_API_KEY"},
     "bedrock": {
-        "aws_access_key_id":     "AWS_ACCESS_KEY_ID",
+        "aws_access_key_id": "AWS_ACCESS_KEY_ID",
         "aws_secret_access_key": "AWS_SECRET_ACCESS_KEY",
-        "aws_region_name":       "AWS_REGION_NAME",
+        "aws_region_name": "AWS_REGION_NAME",
     },
 }
 
@@ -791,7 +791,7 @@ async def stream_turn(
     access_token: str,
     org_id: str | None = None,
     pending_input_objects: list[str] | None = None,
-) -> AsyncGenerator[dict[str, Any], None]:
+) -> AsyncGenerator[dict[str, Any]]:
     """Run one conversation turn and yield SSE event dicts.
 
     Restores prior conversation state from ``messages`` + ``manager_state``,

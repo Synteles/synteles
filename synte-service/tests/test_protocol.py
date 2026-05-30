@@ -18,12 +18,10 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
 from core.protocol import format_sse, map_strands_event
 
-
 # ── format_sse ───────────────────────────────────────────────────────────────
+
 
 class TestFormatSse:
     def test_returns_bytes(self):
@@ -63,11 +61,12 @@ class TestFormatSse:
 
     def test_wire_format_exact(self):
         event = {"type": "done"}
-        expected = b'event: done\ndata: {}\n\n'
+        expected = b"event: done\ndata: {}\n\n"
         assert format_sse(event) == expected
 
 
 # ── map_strands_event ────────────────────────────────────────────────────────
+
 
 class TestMapStrandsEvent:
     def test_text_event_with_data(self):
@@ -93,9 +92,7 @@ class TestMapStrandsEvent:
         event = {
             "message": {
                 "role": "user",
-                "content": [
-                    {"toolResult": {"toolUseId": "tool-456"}}
-                ],
+                "content": [{"toolResult": {"toolUseId": "tool-456"}}],
             }
         }
         result = map_strands_event(event)

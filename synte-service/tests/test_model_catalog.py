@@ -16,6 +16,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 import pytest
 
 from tools.model_catalog import (
@@ -26,11 +28,11 @@ from tools.model_catalog import (
     resolve_model_selection,
 )
 
-
 # ── PROVIDERS structure ──────────────────────────────────────────────────────
 
+
 class TestProvidersStructure:
-    EXPECTED_PROVIDERS = {
+    EXPECTED_PROVIDERS: ClassVar[set[str]] = {
         "anthropic",
         "openai",
         "bedrock",
@@ -58,12 +60,13 @@ class TestProvidersStructure:
                 assert "name" in model, f"{pid} model missing 'name': {model}"
 
     def test_deployment_based_providers_have_no_models_list(self):
-        for pid, pdata in PROVIDERS.items():
+        for _pid, pdata in PROVIDERS.items():
             if pdata.get("deployment_based"):
                 assert "models" not in pdata or len(pdata.get("models", [])) == 0
 
 
 # ── resolve_model — numeric index ────────────────────────────────────────────
+
 
 class TestResolveModelByNumber:
     def test_resolve_first_model_by_number_one(self):
@@ -95,6 +98,7 @@ class TestResolveModelByNumber:
 
 # ── resolve_model — substring match ─────────────────────────────────────────
 
+
 class TestResolveModelBySubstring:
     def test_resolve_by_name_substring(self):
         # "claude-opus-4-6" is the first anthropic model — exact substring in id
@@ -121,6 +125,7 @@ class TestResolveModelBySubstring:
 
 # ── resolve_model — exact ID ─────────────────────────────────────────────────
 
+
 class TestResolveModelByExactId:
     def test_resolve_exact_model_id(self):
         result = resolve_model("openai", "gpt-5")
@@ -142,6 +147,7 @@ class TestResolveModelByExactId:
 
 # ── resolve_model — unknown provider ────────────────────────────────────────
 
+
 class TestResolveModelUnknownProvider:
     def test_unknown_provider_raises_value_error(self):
         with pytest.raises(ValueError, match="Unknown provider"):
@@ -154,6 +160,7 @@ class TestResolveModelUnknownProvider:
 
 
 # ── resolve_model — deployment-based providers ───────────────────────────────
+
 
 class TestResolveModelDeploymentBased:
     def test_azure_accepts_any_deployment_name(self):
@@ -175,6 +182,7 @@ class TestResolveModelDeploymentBased:
 
 
 # ── get_model_catalog ────────────────────────────────────────────────────────
+
 
 class TestGetModelCatalog:
     def test_returns_dict_with_providers_key(self):
@@ -206,6 +214,7 @@ class TestGetModelCatalog:
 
 # ── resolve_model_selection (@tool wrapper) ───────────────────────────────────
 
+
 class TestResolveModelSelection:
     def test_success_returns_dict_with_provider_and_model_id(self, mocker):
         mocker.patch(
@@ -228,13 +237,18 @@ class TestResolveModelSelection:
     def test_success_no_error_key(self, mocker):
         mocker.patch(
             "tools.model_catalog.resolve_model",
-            return_value={"provider": "anthropic", "model_id": "claude-sonnet-4-6", "secret_hint": "x"},
+            return_value={
+                "provider": "anthropic",
+                "model_id": "claude-sonnet-4-6",
+                "secret_hint": "x",
+            },
         )
         result = resolve_model_selection("anthropic", "1")
         assert "error" not in result
 
 
 # ── PLATFORM_DEFAULT_MODELS ──────────────────────────────────────────────────
+
 
 class TestPlatformDefaultModels:
     def test_platform_defaults_is_list(self):

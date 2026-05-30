@@ -226,7 +226,6 @@ Every pull request triggers automated checks that must pass before merging.
 | Type checking | Mypy (strict) | All Python services |
 | Security scan | Bandit | All Python services |
 | Unit tests | pytest | All Python services |
-| Lint | ESLint (Next.js) | `ux-console` |
 | Unit tests | Vitest | `ux-console` |
 | Build | Next.js | `ux-console` |
 
