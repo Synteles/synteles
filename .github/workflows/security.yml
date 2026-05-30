@@ -26,7 +26,7 @@ jobs:
       contents: read
       pull-requests: write  # needed to post a comment on the PR
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/dependency-review-action@v5
 
   # ── Trivy filesystem scan ─────────────────────────────────────────────────
@@ -42,7 +42,7 @@ jobs:
       contents: read
       security-events: write  # required to upload SARIF to Security tab
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Scan for vulnerabilities
         uses: aquasecurity/trivy-action@v0.36.0
