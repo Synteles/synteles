@@ -683,8 +683,35 @@ class TestListExecutions:
 
 # ── get_model_options ─────────────────────────────────────────────────────────
 
+_TEST_PLATFORM_DEFAULTS: list[dict[str, Any]] = [
+    {
+        "id": "platform_test_a",
+        "label": "Test Model A",
+        "provider": "anthropic",
+        "model_id": "claude-test",
+        "secret_literal": "default",
+        "default_temperature": 0.7,
+        "best_for": ["coding", "code review"],
+        "description": "General test model A.",
+    },
+    {
+        "id": "platform_test_b",
+        "label": "Test Model B",
+        "provider": "openai",
+        "model_id": "gpt-test",
+        "secret_literal": "default",
+        "default_temperature": 0.5,
+        "best_for": ["data analysis"],
+        "description": "General test model B.",
+    },
+]
+
 
 class TestGetModelOptions:
+    @pytest.fixture(autouse=True)
+    def _patch_platform_defaults(self, mocker: Any) -> None:
+        mocker.patch("tools.model_catalog.PLATFORM_DEFAULT_MODELS", _TEST_PLATFORM_DEFAULTS)
+
     def test_returns_options_and_recommended_id(self, mocker):
         mock_resp = _make_response(200, [])
         mocker.patch("tools.platform_tools.requests.request", return_value=mock_resp)
