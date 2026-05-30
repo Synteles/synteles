@@ -1,0 +1,62 @@
+name: Security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly Monday scan — catches CVEs disclosed since the last PR
+    - cron: "0 8 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Dependency Review ─────────────────────────────────────────────────────
+  #
+  # Compares the dependency manifests between the PR base and head.
+  # Blocks the PR if a newly introduced package has a known CVE.
+  # Only meaningful on pull_request — skip on push/schedule.
+
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write  # needed to post a comment on the PR
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v5
+
+  # ── Trivy filesystem scan ─────────────────────────────────────────────────
+  #
+  # Scans committed dependency manifests (uv.lock, pnpm-lock.yaml) for CVEs.
+  # Results are uploaded to the Security → Code scanning tab as SARIF.
+  # Does not build Docker images — fast and cheap to run on every PR.
+
+  trivy:
+    name: Trivy scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # required to upload SARIF to Security tab
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan for vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "0"  # upload findings but don't fail the build yet;
+                          # tighten to "1" once you've triaged the baseline
+
+      - name: Upload results to Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif

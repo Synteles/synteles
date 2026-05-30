@@ -17,14 +17,13 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 from unittest.mock import MagicMock
-
-import pytest
 
 from core.agent import stream_turn
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 async def _collect(gen):
     """Drain an async generator into a list."""
@@ -32,7 +31,7 @@ async def _collect(gen):
 
 
 def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 def _make_mock_agent(stream_events=None):
@@ -54,6 +53,7 @@ def _make_mock_agent(stream_events=None):
 
 
 # ── Basic lifecycle events ────────────────────────────────────────────────────
+
 
 class TestStreamTurnLifecycle:
     def test_yields_start_event_first(self, mocker):
@@ -91,6 +91,7 @@ class TestStreamTurnLifecycle:
 
 # ── Text events ───────────────────────────────────────────────────────────────
 
+
 class TestStreamTurnTextEvent:
     def test_text_event_from_data_key(self, mocker):
         agent = _make_mock_agent(stream_events=[{"data": "Hello"}])
@@ -114,6 +115,7 @@ class TestStreamTurnTextEvent:
 
 
 # ── Tool events ───────────────────────────────────────────────────────────────
+
 
 class TestStreamTurnToolEvents:
     def test_tool_start_event_from_current_tool_use(self, mocker):
@@ -147,6 +149,7 @@ class TestStreamTurnToolEvents:
 
 # ── None events filtered ──────────────────────────────────────────────────────
 
+
 class TestStreamTurnNoneEventsFiltered:
     def test_events_returning_none_are_filtered_out(self, mocker):
         # An assistant message event returns None from map_strands_event
@@ -165,7 +168,7 @@ class TestStreamTurnNoneEventsFiltered:
         assert non_protocol_types == []
 
     def test_empty_event_not_forwarded(self, mocker):
-        raw = [{}]
+        raw: list[dict[str, Any]] = [{}]
         agent = _make_mock_agent(stream_events=raw)
         mocker.patch("core.agent._build_agent", return_value=agent)
 
@@ -176,6 +179,7 @@ class TestStreamTurnNoneEventsFiltered:
 
 
 # ── Prior messages / conversation state ──────────────────────────────────────
+
 
 class TestStreamTurnWithPriorMessages:
     def test_agent_messages_set_from_prior_messages(self, mocker):
@@ -220,10 +224,11 @@ class TestStreamTurnWithPriorMessages:
 
 # ── Optional invocation kwargs ────────────────────────────────────────────────
 
+
 class TestStreamTurnInvocationKwargs:
     def test_access_token_always_passed(self, mocker):
         agent = _make_mock_agent()
-        received_kwargs: dict = {}
+        received_kwargs: dict[str, Any] = {}
 
         async def _capture_stream(msg, **kwargs):
             received_kwargs.update(kwargs)
@@ -238,7 +243,7 @@ class TestStreamTurnInvocationKwargs:
 
     def test_org_id_passed_when_provided(self, mocker):
         agent = _make_mock_agent()
-        received_kwargs: dict = {}
+        received_kwargs: dict[str, Any] = {}
 
         async def _capture_stream(msg, **kwargs):
             received_kwargs.update(kwargs)
@@ -253,7 +258,7 @@ class TestStreamTurnInvocationKwargs:
 
     def test_org_id_not_passed_when_none(self, mocker):
         agent = _make_mock_agent()
-        received_kwargs: dict = {}
+        received_kwargs: dict[str, Any] = {}
 
         async def _capture_stream(msg, **kwargs):
             received_kwargs.update(kwargs)
@@ -268,7 +273,7 @@ class TestStreamTurnInvocationKwargs:
 
     def test_pending_input_objects_passed_when_provided(self, mocker):
         agent = _make_mock_agent()
-        received_kwargs: dict = {}
+        received_kwargs: dict[str, Any] = {}
 
         async def _capture_stream(msg, **kwargs):
             received_kwargs.update(kwargs)
@@ -283,7 +288,7 @@ class TestStreamTurnInvocationKwargs:
 
     def test_pending_input_objects_not_passed_when_none(self, mocker):
         agent = _make_mock_agent()
-        received_kwargs: dict = {}
+        received_kwargs: dict[str, Any] = {}
 
         async def _capture_stream(msg, **kwargs):
             received_kwargs.update(kwargs)
@@ -298,6 +303,7 @@ class TestStreamTurnInvocationKwargs:
 
 
 # ── State event ───────────────────────────────────────────────────────────────
+
 
 class TestStreamTurnStateEvent:
     def test_state_event_has_messages_key(self, mocker):
@@ -331,6 +337,7 @@ class TestStreamTurnStateEvent:
 
 
 # ── Exception handling ────────────────────────────────────────────────────────
+
 
 class TestStreamTurnException:
     def test_exception_yields_error_event(self, mocker):

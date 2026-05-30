@@ -1,0 +1,48 @@
+version: 2
+
+updates:
+  # Keep GitHub Actions themselves up to date.
+  # This also updates the action SHAs if you later pin them.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci"
+
+  # Python services — one entry per uv workspace
+  - package-ecosystem: uv
+    directory: /core-service
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "deps(core-service)"
+
+  - package-ecosystem: uv
+    directory: /scheduler-service
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "deps(scheduler-service)"
+
+  - package-ecosystem: uv
+    directory: /synte-service
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "deps(synte-service)"
+
+  - package-ecosystem: uv
+    directory: /platform-db
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "deps(platform-db)"
+
+  # Frontend
+  - package-ecosystem: npm
+    directory: /ux-console
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "deps(ux-console)"

@@ -12,7 +12,7 @@ lint:
 	uv run ruff check .
 
 type:
-	uv run mypy .
+	uv run mypy adapters agents core tools tests
 
 security:
 	uv run bandit -rq -c pyproject.toml .

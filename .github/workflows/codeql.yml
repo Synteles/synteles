@@ -1,0 +1,46 @@
+name: CodeQL
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly Monday scan — catches newly published vulnerability patterns
+    - cron: "0 8 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language:
+          - python           # core-service, scheduler-service, synte-service, platform-db
+          - javascript-typescript  # ux-console
+    permissions:
+      contents: read
+      security-events: write  # required to upload results to Security tab
+      actions: read           # required on private repos; harmless on public ones
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          # Default query suite covers the OWASP Top 10 and common CWEs.
+          # "security-extended" adds more rules at the cost of more noise —
+          # start with default and extend once you know your false-positive rate.
+          queries: security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v4
+
+      - name: Perform analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"

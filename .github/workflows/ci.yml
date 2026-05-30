@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Minimal permissions — safe for fork PRs (no secrets needed here)
+permissions:
+  contents: read
+
+jobs:
+  # ── Python services ───────────────────────────────────────────────────────
+  #
+  # Runs lint + type-check + security scan + unit tests for each service.
+  # fail-fast: false so all services report in one go rather than stopping
+  # at the first failure — better feedback for contributors fixing multiple things.
+
+  python:
+    name: Python / ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - core-service
+          - scheduler-service
+          - synte-service
+          - platform-db
+    defaults:
+      run:
+        working-directory: ${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-caching: true
+          cache-dependency-glob: "${{ matrix.service }}/uv.lock"
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Lint, type-check, security scan
+        run: make check
+
+      - name: Unit tests
+        run: make test
+
+  # ── Frontend ──────────────────────────────────────────────────────────────
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ux-console
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: ux-console/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Unit tests
+        run: pnpm test
+
+      # next build also runs the TypeScript compiler — catches type errors
+      # and ensures the production bundle actually assembles cleanly.
+      - name: Build
+        run: pnpm build

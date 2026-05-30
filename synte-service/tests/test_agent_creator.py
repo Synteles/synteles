@@ -16,8 +16,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from agents.agent_creator import (
     _MAX_VALIDATION_RETRIES,
     agent_creator_assistant,
@@ -76,9 +74,10 @@ def _make_mock_agent_cls(mocker, return_value: str = _VALID_YAML):
 
 # ── Basic invocation ──────────────────────────────────────────────────────────
 
+
 class TestAgentCreatorBasic:
     def test_returns_yaml_string_when_valid(self, mocker):
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, _mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - all good")
 
         result = agent_creator_assistant("Create a simple agent")
@@ -87,7 +86,7 @@ class TestAgentCreatorBasic:
         assert result == _VALID_YAML
 
     def test_agent_called_with_query_plus_context(self, mocker):
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         agent_creator_assistant("Create agent X")
@@ -97,7 +96,7 @@ class TestAgentCreatorBasic:
         assert "Create agent X" in call_arg
 
     def test_context_note_always_includes_platform_defaults_table(self, mocker):
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         agent_creator_assistant("Create an agent")
@@ -117,13 +116,14 @@ class TestAgentCreatorBasic:
 
 # ── Platform default detection → forces "default" secret ─────────────────────
 
+
 class TestAgentCreatorPlatformDefaultForcesSecret:
     def test_platform_default_model_adds_default_to_secrets(self, mocker):
         mocker.patch(
-            "agents.agent_creator.PLATFORM_DEFAULT_MODELS",
+            "tools.model_catalog.PLATFORM_DEFAULT_MODELS",
             _FAKE_PLATFORM_DEFAULTS,
         )
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         # gpt-5.3-chat is in _FAKE_PLATFORM_DEFAULTS → "default" should be forced
@@ -140,10 +140,10 @@ class TestAgentCreatorPlatformDefaultForcesSecret:
 
     def test_platform_default_appends_default_when_secrets_exist(self, mocker):
         mocker.patch(
-            "agents.agent_creator.PLATFORM_DEFAULT_MODELS",
+            "tools.model_catalog.PLATFORM_DEFAULT_MODELS",
             _FAKE_PLATFORM_DEFAULTS,
         )
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         agent_creator_assistant(
@@ -159,10 +159,10 @@ class TestAgentCreatorPlatformDefaultForcesSecret:
 
     def test_non_platform_default_does_not_add_default_secret(self, mocker):
         mocker.patch(
-            "agents.agent_creator.PLATFORM_DEFAULT_MODELS",
+            "tools.model_catalog.PLATFORM_DEFAULT_MODELS",
             _FAKE_PLATFORM_DEFAULTS,
         )
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         # my-custom-model is NOT in platform defaults
@@ -181,13 +181,14 @@ class TestAgentCreatorPlatformDefaultForcesSecret:
 
 # ── Temperature clamping ──────────────────────────────────────────────────────
 
+
 class TestAgentCreatorTemperatureClamped:
     def test_temperature_below_min_is_clamped(self, mocker):
         mocker.patch(
-            "agents.agent_creator.PLATFORM_DEFAULT_MODELS",
+            "tools.model_catalog.PLATFORM_DEFAULT_MODELS",
             _FAKE_PLATFORM_DEFAULTS,
         )
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         # gpt-5.3-chat has min_temperature=1.0; pass 0.3 → should be clamped to 1.0
@@ -204,10 +205,10 @@ class TestAgentCreatorTemperatureClamped:
 
     def test_temperature_above_min_not_changed(self, mocker):
         mocker.patch(
-            "agents.agent_creator.PLATFORM_DEFAULT_MODELS",
+            "tools.model_catalog.PLATFORM_DEFAULT_MODELS",
             _FAKE_PLATFORM_DEFAULTS,
         )
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         # Pass temperature=1.5 which is above min_temperature=1.0 → unchanged
@@ -223,10 +224,10 @@ class TestAgentCreatorTemperatureClamped:
 
     def test_no_min_temperature_field_means_no_clamping(self, mocker):
         mocker.patch(
-            "agents.agent_creator.PLATFORM_DEFAULT_MODELS",
+            "tools.model_catalog.PLATFORM_DEFAULT_MODELS",
             _FAKE_PLATFORM_DEFAULTS,
         )
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         # amazon.nova-micro-v1:0 has no min_temperature → temperature=0.1 unchanged
@@ -243,9 +244,10 @@ class TestAgentCreatorTemperatureClamped:
 
 # ── Input/output format instructions ─────────────────────────────────────────
 
+
 class TestAgentCreatorInputFormat:
     def test_csv_input_format_includes_dictreader(self, mocker):
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         agent_creator_assistant("Create agent", input_format="csv")
@@ -254,7 +256,7 @@ class TestAgentCreatorInputFormat:
         assert "DictReader" in call_arg or "csv" in call_arg.lower()
 
     def test_csv_input_format_mentions_tmp_input(self, mocker):
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         agent_creator_assistant("Create agent", input_format="csv")
@@ -263,7 +265,7 @@ class TestAgentCreatorInputFormat:
         assert "/tmp/input/" in call_arg
 
     def test_mixed_input_format_mentions_mixed_file_types(self, mocker):
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         agent_creator_assistant("Create agent", input_format="mixed")
@@ -272,7 +274,7 @@ class TestAgentCreatorInputFormat:
         assert "mixed" in call_arg.lower()
 
     def test_xlsx_input_format_mentions_openpyxl(self, mocker):
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         agent_creator_assistant("Create agent", input_format="xlsx")
@@ -281,7 +283,7 @@ class TestAgentCreatorInputFormat:
         assert "openpyxl" in call_arg
 
     def test_no_input_format_no_tmp_input_mentioned(self, mocker):
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         agent_creator_assistant("Create agent")
@@ -292,7 +294,7 @@ class TestAgentCreatorInputFormat:
 
 class TestAgentCreatorOutputFormat:
     def test_pdf_output_format_mentions_reportlab(self, mocker):
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         agent_creator_assistant("Create agent", output_format="pdf")
@@ -301,7 +303,7 @@ class TestAgentCreatorOutputFormat:
         assert "reportlab" in call_arg
 
     def test_xlsx_output_format_mentions_openpyxl(self, mocker):
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         agent_creator_assistant("Create agent", output_format="xlsx")
@@ -310,7 +312,7 @@ class TestAgentCreatorOutputFormat:
         assert "openpyxl" in call_arg
 
     def test_docx_output_format_mentions_python_docx(self, mocker):
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         agent_creator_assistant("Create agent", output_format="docx")
@@ -319,7 +321,7 @@ class TestAgentCreatorOutputFormat:
         assert "python-docx" in call_arg
 
     def test_pptx_output_format_mentions_python_pptx(self, mocker):
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         agent_creator_assistant("Create agent", output_format="pptx")
@@ -328,7 +330,7 @@ class TestAgentCreatorOutputFormat:
         assert "python-pptx" in call_arg
 
     def test_markdown_output_format_no_output_format_instruction(self, mocker):
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         agent_creator_assistant("Create agent", output_format="markdown")
@@ -340,9 +342,10 @@ class TestAgentCreatorOutputFormat:
 
 # ── Default prompt injection ──────────────────────────────────────────────────
 
+
 class TestAgentCreatorDefaultPrompt:
     def test_default_prompt_injected_in_context(self, mocker):
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         agent_creator_assistant("Create agent", default_prompt="Run analysis")
@@ -351,7 +354,7 @@ class TestAgentCreatorDefaultPrompt:
         assert "Run analysis" in call_arg
 
     def test_no_default_prompt_no_prompt_instruction(self, mocker):
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         agent_creator_assistant("Create agent")
@@ -362,9 +365,10 @@ class TestAgentCreatorDefaultPrompt:
 
 # ── Available secrets in context ──────────────────────────────────────────────
 
+
 class TestAgentCreatorAvailableSecrets:
     def test_available_secrets_listed_in_context(self, mocker):
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         agent_creator_assistant("Create agent", available_secrets=["my-key", "another-key"])
@@ -376,10 +380,10 @@ class TestAgentCreatorAvailableSecrets:
     def test_no_secrets_empty_list_no_explicit_secrets_note(self, mocker):
         """When available_secrets=[] and no platform-default model is matched,
         the secrets note should NOT appear in the context."""
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
         # Use a non-platform-default model so "default" is not forced in
-        mocker.patch("agents.agent_creator.PLATFORM_DEFAULT_MODELS", [])
+        mocker.patch("tools.model_catalog.PLATFORM_DEFAULT_MODELS", [])
 
         agent_creator_assistant(
             "Create agent",
@@ -394,9 +398,10 @@ class TestAgentCreatorAvailableSecrets:
 
 # ── Model settings block in context ──────────────────────────────────────────
 
+
 class TestAgentCreatorModelSettings:
     def test_model_provider_and_id_injected_when_specified(self, mocker):
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         agent_creator_assistant(
@@ -412,7 +417,7 @@ class TestAgentCreatorModelSettings:
         assert "0.5" in call_arg
 
     def test_no_model_specified_no_model_settings_block(self, mocker):
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         agent_creator_assistant("Create agent without model")
@@ -424,16 +429,17 @@ class TestAgentCreatorModelSettings:
 
 # ── Validation retry logic ────────────────────────────────────────────────────
 
+
 class TestAgentCreatorValidationRetry:
     def test_retry_on_invalid_then_valid(self, mocker):
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         validate_results = ["INVALID - some error", "VALID - ok"]
         validate_mock = mocker.patch(
             "agents.agent_creator.validate_yaml",
             side_effect=validate_results,
         )
 
-        result = agent_creator_assistant("Create agent")
+        agent_creator_assistant("Create agent")
 
         # Agent should be called twice: initial + 1 fix attempt
         assert mock_agent_instance.call_count == 2
@@ -460,7 +466,7 @@ class TestAgentCreatorValidationRetry:
         assert result == "last-yaml-str"
 
     def test_first_call_valid_agent_called_once(self, mocker):
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch("agents.agent_creator.validate_yaml", return_value="VALID - ok")
 
         agent_creator_assistant("Create agent")
@@ -469,6 +475,7 @@ class TestAgentCreatorValidationRetry:
 
 
 # ── Exception handling ────────────────────────────────────────────────────────
+
 
 class TestAgentCreatorExceptionHandling:
     def test_runtime_error_returns_error_string(self, mocker):
@@ -490,7 +497,7 @@ class TestAgentCreatorExceptionHandling:
         assert "bad config" in result
 
     def test_validate_yaml_exception_during_retry_still_returns(self, mocker):
-        mock_agent_cls, mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
+        _mock_agent_cls, _mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
         mocker.patch(
             "agents.agent_creator.validate_yaml",
             side_effect=RuntimeError("validator crashed"),

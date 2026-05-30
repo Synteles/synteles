@@ -18,16 +18,16 @@ from __future__ import annotations
 
 import os
 from collections.abc import AsyncGenerator
-from typing import Annotated
+from typing import Annotated, Any
 
 import jwt
-from jwt import PyJWKClient
-
-from core.protocol import format_sse
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from jwt import PyJWKClient
 from pydantic import BaseModel
+
+from core.protocol import format_sse
 
 app = FastAPI(title="chat-stream")
 
@@ -74,22 +74,26 @@ def _extract_token(authorization: Annotated[str, Header()]) -> str:
     except HTTPException:
         raise
     except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail="Invalid token") from None
     return token
 
 
 # ── Models / streaming ────────────────────────────────────────────────────────
 
+
 class ChatRequest(BaseModel):
     message: str
-    messages: list[dict] = []
-    manager_state: dict = {}
+    messages: list[dict[str, Any]] = []
+    manager_state: dict[str, Any] = {}
     org_id: str | None = None
     pending_input_objects: list[str] | None = None
 
 
-async def _sse_stream(req: ChatRequest, access_token: str) -> AsyncGenerator[bytes, None]:
-    from core.agent import stream_turn  # lazy import: avoids loading strands/litellm at module level
+async def _sse_stream(req: ChatRequest, access_token: str) -> AsyncGenerator[bytes]:
+    from core.agent import (
+        stream_turn,
+    )  # lazy import: avoids loading strands/litellm at module level
+
     async for event in stream_turn(
         message=req.message,
         messages=req.messages,
@@ -121,5 +125,5 @@ async def chat_stream(req: ChatRequest, access_token: Token) -> StreamingRespons
 
 
 @app.get("/health")
-async def health() -> dict:
+async def health() -> dict[str, str]:
     return {"status": "ok"}

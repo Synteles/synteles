@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -24,10 +25,12 @@ import requests
 
 from tools.platform_tools import PlatformAPIError, PlatformTools, _normalize_list
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _make_response(status_code: int, body: dict | list | str, headers: dict | None = None) -> MagicMock:
+
+def _make_response(
+    status_code: int, body: dict[str, Any] | list[Any] | str, headers: dict[str, str] | None = None
+) -> MagicMock:
     """Build a mock requests.Response."""
     mock_resp = MagicMock(spec=requests.Response)
     mock_resp.status_code = status_code
@@ -40,9 +43,11 @@ def _make_response(status_code: int, body: dict | list | str, headers: dict | No
     return mock_resp
 
 
-def _make_tool_context(token: str = "test-token", org_id: str | None = None, pending_files: list | None = None) -> MagicMock:
+def _make_tool_context(
+    token: str = "test-token", org_id: str | None = None, pending_files: list[str] | None = None
+) -> MagicMock:
     ctx = MagicMock()
-    state: dict = {"access_token": token}
+    state: dict[str, Any] = {"access_token": token}
     if org_id is not None:
         state["org_id"] = org_id
     if pending_files is not None:
@@ -52,6 +57,7 @@ def _make_tool_context(token: str = "test-token", org_id: str | None = None, pen
 
 
 # ── _normalize_list ───────────────────────────────────────────────────────────
+
 
 class TestNormalizeList:
     def test_bare_list_input(self):
@@ -80,6 +86,7 @@ class TestNormalizeList:
 
 
 # ── PlatformTools._make_request ───────────────────────────────────────────────
+
 
 class TestMakeRequest:
     def test_raises_when_no_access_token(self):
@@ -155,6 +162,7 @@ class TestMakeRequest:
 
 # ── get_current_user ──────────────────────────────────────────────────────────
 
+
 class TestGetCurrentUser:
     def test_returns_user_data(self, mocker):
         mock_resp = _make_response(200, {"user_id": "u1", "email": "u@test.com"})
@@ -168,6 +176,7 @@ class TestGetCurrentUser:
 
 # ── get_organization ──────────────────────────────────────────────────────────
 
+
 class TestGetOrganization:
     def test_returns_org_data(self, mocker):
         mock_resp = _make_response(200, {"org_id": "org-abc", "name": "Acme"})
@@ -180,6 +189,7 @@ class TestGetOrganization:
 
 
 # ── create_agentlet ───────────────────────────────────────────────────────────
+
 
 class TestCreateAgentlet:
     def test_creates_agentlet_with_description_and_yaml(self, mocker):
@@ -214,6 +224,7 @@ class TestCreateAgentlet:
 
 
 # ── list_agentlets ────────────────────────────────────────────────────────────
+
 
 class TestListAgentlets:
     def test_returns_normalized_list(self, mocker):
@@ -250,6 +261,7 @@ class TestListAgentlets:
 
 # ── get_agentlet ──────────────────────────────────────────────────────────────
 
+
 class TestGetAgentlet:
     def test_returns_agentlet_data(self, mocker):
         mock_resp = _make_response(200, {"id": "my_agent", "YAML": "agentlet:\n  name: test\n"})
@@ -262,6 +274,7 @@ class TestGetAgentlet:
 
 
 # ── update_agentlet ───────────────────────────────────────────────────────────
+
 
 class TestUpdateAgentlet:
     def test_sends_patch_with_description_and_yaml(self, mocker):
@@ -297,6 +310,7 @@ class TestUpdateAgentlet:
 
 # ── list_api_keys ─────────────────────────────────────────────────────────────
 
+
 class TestListApiKeys:
     def test_returns_normalized_api_keys(self, mocker):
         mock_resp = _make_response(200, {"api_keys": [{"key_id": "k1"}], "count": 1})
@@ -322,6 +336,7 @@ class TestListApiKeys:
 
 # ── list_secrets ──────────────────────────────────────────────────────────────
 
+
 class TestListSecrets:
     def test_returns_secrets_data(self, mocker):
         mock_resp = _make_response(200, {"secrets": [{"name": "api-key"}]})
@@ -334,6 +349,7 @@ class TestListSecrets:
 
 
 # ── list_model_presets ────────────────────────────────────────────────────────
+
 
 class TestListModelPresets:
     def test_returns_normalized_presets(self, mocker):
@@ -358,6 +374,7 @@ class TestListModelPresets:
 
 
 # ── create_model_preset ───────────────────────────────────────────────────────
+
 
 class TestCreateModelPreset:
     def test_creates_preset_with_all_fields(self, mocker):
@@ -411,6 +428,7 @@ class TestCreateModelPreset:
 
 # ── list_mcp_presets ──────────────────────────────────────────────────────────
 
+
 class TestListMcpPresets:
     def test_returns_normalized_presets(self, mocker):
         mock_resp = _make_response(200, [{"name": "github"}])
@@ -434,6 +452,7 @@ class TestListMcpPresets:
 
 
 # ── create_mcp_preset ─────────────────────────────────────────────────────────
+
 
 class TestCreateMcpPreset:
     def test_creates_preset_with_description(self, mocker):
@@ -477,10 +496,11 @@ class TestCreateMcpPreset:
 
 # ── create_agentlet_execution ─────────────────────────────────────────────────
 
+
 class TestCreateAgentletExecution:
     def test_creates_execution(self, mocker):
         mock_resp = _make_response(202, {"execution_id": "exec-123"})
-        mock_request = mocker.patch("tools.platform_tools.requests.request", return_value=mock_resp)
+        mocker.patch("tools.platform_tools.requests.request", return_value=mock_resp)
 
         pt = PlatformTools(api_base_url="https://api.test")
         ctx = _make_tool_context()
@@ -510,9 +530,7 @@ class TestCreateAgentletExecution:
 
         pt = PlatformTools(api_base_url="https://api.test")
         ctx = _make_tool_context(pending_files=["file1.csv", "file2.xlsx"])
-        pt.create_agentlet_execution(
-            org_id="org-1", agentlet_id="my_agent", tool_context=ctx
-        )
+        pt.create_agentlet_execution(org_id="org-1", agentlet_id="my_agent", tool_context=ctx)
         _, kwargs = mock_request.call_args
         assert kwargs["json"]["input_objects"] == ["file1.csv", "file2.xlsx"]
 
@@ -532,6 +550,7 @@ class TestCreateAgentletExecution:
 
 # ── get_execution_status ──────────────────────────────────────────────────────
 
+
 class TestGetExecutionStatus:
     def test_returns_status_data(self, mocker):
         mock_resp = _make_response(200, {"status": "running", "execution_id": "exec-1"})
@@ -544,6 +563,7 @@ class TestGetExecutionStatus:
 
 
 # ── get_execution_logs ────────────────────────────────────────────────────────
+
 
 class TestGetExecutionLogs:
     def test_returns_json_logs_by_default(self, mocker):
@@ -567,9 +587,7 @@ class TestGetExecutionLogs:
 
         pt = PlatformTools(api_base_url="https://api.test")
         ctx = _make_tool_context()
-        result = pt.get_execution_logs(
-            execution_id="exec-1", tool_context=ctx, log_format="text"
-        )
+        result = pt.get_execution_logs(execution_id="exec-1", tool_context=ctx, log_format="text")
         assert result["logs_text"] == "2024-01-01 INFO Agent started"
         assert result["status"] == "completed"
         assert result["logs_available"] is True
@@ -591,12 +609,16 @@ class TestGetExecutionLogs:
 
 # ── get_execution_files ───────────────────────────────────────────────────────
 
+
 class TestGetExecutionFiles:
     def test_returns_files_data(self, mocker):
-        mock_resp = _make_response(200, {
-            "execution_id": "exec-1",
-            "output_zip": {"exists": True, "download_url": "https://s3.example.com/output.zip"},
-        })
+        mock_resp = _make_response(
+            200,
+            {
+                "execution_id": "exec-1",
+                "output_zip": {"exists": True, "download_url": "https://s3.example.com/output.zip"},
+            },
+        )
         mocker.patch("tools.platform_tools.requests.request", return_value=mock_resp)
 
         pt = PlatformTools(api_base_url="https://api.test")
@@ -606,6 +628,7 @@ class TestGetExecutionFiles:
 
 
 # ── terminate_execution ───────────────────────────────────────────────────────
+
 
 class TestTerminateExecution:
     def test_terminates_execution(self, mocker):
@@ -619,6 +642,7 @@ class TestTerminateExecution:
 
 
 # ── list_executions ───────────────────────────────────────────────────────────
+
 
 class TestListExecutions:
     def test_returns_executions_without_filters(self, mocker):
@@ -659,7 +683,35 @@ class TestListExecutions:
 
 # ── get_model_options ─────────────────────────────────────────────────────────
 
+_TEST_PLATFORM_DEFAULTS: list[dict[str, Any]] = [
+    {
+        "id": "platform_test_a",
+        "label": "Test Model A",
+        "provider": "anthropic",
+        "model_id": "claude-test",
+        "secret_literal": "default",
+        "default_temperature": 0.7,
+        "best_for": ["coding", "code review"],
+        "description": "General test model A.",
+    },
+    {
+        "id": "platform_test_b",
+        "label": "Test Model B",
+        "provider": "openai",
+        "model_id": "gpt-test",
+        "secret_literal": "default",
+        "default_temperature": 0.5,
+        "best_for": ["data analysis"],
+        "description": "General test model B.",
+    },
+]
+
+
 class TestGetModelOptions:
+    @pytest.fixture(autouse=True)
+    def _patch_platform_defaults(self, mocker: Any) -> None:
+        mocker.patch("tools.model_catalog.PLATFORM_DEFAULT_MODELS", _TEST_PLATFORM_DEFAULTS)
+
     def test_returns_options_and_recommended_id(self, mocker):
         mock_resp = _make_response(200, [])
         mocker.patch("tools.platform_tools.requests.request", return_value=mock_resp)

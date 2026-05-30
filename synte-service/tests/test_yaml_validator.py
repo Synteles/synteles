@@ -16,8 +16,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from tools.yaml_validator import validate_yaml
 
 # ── Minimal valid YAML fixture ───────────────────────────────────────────────
