@@ -1,82 +1,136 @@
 # Architecture
 
-Synteles is a multi-service platform for AI workers and long-running enterprise workflows. This document gives a high-level overview of the system structure.
+This document gives a high-level overview of the system design.
+
+Synteles is committed to principle of open, pluggable and extensible architecture.
 
 ## Services
 
 | Service | Technology | Responsibility |
 |---|---|---|
-| **core-service** | FastAPI (Python) | Primary REST API — agentlets, users, secrets, files, org management |
-| **scheduler-service** | FastAPI (Python) | Execution engine — launches and monitors agentlet containers |
-| **synte-service** | FastAPI (Python) | AI chat assistant — conversational interface powered by LiteLLM and Strands Agents |
-| **ux-console** | Next.js (TypeScript) | Web frontend — App Router, Tailwind CSS, shadcn/ui |
+| **core-service** | FastAPI (Python) | Primary REST API: agentlets, users, orgs, API keys, secrets, files, connectors, conversations, model presets |
+| **scheduler-service** | FastAPI (Python) | Execution engine: launches and monitors agentlet containers |
+| **synte-service** | FastAPI (Python) | AI chat assistant (Synte) conversational interface powered by LiteLLM and Strands Agents ADK |
+| **ux-console** | Next.js (TypeScript) | Web frontend: App Router, Tailwind CSS, shadcn/ui |
 | **platform-db** | Python library | Shared SQLAlchemy models and Alembic migrations, used by core and scheduler |
 
 ## Infrastructure
 
+Synteles is designed to be portable. Depending on environment where it is deployed, components below can be represented as managed services or self-operated components.
+
 | Component | Role |
 |---|---|
-| **Traefik** | API gateway and reverse proxy — single entry point for all API traffic |
-| **Keycloak** | Identity provider — OIDC-based authentication and authorization |
-| **PostgreSQL** | Primary relational database — agentlets, users, workflow state, secrets |
-| **MinIO** | S3-compatible object storage — uploaded files, execution artifacts, conversation blobs |
+| **Traefik** | API gateway and reverse proxy is a single entry point for all API traffic |
+| **Keycloak** | Identity provider/Identity broker OIDC-based authentication and authorization |
+| **PostgreSQL** | Platform database to store agentlets, users, workflow state, secrets data |
+| **MinIO** | S3-compatible object storage to store uploaded files, execution artifacts, conversation blobs |
 
-## High-Level Diagram
+## Architecture Diagram
 
-```mermaid
+```mermaid 
 graph TB
-    Browser["Browser"]
+    User["User"]
 
-    subgraph Stack["Synteles Stack"]
-        UX["ux-console\n(Next.js)"]
-        Traefik["Traefik\n(API Gateway)"]
+    subgraph Stack["Synteles"]
+
+        subgraph Frontend["Frontend"]
+            UX["ux-console </br> (web-console)"]
+            Synte["synte-service </br> (assistant-chat)"]
+        end
+
+        Traefik["API Gateway </br> (Traefik)"]
 
         subgraph Backend["Backend Services"]
-            Core["core-service\n(FastAPI)"]
-            Scheduler["scheduler-service\n(FastAPI)"]
-            Synte["synte-service\n(FastAPI)"]
+            Core["core-service"]
+            Scheduler["scheduler-service"]
         end
 
-        subgraph Data["Data Layer"]
-            PG[("PostgreSQL")]
-            Minio[("MinIO")]
+
+        PG[("Platform DB </br> (PostgreSQL)")]
+        Minio[("Object Storage </br> S3 compatible </br> (MinIO)")]
+
+        KC["Identity Provider/Broker </br> (Keycloak)"]
+        
+        subgraph EE["Agentlet Execution Environment (K8S/Docker/Custom)"]
+            Agentlet1["Agentlet1 (Container)"]
+            AgentletN["AgentletN (Container)"]
         end
 
-        KC["Keycloak\n(Identity Provider)"]
-        Agents["Agentlet Containers\n(Docker)"]
     end
 
     subgraph External["External"]
-        LLM["LLM Providers\n(OpenAI · Azure · Bedrock · etc.)"]
-        WebSearch["Web Search\n(Tavily)"]
+        LLM["LLM Providers </br> (OpenAI, Azure, Amazon Bedrock, Ollama etc.)"]
     end
 
-    Browser -->|":3000"| UX
-    Browser -->|":8080 API"| Traefik
-    UX -->|"server-side calls"| Traefik
+    User --> UX
+    UX -->|"/api"| Traefik
+    UX -->|"/chat/stream"| Synte
     Traefik --> Core
     Traefik --> Scheduler
-    Traefik --> Synte
-    Traefik -->|"/auth/*"| KC
+    Traefik -->|"/auth"| KC
+    Core -->|"ForwardAuth / JWKS"| KC
+    Synte -->|"/api"| Traefik
     Core --> PG
     Core --> Minio
-    Core -->|"token validation"| KC
     Scheduler --> PG
-    Scheduler -->|"launch / monitor"| Agents
-    Agents --> LLM
+    Scheduler --> Minio
+    Scheduler -->|"launch / monitor agentlets"| EE
+    EE --> LLM
     Synte --> LLM
-    Synte --> WebSearch
-    UX -->|"OIDC"| KC
+    User -->|"OIDC"| KC
 ```
 
 ## Request Flow
 
 1. The browser opens the **ux-console** at `:3000` and authenticates via **Keycloak** (OIDC Authorization Code + PKCE).
 2. API calls from the UI flow through **Traefik** (`:8080`), which routes traffic to the appropriate backend service and validates JWT tokens.
-3. **core-service** handles all agentlet lifecycle operations and persists state in **PostgreSQL**. Files and execution artifacts are stored in **MinIO**.
-4. When an agentlet execution is triggered, **scheduler-service** launches a dedicated **agentlet container** and monitors it until completion.
-5. Agentlet containers call **LLM providers** (via LiteLLM) and optional tools such as web search (Tavily).
-6. **synte-service** powers the Synte chat interface, also routing through LiteLLM for model-agnostic access.
+3. **core-service** handles all agentlet lifecycle operations and persists state in **PostgreSQL**. Uploaded files and conversation blobs are stored in **MinIO**.
+4. When an agentlet execution is triggered, **scheduler-service** launches a dedicated **agentlet container**, monitors it until completion, and uploads execution logs and output artifacts to **MinIO**.
+5. Agentlets call **LLM providers** (via LiteLLM).
+6. **synte-service** powers the Synte chat interface, routing through LiteLLM for model-agnostic access.
+
+## Scheduler Pluggable Backend Architecture
+
+The scheduler-service uses an abstract `ExecutionBackend` interface. The active backend is selected at startup via the `EXECUTION_BACKEND` environment variable — no code changes are required to switch runtimes.
+
+```mermaid
+flowchart TB
+    Scheduler["scheduler-service"]
+    Factory["get_backend() — factory\nreads EXECUTION_BACKEND env var"]
+    ABC["&lt;&lt;abstract&gt;&gt; ExecutionBackend\nsubmit() · status() · logs() · stop()"]
+
+    Docker["DockerBackend\n(available)"]
+    K8s["KubernetesBackend\n(planned)"]
+    Custom["CustomBackend\n(extensible)"]
+
+    Scheduler -->|"requests backend"| Factory
+    Factory -->|"returns"| ABC
+    ABC -.->|"implements"| Docker
+    ABC -.->|"implements"| K8s
+    ABC -.->|"implements"| Custom
+```
+
+`ExecutionBackend` is an abstract base class. The factory selects the concrete implementation at startup via `EXECUTION_BACKEND` — the scheduler only ever talks to the abstract interface, making new runtimes a drop-in addition.
+
+## Identity and Authentication
+
+Keycloak serves two distinct roles depending on deployment scale.
+
+**Small deployments — Identity Provider**
+
+Keycloak acts as the primary identity provider. Users and credentials are managed directly in the Keycloak realm. This is the default configuration in the local Docker Compose setup and is suitable for self-contained deployments where Synteles owns the user directory.
+
+**Enterprise deployments — Identity Broker**
+
+Keycloak acts as an identity broker, delegating authentication to an existing enterprise identity system. Synteles receives a standard OIDC token regardless of the upstream provider — no changes to the platform are required.
+
+Supported federation protocols include:
+
+- **SAML 2.0** — integrates with Active Directory Federation Services (ADFS), Okta, OneLogin, PingFederate, and other SAML-compliant identity providers
+- **OIDC** — integrates with Azure Entra ID (formerly Azure AD), Google Workspace, Auth0, and any OIDC-compliant provider
+- **LDAP / Active Directory** — direct user federation for organisations that prefer to synchronise the user directory into Keycloak rather than delegate authentication
+
+In broker mode, Keycloak handles the protocol translation and attribute mapping. Enterprise users log in through their existing SSO experience; Synteles sees a normalised JWT token with the expected claims.
 
 ## Deployment
 

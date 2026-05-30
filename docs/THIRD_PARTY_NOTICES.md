@@ -15,7 +15,7 @@ repository-root `NOTICE` file, as required by Section 4(d) of that license.
 |---|---|---|
 | FastAPI | MIT | Sebastián Ramírez |
 | Uvicorn | BSD-3-Clause | Encode OSS Ltd. |
-| PyJWT | MIT | Jeff Lindsay |
+| PyJWT | MIT | José Padilla |
 | boto3 | Apache-2.0 | Amazon.com, Inc. or its affiliates |
 | botocore | Apache-2.0 | Amazon.com, Inc. or its affiliates |
 | httpx | BSD-3-Clause | Encode OSS Ltd. |
@@ -23,7 +23,7 @@ repository-root `NOTICE` file, as required by Section 4(d) of that license.
 | docker (docker-py) | Apache-2.0 | Docker, Inc. |
 | SQLAlchemy | MIT | Michael Bayer |
 | asyncpg | Apache-2.0 | MagicStack Inc. and asyncpg authors |
-| psycopg2-binary | LGPL-3.0 | Daniele Varrazzo |
+| psycopg2-binary | LGPL-3.0 | Federico Di Gregorio, Daniele Varrazzo |
 | Alembic | MIT | Michael Bayer |
 | cryptography | Apache-2.0 / BSD | Individual contributors (PyCA) |
 | strands-agents | Apache-2.0 | Amazon.com, Inc. or its affiliates |
@@ -71,7 +71,7 @@ repository-root `NOTICE` file, as required by Section 4(d) of that license.
 | sonner | MIT | Emil Kowalski |
 | @base-ui/react | MIT | MUI SAS |
 | shadcn/ui | MIT | shadcn |
-| tw-animate-css | MIT | Benny Powers |
+| tw-animate-css | MIT | Wombosvideo |
 
 ### Development / tooling (not distributed)
 

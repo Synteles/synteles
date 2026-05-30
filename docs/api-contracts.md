@@ -205,7 +205,7 @@ All user endpoints require OIDC authentication.
 
 Returns the authenticated user's basic profile and organization info. On the very first call for a new user, lazily provisions a personal organization and sets `org_id` in Keycloak.
 
-**Authorization:** Bearer token (Cognito/OIDC)
+**Authorization:** Bearer token (OIDC)
 
 **Response:**
 - **Status:** `200 OK`
@@ -1095,7 +1095,7 @@ Retrieves execution status and metadata using API key authentication.
   "execution_id": "550e8400-e29b-41d4-a716-446655440000",
   "agentlet_id": "my_agentlet",
   "status": "completed",
-  "logs_s3_uri": "s3://synteles-platform-dev-execution-logs/executions/550e8400-e29b-41d4-a716-446655440000/logs.txt",
+  "logs_s3_uri": "s3://synteles-logs/executions/550e8400-e29b-41d4-a716-446655440000/logs.txt",
   "created_at": "2025-12-13T10:30:45.000000+00:00",
   "completed_at": "2025-12-13T10:35:50.000000+00:00",
   "elapsed_seconds": 305,
@@ -1131,7 +1131,7 @@ Endpoints for managing agentlet executions.
 - Fire-and-forget async execution pattern
 - Background monitor loop polls active executions every 60 seconds
 - Automatic log collection and S3 storage on completion
-- Agentlet container backend is pluggable (AWS ECS Fargate by default)
+- Agentlet container backend is pluggable via `EXECUTION_BACKEND` env var (Docker by default)
 - Execution records are cleaned up automatically by PostgreSQL TTL logic after 30 days
 
 ---
@@ -1230,7 +1230,7 @@ Retrieves execution status and metadata.
   "execution_id": "550e8400-e29b-41d4-a716-446655440000",
   "agentlet_id": "my_agentlet",
   "status": "completed",
-  "logs_s3_uri": "s3://synteles-platform-dev-execution-logs/executions/550e8400-e29b-41d4-a716-446655440000/logs.txt",
+  "logs_s3_uri": "s3://synteles-logs/executions/550e8400-e29b-41d4-a716-446655440000/logs.txt",
   "created_at": "2025-12-13T10:30:45.000000+00:00",
   "completed_at": "2025-12-13T10:35:50.000000+00:00",
   "elapsed_seconds": 305,
@@ -1297,7 +1297,7 @@ Retrieves execution logs from S3 storage.
   "execution_id": "550e8400-e29b-41d4-a716-446655440000",
   "status": "completed",
   "logs_available": true,
-  "s3_uri": "s3://synteles-platform-dev-execution-logs/executions/550e8400-e29b-41d4-a716-446655440000/logs.txt",
+  "s3_uri": "s3://synteles-logs/executions/550e8400-e29b-41d4-a716-446655440000/logs.txt",
   "log_size_bytes": 2048,
   "created_at": "2025-12-13T10:30:45.000000+00:00",
   "completed_at": "2025-12-13T10:35:50.000000+00:00",
@@ -1441,7 +1441,7 @@ Lists executions with filtering and pagination support.
       "status": "completed",
       "created_at": "2025-12-13T10:30:45.000000+00:00",
       "completed_at": "2025-12-13T10:35:50.000000+00:00",
-      "logs_s3_uri": "s3://synteles-platform-dev-execution-logs/executions/550e8400-e29b-41d4-a716-446655440000/logs.txt",
+      "logs_s3_uri": "s3://synteles-logs/executions/550e8400-e29b-41d4-a716-446655440000/logs.txt",
       "elapsed_seconds": 305,
       "prompt": "Generate monthly sales report"
     }
@@ -1490,9 +1490,9 @@ curl "https://api.synteles.dev/v1/api/executions?limit=50&next_token=NTA=" \
 Endpoints for agentlet file exchange — uploading input files before execution and retrieving input/output files after execution. Files are transferred via S3 presigned URLs.
 
 **Architecture:**
-- **Staging bucket** (`{project}-{env}-file-uploads`): Temporary upload target; cleaned up by lifecycle policy
-- **Execution-logs bucket**: Permanent storage for input files (`executions/{id}/input/`) and outputs (`executions/{id}/output/output.zip`)
-- **Container env vars**: `SYNTELES_INPUT_FILES` (JSON array of `{name, url, type}`) and `SYNTELES_OUTPUT_URL` (presigned PUT URL for output.zip) are included in the execution manifest
+- **Staging bucket** (`synteles-uploads`): Temporary upload target; 7-day lifecycle expiry
+- **Logs bucket** (`synteles-logs`): Permanent storage for execution logs, input files (`executions/{id}/input/`) and output artifacts (`executions/{id}/output/output.zip`); 30-day lifecycle expiry
+- **Container env vars**: `SYNTELES_MANIFEST_URL` (presigned GET URL for the execution manifest JSON) and `SYNTELES_EXEC_ID` are injected directly; the manifest itself contains `input_files`, `output_url`, `agentlet_yaml`, `prompt`, and `timeout`
 
 **Typical workflow:**
 1. Call `POST /api/files` to create an upload session and get presigned POST URLs
@@ -2136,7 +2136,7 @@ Breaking changes will be introduced in new versions (v2, v3, etc.) while maintai
 
 For API issues or questions:
 - GitHub Issues: [platform-infra repository]
-- Documentation: See `README.md` and `CLAUDE.md` in repository root
+- Documentation: See `README.md` in repository root
 
 ---
 
