@@ -20,3 +20,5 @@ export const config = {
   oidcClientSecret: process.env.OIDC_CLIENT_SECRET!,
   redirectUri: process.env.REDIRECT_URI!,
 } as const
+
+export const appOrigin = new URL(config.redirectUri).origin

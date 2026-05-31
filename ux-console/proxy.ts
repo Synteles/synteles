@@ -16,16 +16,9 @@
 // The exported function must be named `proxy` instead of `middleware`.
 // The config.matcher, NextRequest, and NextResponse APIs are unchanged.
 import { NextRequest, NextResponse } from 'next/server'
-import { COOKIE_ACCESS, COOKIE_REFRESH } from '@/lib/auth-constants'
+import { COOKIE_ACCESS, COOKIE_REFRESH, isSafeRedirect } from '@/lib/auth-constants'
 
 const UNPROTECTED = ['/api/auth/refresh', '/api/health']
-
-// Accepts only same-origin relative paths. Rejects protocol-relative URLs
-// (//evil.com) and backslash variants (/\evil.com) that some browsers treat
-// as absolute redirects.
-function isSafeRedirect(p: string): boolean {
-  return p.startsWith('/') && !p.startsWith('//') && !p.startsWith('/\\')
-}
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl

@@ -14,50 +14,36 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { refreshAccessToken } from '@/lib/auth'
-import { config } from '@/lib/config'
+import { appOrigin } from '@/lib/config'
 import {
   COOKIE_ACCESS,
   COOKIE_REFRESH,
   COOKIE_ID,
-  REFRESH_TOKEN_MAX_AGE,
+  isSafeRedirect,
+  setSessionCookies,
 } from '@/lib/auth-constants'
 
+function expiredResponse(): NextResponse {
+  const url = new URL('/login', appOrigin)
+  url.searchParams.set('error', 'session_expired')
+  const res = NextResponse.redirect(url)
+  res.cookies.delete(COOKIE_ACCESS)
+  res.cookies.delete(COOKIE_REFRESH)
+  res.cookies.delete(COOKIE_ID)
+  return res
+}
+
 export async function GET(req: NextRequest) {
-  const appOrigin = new URL(config.redirectUri).origin
   const next = req.nextUrl.searchParams.get('next')
-  const destination =
-    next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\')
-      ? next
-      : '/dashboard'
+  const destination = next && isSafeRedirect(next) ? next : '/dashboard'
 
   const refreshToken = req.cookies.get(COOKIE_REFRESH)?.value
-  if (!refreshToken) {
-    const url = new URL('/login', appOrigin)
-    url.searchParams.set('error', 'session_expired')
-    return NextResponse.redirect(url)
-  }
+  if (!refreshToken) return expiredResponse()
 
   const tokens = await refreshAccessToken(refreshToken)
-  if (!tokens) {
-    const url = new URL('/login', appOrigin)
-    url.searchParams.set('error', 'session_expired')
-    const response = NextResponse.redirect(url)
-    response.cookies.delete(COOKIE_ACCESS)
-    response.cookies.delete(COOKIE_REFRESH)
-    response.cookies.delete(COOKIE_ID)
-    return response
-  }
+  if (!tokens) return expiredResponse()
 
   const response = NextResponse.redirect(new URL(destination, appOrigin))
-  const cookieOpts = {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax' as const,
-    path: '/',
-  }
-  response.cookies.set(COOKIE_ACCESS, tokens.accessToken, { ...cookieOpts, maxAge: tokens.expiresIn })
-  response.cookies.set(COOKIE_REFRESH, tokens.refreshToken, { ...cookieOpts, maxAge: REFRESH_TOKEN_MAX_AGE })
-  response.cookies.set(COOKIE_ID, tokens.idToken, { ...cookieOpts, maxAge: REFRESH_TOKEN_MAX_AGE })
-
+  setSessionCookies(response, tokens)
   return response
 }

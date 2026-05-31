@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { NextResponse } from 'next/server'
+
 export const COOKIE_ACCESS = 'sid_at'
 export const COOKIE_REFRESH = 'sid_rt'
 export const COOKIE_ID     = 'sid_it'
@@ -19,3 +21,26 @@ export const PKCE_VERIFIER_COOKIE = 'pkce_verifier'
 export const OAUTH_STATE_COOKIE = 'oauth_state'
 export const NEXT_REDIRECT_COOKIE = 'auth_next'
 export const REFRESH_TOKEN_MAX_AGE = 60 * 60 * 24 * 30
+
+// Accepts only same-origin relative paths. Rejects protocol-relative URLs
+// (//evil.com) and backslash variants (/\evil.com) that some browsers treat
+// as absolute redirects.
+export function isSafeRedirect(p: string): boolean {
+  return p.startsWith('/') && !p.startsWith('//') && !p.startsWith('/\\')
+}
+
+const SESSION_COOKIE_OPTS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax' as const,
+  path: '/',
+}
+
+export function setSessionCookies(
+  response: NextResponse,
+  tokens: { accessToken: string; refreshToken: string; idToken: string; expiresIn: number },
+): void {
+  response.cookies.set(COOKIE_ACCESS, tokens.accessToken, { ...SESSION_COOKIE_OPTS, maxAge: tokens.expiresIn })
+  response.cookies.set(COOKIE_REFRESH, tokens.refreshToken, { ...SESSION_COOKIE_OPTS, maxAge: REFRESH_TOKEN_MAX_AGE })
+  response.cookies.set(COOKIE_ID, tokens.idToken, { ...SESSION_COOKIE_OPTS, maxAge: REFRESH_TOKEN_MAX_AGE })
+}
