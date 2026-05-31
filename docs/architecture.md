@@ -27,9 +27,10 @@ Synteles is designed to be portable. Depending on environment where it is deploy
 
 ## Architecture Diagram
 
-```mermaid 
+```mermaid  
 graph TB
     User["User"]
+    Service["External Service/App"]
 
     subgraph Stack["Synteles"]
 
@@ -41,13 +42,17 @@ graph TB
         Traefik["API Gateway </br> (Traefik)"]
 
         subgraph Backend["Backend Services"]
-            Core["core-service"]
+            
+            subgraph Core["core-service"]
+                CoreService["core-api"]
+                AuthService["auth-api"]
+            end
             Scheduler["scheduler-service"]
         end
 
 
         PG[("Platform DB </br> (PostgreSQL)")]
-        Minio[("Object Storage </br> S3 compatible </br> (MinIO)")]
+        Minio[("Object Storage </br> (MinIO)")]
 
         KC["Identity Provider/Broker </br> (Keycloak)"]
         
@@ -58,20 +63,21 @@ graph TB
 
     end
 
-    subgraph External["External"]
-        LLM["LLM Providers </br> (OpenAI, Azure, Amazon Bedrock, Ollama etc.)"]
-    end
+    LLM["LLM Providers </br> (OpenAI, Azure, Amazon Bedrock, Ollama etc.)"]
 
     User --> UX
     UX -->|"/api"| Traefik
     UX -->|"/chat/stream"| Synte
-    Traefik --> Core
+    Service -->|"/api/public"| Traefik
+    Traefik --> CoreService
     Traefik --> Scheduler
+    Traefik -->|"/auth/verify"| AuthService
     Traefik -->|"/auth"| KC
-    Core -->|"ForwardAuth / JWKS"| KC
+    AuthService -->|"ForwardAuth </br> JWKS"| KC
+    AuthService -->|"API Key </br> validation"| KC
     Synte -->|"/api"| Traefik
-    Core --> PG
-    Core --> Minio
+    CoreService --> PG
+    CoreService --> Minio
     Scheduler --> PG
     Scheduler --> Minio
     Scheduler -->|"launch / monitor agentlets"| EE
