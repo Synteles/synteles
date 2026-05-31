@@ -107,7 +107,9 @@ async def apikey_auth(
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing Bearer token")
     api_key = authorization.removeprefix("Bearer ").strip()
-    key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+    # SHA256 is safe here: tokens are issued exclusively via create_api_key
+    # using token_urlsafe(32) (256-bit entropy).  # nosec B324
+    key_hash = hashlib.sha256(api_key.encode()).hexdigest()  # lgtm[py/weak-sensitive-data-hashing]
     try:
         repo = ApiKeyRepo(db)
         key = await repo.find_active_by_hash(key_hash)

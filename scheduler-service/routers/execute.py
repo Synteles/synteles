@@ -94,13 +94,13 @@ def _fetch_platform_model_secret(provider: str, model_id: str) -> dict[str, str]
     env_key = f"PLATFORM_SECRET_{secret_name.upper().replace('-', '_').replace(' ', '_')}"
     raw = os.environ.get(env_key, "")
     if not raw:
-        logger.warning("Platform model secret env var '%s' is not set", env_key)
+        logger.warning("Platform model secret '%s' env var is not set", secret_name)
         return {}
     try:
         secret_value = json.loads(raw)
         return {k: v for k, v in secret_value.items() if isinstance(k, str) and isinstance(v, str)}
     except Exception as exc:
-        logger.warning("Could not parse platform model secret '%s': %s", env_key, exc)
+        logger.warning("Could not parse platform model secret '%s': %s", secret_name, type(exc).__name__)
         return {}
 
 
