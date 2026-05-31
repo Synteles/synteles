@@ -12,84 +12,50 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Next.js 16+ replaces middleware.ts with proxy.ts (middleware.ts is deprecated).
+// The exported function must be named `proxy` instead of `middleware`.
+// The config.matcher, NextRequest, and NextResponse APIs are unchanged.
 import { NextRequest, NextResponse } from 'next/server'
-import { config as appConfig } from '@/lib/config'
-import { getOidcConfig } from '@/lib/oidc-discovery'
-import { COOKIE_ACCESS, COOKIE_ID, COOKIE_REFRESH, REFRESH_TOKEN_MAX_AGE } from '@/lib/auth-constants'
+import { COOKIE_ACCESS, COOKIE_REFRESH, isSafeRedirect } from '@/lib/auth-constants'
 
-const PUBLIC_PATHS = ['/login', '/callback', '/logout']
+const UNPROTECTED = ['/login', '/callback', '/logout', '/api/auth/refresh', '/api/health']
 
-function isSafeRedirect(path: string): boolean {
-  return path.startsWith('/') && !path.startsWith('//')
-}
-
-export async function proxy(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
 
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+  if (UNPROTECTED.some(p => pathname.startsWith(p))) {
     return NextResponse.next()
   }
 
-  const accessToken = req.cookies.get(COOKIE_ACCESS)?.value
-  const refreshToken = req.cookies.get(COOKIE_REFRESH)?.value
+  const hasAccess = !!req.cookies.get(COOKIE_ACCESS)?.value
+  if (hasAccess) return NextResponse.next()
 
-  if (accessToken) {
-    return NextResponse.next()
+  // API calls must always get 401, never a redirect. fetch() follows redirects
+  // silently — if the refresh chain fails it ends up at the login page (200 HTML)
+  // which the client can't parse as JSON, producing a generic error toast.
+  // The client-side 401 handler does window.location.href to /api/auth/refresh
+  // which is a full page navigation and handles both success and failure correctly.
+  if (pathname.startsWith('/api/')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  if (refreshToken) {
-    try {
-      const { token_endpoint } = await getOidcConfig()
-      const body = new URLSearchParams({
-        grant_type: 'refresh_token',
-        client_id: appConfig.oidcClientId,
-        client_secret: appConfig.oidcClientSecret,
-        refresh_token: refreshToken,
-      })
+  const hasRefresh = !!req.cookies.get(COOKIE_REFRESH)?.value
+  const dest = pathname + req.nextUrl.search
 
-      const res = await fetch(token_endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body,
-      })
-
-      if (res.ok) {
-        const data = await res.json()
-        const response = NextResponse.next()
-        const cookieOpts = {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax' as const,
-          path: '/',
-        }
-        response.cookies.set(COOKIE_ACCESS, data.access_token, {
-          ...cookieOpts,
-          maxAge: data.expires_in,
-        })
-        if (!data.refresh_token) {
-          console.warn('OIDC refresh: response missing refresh_token, reusing existing token')
-        }
-        response.cookies.set(COOKIE_REFRESH, data.refresh_token ?? refreshToken, {
-          ...cookieOpts,
-          maxAge: REFRESH_TOKEN_MAX_AGE,
-        })
-        if (data.id_token) {
-          response.cookies.set(COOKIE_ID, data.id_token, { ...cookieOpts, maxAge: REFRESH_TOKEN_MAX_AGE })
-        }
-        return response
-      }
-    } catch {
-      // fall through to redirect
-    }
+  if (hasRefresh) {
+    // For page navigations: redirect through the refresh route. It will set new
+    // cookies and send the user to their original destination on success, or to
+    // /login?error=session_expired on failure.
+    const refreshUrl = new URL('/api/auth/refresh', req.url)
+    if (isSafeRedirect(dest) && dest !== '/') refreshUrl.searchParams.set('next', dest)
+    return NextResponse.redirect(refreshUrl)
   }
 
-  const loginUrl = new URL('/login', new URL(appConfig.redirectUri).origin)
-  if (isSafeRedirect(pathname)) {
-    loginUrl.searchParams.set('next', pathname)
-  }
+  const loginUrl = new URL('/login', req.url)
+  if (isSafeRedirect(dest) && dest !== '/login') loginUrl.searchParams.set('next', dest)
   return NextResponse.redirect(loginUrl)
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*'],
+  matcher: ['/dashboard/:path*', '/api/:path*'],
 }

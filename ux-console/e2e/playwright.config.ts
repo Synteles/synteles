@@ -13,11 +13,13 @@
 // limitations under the License.
 
 import { defineConfig, devices } from '@playwright/test'
+import { MOCK_OIDC_ISSUER } from './oidc-mock'
 
 export default defineConfig({
   testDir: '.',
   fullyParallel: false,
   retries: process.env.CI ? 1 : 0,
+  globalSetup: './global-setup.ts',
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
@@ -28,10 +30,24 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
+  // reuseExistingServer is intentionally false: the webServer.env below must
+  // reach the Next.js process, which only happens when Playwright spawns it.
+  // Requires a prior `pnpm build` — run `pnpm build && pnpm test:e2e` locally.
   webServer: {
-    command: 'pnpm dev',
+    command: 'pnpm start',
     url: 'http://localhost:3000/api/health',
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
+    reuseExistingServer: false,
+    timeout: 30_000,
+    env: {
+      OIDC_ISSUER_URL: MOCK_OIDC_ISSUER,
+      OIDC_CLIENT_ID: 'test-client',
+      OIDC_CLIENT_SECRET: 'test-secret',
+      REDIRECT_URI: 'http://localhost:3000/callback',
+      // API_BASE_URL is not reachable in the e2e environment; auth.ts catches
+      // the resulting errors and returns null for user info, which is fine for
+      // auth flow tests that only assert on URL and cookie state.
+      API_BASE_URL: `${MOCK_OIDC_ISSUER}`,
+      CHAT_STREAM_URL: `${MOCK_OIDC_ISSUER}`,
+    },
   },
 })

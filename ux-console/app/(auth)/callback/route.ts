@@ -14,31 +14,28 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { exchangeCodeForTokens } from '@/lib/auth'
-import { config } from '@/lib/config'
+import { appOrigin } from '@/lib/config'
 import {
-  COOKIE_ACCESS,
-  COOKIE_ID,
-  COOKIE_REFRESH,
   PKCE_VERIFIER_COOKIE,
   OAUTH_STATE_COOKIE,
   NEXT_REDIRECT_COOKIE,
-  REFRESH_TOKEN_MAX_AGE,
+  isSafeRedirect,
+  setSessionCookies,
 } from '@/lib/auth-constants'
 
 export async function GET(req: NextRequest) {
-  const appOrigin = new URL(config.redirectUri).origin
   const { searchParams } = req.nextUrl
   const code = searchParams.get('code')
   const state = searchParams.get('state')
   const error = searchParams.get('error')
 
   if (error) {
-    const KNOWN_COGNITO_ERRORS = new Set([
+    const KNOWN_OIDC_ERRORS = new Set([
       'access_denied', 'invalid_request', 'unauthorized_client',
       'unsupported_response_type', 'invalid_scope', 'server_error',
       'temporarily_unavailable',
     ])
-    const safeError = KNOWN_COGNITO_ERRORS.has(error) ? error : 'auth_error'
+    const safeError = KNOWN_OIDC_ERRORS.has(error) ? error : 'auth_error'
     return NextResponse.redirect(new URL(`/login?error=${safeError}`, appOrigin))
   }
 
@@ -53,30 +50,10 @@ export async function GET(req: NextRequest) {
     const tokens = await exchangeCodeForTokens(code, codeVerifier)
 
     const nextPath = req.cookies.get(NEXT_REDIRECT_COOKIE)?.value
-    const destination =
-      nextPath && nextPath.startsWith('/') && !nextPath.startsWith('//')
-        ? nextPath
-        : '/dashboard'
+    const destination = nextPath && isSafeRedirect(nextPath) ? nextPath : '/dashboard'
 
     const response = NextResponse.redirect(new URL(destination, appOrigin))
-    const cookieOpts = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax' as const,
-      path: '/',
-    }
-    response.cookies.set(COOKIE_ACCESS, tokens.accessToken, {
-      ...cookieOpts,
-      maxAge: tokens.expiresIn,
-    })
-    response.cookies.set(COOKIE_REFRESH, tokens.refreshToken, {
-      ...cookieOpts,
-      maxAge: REFRESH_TOKEN_MAX_AGE,
-    })
-    response.cookies.set(COOKIE_ID, tokens.idToken, {
-      ...cookieOpts,
-      maxAge: REFRESH_TOKEN_MAX_AGE,
-    })
+    setSessionCookies(response, tokens)
     response.cookies.delete(PKCE_VERIFIER_COOKIE)
     response.cookies.delete(OAUTH_STATE_COOKIE)
     response.cookies.delete(NEXT_REDIRECT_COOKIE)

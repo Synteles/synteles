@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { apiFetch } from './client-fetch'
+
 export type ExecutionStatus =
   | 'deploying'
   | 'running'
@@ -65,19 +67,6 @@ export function isTerminal(status: ExecutionStatus): boolean {
 }
 
 // ── Client-side API (calls our Next.js proxy route handlers) ─────────────────
-
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, { credentials: 'include', ...init })
-  if (!res.ok) {
-    const body = await res.json().catch(() => null) as { error?: string } | null
-    throw new Error(body?.error ?? `Request failed: ${res.status}`)
-  }
-  if (res.status === 202) {
-    return res.json() as Promise<T>
-  }
-  if (res.status === 204) return null as T
-  return res.json() as Promise<T>
-}
 
 export async function fetchActiveExecutions(): Promise<Execution[]> {
   const data = await apiFetch<{ executions?: Execution[] }>('/api/executions/active')

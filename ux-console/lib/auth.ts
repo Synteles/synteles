@@ -52,30 +52,29 @@ export interface OidcTokenResponse {
   token_type: string
 }
 
-export async function exchangeCodeForTokens(code: string, codeVerifier: string): Promise<TokenSet> {
+async function postToTokenEndpoint(params: Record<string, string>): Promise<OidcTokenResponse> {
   const { token_endpoint } = await getOidcConfig()
-
   const body = new URLSearchParams({
-    grant_type: 'authorization_code',
     client_id: config.oidcClientId,
     client_secret: config.oidcClientSecret,
-    code,
-    redirect_uri: config.redirectUri,
-    code_verifier: codeVerifier,
+    ...params,
   })
-
   const res = await fetch(token_endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
   })
+  if (!res.ok) throw new Error(`Token exchange failed: ${await res.text()}`)
+  return res.json() as Promise<OidcTokenResponse>
+}
 
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Token exchange failed: ${err}`)
-  }
-
-  const data: OidcTokenResponse = await res.json()
+export async function exchangeCodeForTokens(code: string, codeVerifier: string): Promise<TokenSet> {
+  const data = await postToTokenEndpoint({
+    grant_type: 'authorization_code',
+    code,
+    redirect_uri: config.redirectUri,
+    code_verifier: codeVerifier,
+  })
   if (!data.refresh_token) throw new Error('Token exchange did not return a refresh token')
   return {
     accessToken: data.access_token,
@@ -88,6 +87,24 @@ export async function exchangeCodeForTokens(code: string, codeVerifier: string):
 export async function getServerToken(): Promise<string | null> {
   const cookieStore = await cookies()
   return cookieStore.get(COOKIE_ACCESS)?.value ?? null
+}
+
+export async function refreshAccessToken(refreshToken: string): Promise<TokenSet | null> {
+  try {
+    const data = await postToTokenEndpoint({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+    })
+    return {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token ?? refreshToken,
+      idToken: data.id_token,
+      expiresIn: data.expires_in,
+    }
+  } catch (e) {
+    console.error('[auth] refreshAccessToken failed:', e)
+    return null
+  }
 }
 
 export async function getMe(): Promise<MeProfile | null> {

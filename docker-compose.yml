@@ -75,6 +75,7 @@ services:
       KC_HOSTNAME_URL: http://localhost:8080/auth
       KC_HOSTNAME_ADMIN_URL: http://localhost:8080/auth
       KC_HTTP_RELATIVE_PATH: /auth
+      KC_PROXY_HEADERS: xforwarded
       KC_DB: dev-mem
     volumes:
       - ./infra/keycloak/realm.json:/opt/keycloak/data/import/realm.json:ro
@@ -236,8 +237,8 @@ services:
       - path: .env
         required: false
     environment:
-      OIDC_ISSUER_URL: http://keycloak:9090/auth/realms/synteles
-      OIDC_INTERNAL_BASE: http://keycloak:9090
+      OIDC_ISSUER_URL: http://traefik:8080/auth/realms/synteles
+      OIDC_INTERNAL_BASE: http://traefik:8080
       OIDC_PUBLIC_BASE: http://localhost:8080
       OIDC_CLIENT_ID: synteles-app
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-synteles-dev-secret}

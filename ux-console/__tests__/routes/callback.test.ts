@@ -38,9 +38,9 @@ beforeEach(() => {
   vi.resetAllMocks()
 })
 
-// ── Error param from Cognito ───────────────────────────────────────────────
+// ── Error param from OIDC provider ────────────────────────────────────────
 
-describe('Cognito error param', () => {
+describe('OIDC error param', () => {
   it.each([
     'access_denied',
     'invalid_request',
@@ -53,7 +53,7 @@ describe('Cognito error param', () => {
     expect(res.headers.get('location')).toContain(`error=${error}`)
   })
 
-  it('maps unknown Cognito errors to auth_error', async () => {
+  it('maps unknown OIDC errors to auth_error', async () => {
     const res = await GET(makeRequest('/callback?error=something_weird'))
     expect(res.headers.get('location')).toContain('error=auth_error')
     expect(res.headers.get('location')).not.toContain('something_weird')
@@ -165,7 +165,7 @@ describe('successful token exchange', () => {
 
 describe('token exchange failure', () => {
   it('redirects to /login?error=token_exchange_failed when exchange throws', async () => {
-    vi.mocked(auth.exchangeCodeForTokens).mockRejectedValue(new Error('Cognito down'))
+    vi.mocked(auth.exchangeCodeForTokens).mockRejectedValue(new Error('OIDC provider down'))
     const res = await GET(
       makeRequest('/callback?code=c&state=s', 'pkce_verifier=v; oauth_state=s')
     )

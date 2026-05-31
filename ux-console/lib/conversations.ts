@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { apiFetch } from './client-fetch'
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface ToolCall {
@@ -46,16 +48,6 @@ export interface ConversationFull extends ConversationMeta {
 }
 
 // ── Client-side API (calls Next.js proxy routes) ──────────────────────────────
-
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, { credentials: 'include', ...init })
-  if (!res.ok) {
-    const body = await res.json().catch(() => null) as { error?: string } | null
-    throw new Error(body?.error ?? `Request failed: ${res.status}`)
-  }
-  if (res.status === 204) return null as T
-  return res.json() as Promise<T>
-}
 
 export async function listConversations(): Promise<ConversationMeta[]> {
   const data = await apiFetch<{ conversations?: ConversationMeta[] }>('/api/conversations')

@@ -29,7 +29,6 @@ OIDC_AUDIENCE: str = os.environ.get("OIDC_AUDIENCE", "")
 S3_LOGS_BUCKET: str = os.environ.get("S3_LOGS_BUCKET", "")
 S3_UPLOADS_BUCKET: str = os.environ.get("S3_UPLOADS_BUCKET", "")
 REGION: str = os.environ.get("AWS_REGION", os.environ.get("REGION", "eu-central-1"))
-COGNITO_DOMAIN: str = os.environ.get("COGNITO_DOMAIN", "")
 
 _cors_env: str = os.environ.get("CORS_ALLOWED_ORIGINS", "")
 CORS_ALLOWED_ORIGINS: list[str] = (

@@ -12,13 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export const config = {
-  apiBaseUrl: process.env.API_BASE_URL!,
-  chatStreamUrl: process.env.CHAT_STREAM_URL!,
-  oidcIssuerUrl: process.env.OIDC_ISSUER_URL!,
-  oidcClientId: process.env.OIDC_CLIENT_ID!,
-  oidcClientSecret: process.env.OIDC_CLIENT_SECRET!,
-  redirectUri: process.env.REDIRECT_URI!,
-} as const
+import { startOidcMock } from './oidc-mock'
 
-export const appOrigin = config.redirectUri ? new URL(config.redirectUri).origin : ''
+export default async function globalSetup() {
+  const server = await startOidcMock()
+  return async () => {
+    await new Promise<void>((resolve, reject) => server.close((err) => err ? reject(err) : resolve()))
+  }
+}

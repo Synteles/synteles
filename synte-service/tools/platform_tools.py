@@ -14,7 +14,7 @@
 
 """Strands custom tools wrapping the Synteles Platform API.
 
-All tools use ToolContext.invocation_state to receive the Cognito access token,
+All tools use ToolContext.invocation_state to receive the OIDC access token,
 which must be passed at agent invocation time:
     agent(prompt, access_token=st.session_state["access_token"])
 """
@@ -118,7 +118,7 @@ class PlatformTools:
     def get_current_user(self, tool_context: ToolContext) -> dict[str, Any]:
         """Get the authenticated user's profile including organization information.
 
-        Returns the current user's Cognito user ID, email, name, and organization
+        Returns the current user's OIDC user ID, email, name, and organization
         details (org_id, org_name) if they belong to one.
         """
         token = tool_context.invocation_state.get("access_token", "")
