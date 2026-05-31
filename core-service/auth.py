@@ -169,7 +169,7 @@ async def verify(
         try:
             org_id: str | None = await resolve_org_id(raw, db)
         except HTTPException:
-            org_id = raw.org_id  # not yet provisioned; routes enforce org when required
+            org_id = None  # not yet provisioned; routes enforce org when required
         claims = TokenClaims(user_id=raw.user_id, org_id=org_id)
     else:
         raise HTTPException(status_code=401, detail="Unauthorized")
