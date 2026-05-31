@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from synteles_db.crypto import decrypt, encrypt
 from synteles_db.repos.secrets import SecretRepo
 
-from auth import TokenClaims, oidc_auth
+from auth import TokenClaims, trusted_claims
 from db import get_db
 
 router = APIRouter()
@@ -65,7 +65,7 @@ class UpdateSecretRequest(BaseModel):
 @router.post("/api/secrets", status_code=201)
 async def create_secret(
     body: CreateSecretRequest,
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     name = body.name.strip()
@@ -105,7 +105,7 @@ async def create_secret(
 
 @router.get("/api/secrets")
 async def list_secrets(
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> list[dict[str, Any]]:
     secrets = await SecretRepo(db).list_by_user(UUID(claims.user_id))
@@ -124,7 +124,7 @@ async def list_secrets(
 @router.get("/api/secrets/{secret_name}")
 async def get_secret(
     secret_name: str,
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims)],
     db: Annotated[AsyncSession, Depends(get_db)],
     reveal_value: Annotated[bool, Query()] = False,
 ) -> dict[str, Any]:
@@ -149,7 +149,7 @@ async def get_secret(
 async def update_secret(
     secret_name: str,
     body: UpdateSecretRequest,
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     if body.description is None and body.value is None:
@@ -198,7 +198,7 @@ async def update_secret(
 @router.delete("/api/secrets/{secret_name}", status_code=204)
 async def delete_secret(
     secret_name: str,
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> Response:
     secret = await SecretRepo(db).get(UUID(claims.user_id), secret_name)

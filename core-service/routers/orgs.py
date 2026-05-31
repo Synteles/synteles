@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from synteles_db.repos.orgs import OrgRepo
 from synteles_db.repos.users import UserRepo
 
-from auth import TokenClaims, oidc_auth, resolve_org_id
+from auth import TokenClaims, trusted_claims
 from db import get_db
 
 router = APIRouter()
@@ -33,10 +33,10 @@ router = APIRouter()
 @router.get("/api/organizations/{org_id}")
 async def get_organization(
     org_id: str,
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
-    caller_org_id = await resolve_org_id(claims, db)
+    caller_org_id = claims.org_id
     if caller_org_id != org_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this organization")
 

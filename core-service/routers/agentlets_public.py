@@ -26,7 +26,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from synteles_db.repos.agentlets import AgentletRepo
 
-from auth import TokenClaims, apikey_auth
+from auth import TokenClaims, trusted_claims
 from db import get_db
 
 router = APIRouter()
@@ -51,7 +51,7 @@ def _inject_attrs(agentlet_yaml: str, attrs: dict[str, Any]) -> str:
 @router.get("/api/public/agentlets/{agentlet_id}", response_model=None)
 async def get_public_agentlet(
     agentlet_id: str,
-    claims: Annotated[TokenClaims, Depends(apikey_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims)],
     db: Annotated[AsyncSession, Depends(get_db)],
     accept: Annotated[str, Header()] = "",
     format: Annotated[str | None, Query()] = None,

@@ -28,7 +28,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from synteles_db.repos.conversations import ConversationRepo
 
-from auth import TokenClaims, oidc_auth, resolve_org_id
+from auth import TokenClaims, trusted_claims
 from db import get_db, get_s3
 
 router = APIRouter()
@@ -92,10 +92,10 @@ class UpdateConversationRequest(BaseModel):
 
 @router.get("/api/conversations")
 async def list_conversations(
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
-    org_id = await resolve_org_id(claims, db)
+    org_id = claims.org_id
     convs = await ConversationRepo(db).list_by_user(UUID(org_id), UUID(claims.user_id))
     return {
         "conversations": [
@@ -114,12 +114,12 @@ async def list_conversations(
 @router.post("/api/conversations", status_code=201)
 async def create_conversation(
     body: CreateConversationRequest,
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     from config import S3_LOGS_BUCKET
 
-    org_id = await resolve_org_id(claims, db)
+    org_id = claims.org_id
     title = str(body.title)[:_TITLE_MAX_LENGTH]
     conv = await ConversationRepo(db).create(
         org_id=UUID(org_id),
@@ -153,12 +153,12 @@ async def create_conversation(
 @router.get("/api/conversations/{conv_id}")
 async def get_conversation(
     conv_id: str,
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     from config import S3_LOGS_BUCKET
 
-    org_id = await resolve_org_id(claims, db)
+    org_id = claims.org_id
     conv = await ConversationRepo(db).get(UUID(org_id), UUID(claims.user_id), UUID(conv_id))
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
@@ -184,12 +184,12 @@ async def get_conversation(
 async def update_conversation(
     conv_id: str,
     body: UpdateConversationRequest,
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     from config import S3_LOGS_BUCKET
 
-    org_id = await resolve_org_id(claims, db)
+    org_id = claims.org_id
     conv = await ConversationRepo(db).get(UUID(org_id), UUID(claims.user_id), UUID(conv_id))
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
@@ -224,12 +224,12 @@ async def update_conversation(
 @router.delete("/api/conversations/{conv_id}")
 async def delete_conversation(
     conv_id: str,
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     from config import S3_LOGS_BUCKET
 
-    org_id = await resolve_org_id(claims, db)
+    org_id = claims.org_id
     conv = await ConversationRepo(db).get(UUID(org_id), UUID(claims.user_id), UUID(conv_id))
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")

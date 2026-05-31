@@ -12,214 +12,40 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for auth.py."""
+"""Unit tests for auth.py — trusted_claims dependency."""
 
 from __future__ import annotations
 
-import json
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import UUID
-
-import jwt
 import pytest
-from fastapi import FastAPI, HTTPException
-from fastapi.testclient import TestClient
+from fastapi import HTTPException
 
-from auth import (
-    TokenClaims,
-    _claims_from_payload,
-    apikey_auth,
-    auth_router,
-    oidc_auth,
-    resolve_org_id,
-)
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+from auth import TokenClaims, trusted_claims
 
 
-def _make_jwt(payload: dict) -> str:  # type: ignore[type-arg]
-    """Encode a JWT with HS256 — no signature verification path used in tests."""
-    return jwt.encode(payload, "secret", algorithm="HS256")
+async def test_trusted_claims_returns_token_claims() -> None:
+    result = await trusted_claims(x_user_id="u-123", x_org_id="o-abc")
+    assert isinstance(result, TokenClaims)
+    assert result.user_id == "u-123"
+    assert result.org_id == "o-abc"
 
 
-# ---------------------------------------------------------------------------
-# _claims_from_payload
-# ---------------------------------------------------------------------------
-
-
-def test_claims_from_payload_basic() -> None:
-    payload = {"sub": "user-1", "org_id": "org-1"}
-    claims = _claims_from_payload(payload)
-    assert claims.user_id == "user-1"
-    assert claims.org_id == "org-1"
-
-
-def test_claims_from_payload_no_org_id() -> None:
-    payload = {"sub": "user-1"}
-    claims = _claims_from_payload(payload)
-    assert claims.user_id == "user-1"
-    assert claims.org_id is None
-
-
-def test_claims_from_payload_org_id_from_custom_metadata() -> None:
-    meta = json.dumps({"org_id": "org-from-meta"})
-    payload = {"sub": "user-1", "custom:metadata": meta}
-    claims = _claims_from_payload(payload)
-    assert claims.org_id == "org-from-meta"
-
-
-def test_claims_from_payload_malformed_metadata() -> None:
-    payload = {"sub": "user-1", "custom:metadata": "not-json"}
-    claims = _claims_from_payload(payload)
-    assert claims.org_id is None
-
-
-def test_claims_from_payload_missing_sub_raises_401() -> None:
+async def test_trusted_claims_missing_user_id_raises_401() -> None:
     with pytest.raises(HTTPException) as exc_info:
-        _claims_from_payload({})
+        await trusted_claims(x_user_id=None, x_org_id="o-abc")
     assert exc_info.value.status_code == 401
 
 
-# ---------------------------------------------------------------------------
-# oidc_auth
-# ---------------------------------------------------------------------------
-
-
-async def test_oidc_auth_no_bearer_raises_401() -> None:
+async def test_trusted_claims_empty_user_id_raises_401() -> None:
     with pytest.raises(HTTPException) as exc_info:
-        await oidc_auth("not-a-bearer-token")
+        await trusted_claims(x_user_id="", x_org_id="o-abc")
     assert exc_info.value.status_code == 401
 
 
-async def test_oidc_auth_no_jwks_client_raises_401() -> None:
-    token = _make_jwt({"sub": "user-1", "org_id": "org-1"})
-    with patch("auth._JWKS_CLIENT", None), patch("auth.os.environ.get", return_value=""):
-        with pytest.raises(HTTPException) as exc_info:
-            await oidc_auth(f"Bearer {token}")
-    assert exc_info.value.status_code == 401
+async def test_trusted_claims_empty_org_id_returns_none() -> None:
+    result = await trusted_claims(x_user_id="u-123", x_org_id="")
+    assert result.org_id is None
 
 
-async def test_oidc_auth_missing_sub_raises_401() -> None:
-    token = _make_jwt({"some": "payload"})
-    with patch("auth._JWKS_CLIENT", None):
-        with pytest.raises(HTTPException) as exc_info:
-            await oidc_auth(f"Bearer {token}")
-    assert exc_info.value.status_code == 401
-
-
-# ---------------------------------------------------------------------------
-# apikey_auth
-# ---------------------------------------------------------------------------
-
-
-async def test_apikey_auth_no_bearer_raises_401() -> None:
-    db = AsyncMock()
-    with pytest.raises(HTTPException) as exc_info:
-        await apikey_auth(db, "Token abc")
-    assert exc_info.value.status_code == 401
-
-
-async def test_apikey_auth_valid_key_returns_claims() -> None:
-    db = AsyncMock()
-    mock_key = MagicMock()
-    mock_key.id = UUID("00000000-0000-0000-0000-000000000001")
-    mock_key.user_id = UUID("00000000-0000-0000-0000-000000000002")
-    mock_key.org_id = UUID("00000000-0000-0000-0000-000000000003")
-
-    mock_repo = MagicMock()
-    mock_repo.find_active_by_hash = AsyncMock(return_value=mock_key)
-    mock_repo.update_last_used = AsyncMock()
-
-    with patch("auth.ApiKeyRepo", return_value=mock_repo):
-        claims = await apikey_auth(db, "Bearer my-api-key")
-
-    assert claims.user_id == "00000000-0000-0000-0000-000000000002"
-    assert claims.org_id == "00000000-0000-0000-0000-000000000003"
-
-
-async def test_apikey_auth_key_not_found_raises_401() -> None:
-    db = AsyncMock()
-    mock_repo = MagicMock()
-    mock_repo.find_active_by_hash = AsyncMock(return_value=None)
-
-    with patch("auth.ApiKeyRepo", return_value=mock_repo):
-        with pytest.raises(HTTPException) as exc_info:
-            await apikey_auth(db, "Bearer bad-key")
-    assert exc_info.value.status_code == 401
-
-
-async def test_apikey_auth_key_missing_org_raises_401() -> None:
-    db = AsyncMock()
-    mock_key = MagicMock()
-    mock_key.org_id = None
-
-    mock_repo = MagicMock()
-    mock_repo.find_active_by_hash = AsyncMock(return_value=mock_key)
-
-    with patch("auth.ApiKeyRepo", return_value=mock_repo):
-        with pytest.raises(HTTPException) as exc_info:
-            await apikey_auth(db, "Bearer some-key")
-    assert exc_info.value.status_code == 401
-
-
-# ---------------------------------------------------------------------------
-# resolve_org_id
-# ---------------------------------------------------------------------------
-
-
-async def test_resolve_org_id_from_claims() -> None:
-    claims = TokenClaims(user_id="user-1", org_id="org-from-claims")
-    db = AsyncMock()
-    result = await resolve_org_id(claims, db)
-    assert result == "org-from-claims"
-
-
-async def test_resolve_org_id_from_db() -> None:
-    claims = TokenClaims(user_id="00000000-0000-0000-0000-000000000001", org_id=None)
-    db = AsyncMock()
-    mock_repo = MagicMock()
-    mock_repo.get_first_org_id = AsyncMock(
-        return_value=UUID("00000000-0000-0000-0000-000000000099")
-    )
-
-    with patch("auth.UserRepo", return_value=mock_repo):
-        result = await resolve_org_id(claims, db)
-    assert result == "00000000-0000-0000-0000-000000000099"
-
-
-async def test_resolve_org_id_not_found_raises_401() -> None:
-    claims = TokenClaims(user_id="00000000-0000-0000-0000-000000000001", org_id=None)
-    db = AsyncMock()
-    mock_repo = MagicMock()
-    mock_repo.get_first_org_id = AsyncMock(return_value=None)
-
-    with patch("auth.UserRepo", return_value=mock_repo):
-        with pytest.raises(HTTPException) as exc_info:
-            await resolve_org_id(claims, db)
-    assert exc_info.value.status_code == 401
-
-
-# ---------------------------------------------------------------------------
-# verify endpoint
-# ---------------------------------------------------------------------------
-
-
-def test_verify_endpoint_returns_ok_with_headers() -> None:
-    app = FastAPI()
-    app.include_router(auth_router)
-
-    mock_claims = TokenClaims(user_id="user-abc", org_id="org-xyz")
-
-    app.dependency_overrides[oidc_auth] = lambda: mock_claims
-
-    client = TestClient(app)
-    response = client.get("/auth/verify", headers={"Authorization": "Bearer token"})
-
-    app.dependency_overrides.clear()
-
-    assert response.status_code == 200
-    assert response.json() == {"ok": True}
-    assert response.headers["x-user-id"] == "user-abc"
-    assert response.headers["x-org-id"] == "org-xyz"
+async def test_trusted_claims_no_org_id_returns_none() -> None:
+    result = await trusted_claims(x_user_id="u-123", x_org_id=None)
+    assert result.org_id is None

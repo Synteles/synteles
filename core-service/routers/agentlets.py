@@ -26,7 +26,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from synteles_db.repos.agentlets import AgentletRepo
 
-from auth import TokenClaims, oidc_auth, resolve_org_id
+from auth import TokenClaims, trusted_claims
 from db import get_db
 
 router = APIRouter()
@@ -51,11 +51,11 @@ class UpdateAgentletRequest(BaseModel):
 
 @router.get("/api/agentlets")
 async def list_agentlets(
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims)],
     db: Annotated[AsyncSession, Depends(get_db)],
     org_id_param: Annotated[str | None, Query(alias="org_id")] = None,
 ) -> list[dict[str, Any]]:
-    org_id = await resolve_org_id(claims, db)
+    org_id = claims.org_id
     if org_id_param and org_id_param != org_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this organization")
     agentlets = await AgentletRepo(db).list_by_org(UUID(org_id))
@@ -73,7 +73,7 @@ async def list_agentlets(
 @router.post("/api/agentlets", status_code=201)
 async def create_agentlet(
     body: CreateAgentletRequest,
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     if not _validate_agentlet_id(body.id):
@@ -84,7 +84,7 @@ async def create_agentlet(
                 "digits, underscores, and hyphens (max 128 characters)"
             ),
         )
-    org_id = await resolve_org_id(claims, db)
+    org_id = claims.org_id
     try:
         agentlet = await AgentletRepo(db).create(
             org_id=UUID(org_id),
@@ -110,11 +110,11 @@ async def create_agentlet(
 @router.get("/api/agentlets/{agentlet_id}")
 async def get_agentlet(
     agentlet_id: str,
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims)],
     db: Annotated[AsyncSession, Depends(get_db)],
     org_id_param: Annotated[str | None, Query(alias="org_id")] = None,
 ) -> dict[str, Any]:
-    org_id = await resolve_org_id(claims, db)
+    org_id = claims.org_id
     if org_id_param and org_id_param != org_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this organization")
     agentlet = await AgentletRepo(db).get_by_org_and_name(UUID(org_id), agentlet_id)
@@ -132,10 +132,10 @@ async def get_agentlet(
 async def update_agentlet(
     agentlet_id: str,
     body: UpdateAgentletRequest,
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
-    org_id = await resolve_org_id(claims, db)
+    org_id = claims.org_id
     agentlet = await AgentletRepo(db).get_by_org_and_name(UUID(org_id), agentlet_id)
     if not agentlet:
         raise HTTPException(status_code=404, detail="Agentlet not found")
@@ -151,10 +151,10 @@ async def update_agentlet(
 @router.delete("/api/agentlets/{agentlet_id}", status_code=204)
 async def delete_agentlet(
     agentlet_id: str,
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> Response:
-    org_id = await resolve_org_id(claims, db)
+    org_id = claims.org_id
     agentlet = await AgentletRepo(db).get_by_org_and_name(UUID(org_id), agentlet_id)
     if not agentlet:
         raise HTTPException(status_code=404, detail="Agentlet not found")

@@ -193,7 +193,7 @@ def apikey_client(api_base_url: str, api_key: str) -> httpx.Client:
     """httpx client pre-configured with platform API key."""
     with httpx.Client(
         base_url=api_base_url,
-        headers={"Authorization": f"Bearer {api_key}"},
+        headers={"X-API-Key": api_key},
         timeout=30.0,
     ) as c:
         yield c

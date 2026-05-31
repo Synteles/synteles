@@ -23,7 +23,6 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from auth import auth_router
 from config import CORS_ALLOWED_ORIGINS
 from monitor import monitor_loop
 from routers import execute, management
@@ -51,7 +50,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth_router)
 app.include_router(execute.router)
 app.include_router(management.router)
 

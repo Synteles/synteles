@@ -102,12 +102,12 @@ async def oidc_auth(authorization: Annotated[str | None, Header()] = None) -> To
 
 async def apikey_auth(
     db: Annotated[AsyncSession, Depends(get_db)],
-    authorization: Annotated[str | None, Header()] = None,
+    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
 ) -> TokenClaims:
     """Validate API key via PostgreSQL lookup and return TokenClaims."""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing Bearer token")
-    api_key = authorization.removeprefix("Bearer ").strip()
+    if not x_api_key:
+        raise HTTPException(status_code=401, detail="Missing X-API-Key header")
+    api_key = x_api_key.strip()
     # SHA256 is safe here: tokens are issued exclusively via create_api_key
     # using token_urlsafe(32) (256-bit entropy).  # nosec B324
     key_hash = hashlib.sha256(
@@ -144,20 +144,32 @@ async def resolve_org_id(claims: TokenClaims, db: AsyncSession) -> str:
     raise HTTPException(status_code=401, detail="Unable to determine organization")
 
 
+async def trusted_claims(
+    x_user_id: Annotated[str | None, Header(alias="X-User-Id")] = None,
+    x_org_id: Annotated[str | None, Header(alias="X-Org-Id")] = None,
+) -> TokenClaims:
+    """Extract identity from Traefik-injected headers. No auth logic — trust the gateway."""
+    if not x_user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return TokenClaims(user_id=x_user_id, org_id=x_org_id or None)
+
+
 @auth_router.get("/auth/verify")
 async def verify(
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
+    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
     authorization: Annotated[str | None, Header()] = None,
 ) -> dict[str, Any]:
-    """Traefik forward-auth: validate token (JWT or API key) and propagate identity headers."""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    token = authorization.removeprefix("Bearer ").strip()
-    if token.count(".") == 2:
-        claims = await oidc_auth(authorization)
+    """Traefik forward-auth: validate X-API-Key or Bearer JWT and propagate identity headers."""
+    if x_api_key:
+        claims = await apikey_auth(db, x_api_key)
+    elif authorization and authorization.startswith("Bearer "):
+        raw = await oidc_auth(authorization)
+        org_id = await resolve_org_id(raw, db)
+        claims = TokenClaims(user_id=raw.user_id, org_id=org_id)
     else:
-        claims = await apikey_auth(db, authorization)
+        raise HTTPException(status_code=401, detail="Unauthorized")
     response.headers["X-User-Id"] = claims.user_id
     response.headers["X-Org-Id"] = claims.org_id or ""
     return {"ok": True}

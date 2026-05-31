@@ -25,7 +25,7 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from auth import TokenClaims, _claims_from_payload, oidc_auth, resolve_org_id
+from auth import _claims_from_payload, oidc_auth, trusted_claims
 from main import app
 
 client = TestClient(app)
@@ -99,78 +99,35 @@ async def test_oidc_auth_no_issuer_raises_401(monkeypatch):
     assert exc_info.value.status_code == 401
 
 
-# ─── resolve_org_id ────────────────────────────────────────────────────────
+# ─── trusted_claims ────────────────────────────────────────────────────────
 
 
-async def test_resolve_org_id_uses_claims_when_member():
-    user_id, org_id = uuid4(), uuid4()
-    claims = TokenClaims(user_id=str(user_id), org_id=str(org_id))
-
-    with patch("auth.UserRepo") as mock_user_repo:
-        mock_user_repo.return_value.is_org_member = AsyncMock(return_value=True)
-        result = await resolve_org_id(claims, MagicMock())
-
-    assert result == str(org_id)
-    mock_user_repo.return_value.is_org_member.assert_called_once_with(user_id, org_id)
+async def test_trusted_claims_returns_token_claims():
+    result = await trusted_claims(x_user_id="u-123", x_org_id="o-abc")
+    assert result.user_id == "u-123"
+    assert result.org_id == "o-abc"
 
 
-async def test_resolve_org_id_rejects_claimed_org_when_not_member():
-    user_id, real_org_id, claimed_org_id = uuid4(), uuid4(), uuid4()
-    claims = TokenClaims(user_id=str(user_id), org_id=str(claimed_org_id))
-
-    with patch("auth.UserRepo") as mock_user_repo:
-        mock_user_repo.return_value.is_org_member = AsyncMock(return_value=False)
-        mock_user_repo.return_value.get = AsyncMock(return_value=None)
-        mock_user_repo.return_value.get_first_org_id = AsyncMock(return_value=real_org_id)
-        result = await resolve_org_id(claims, MagicMock())
-
-    assert result == str(real_org_id)
-
-
-async def test_resolve_org_id_falls_back_to_db_lookup():
-    user_id = uuid4()
-    org_id = uuid4()
-    claims = TokenClaims(user_id=str(user_id), org_id=None)
-
-    with patch("auth.UserRepo") as mock_user_repo:
-        mock_user_repo.return_value.get = AsyncMock(return_value=None)
-        mock_user_repo.return_value.get_first_org_id = AsyncMock(return_value=org_id)
-        result = await resolve_org_id(claims, MagicMock())
-
-    assert result == str(org_id)
-
-
-async def test_resolve_org_id_no_org_raises_401():
-    claims = TokenClaims(user_id=str(uuid4()), org_id=None)
-
-    with patch("auth.UserRepo") as mock_user_repo:
-        mock_user_repo.return_value.get = AsyncMock(return_value=None)
-        mock_user_repo.return_value.get_first_org_id = AsyncMock(return_value=None)
-        with pytest.raises(HTTPException) as exc_info:
-            await resolve_org_id(claims, MagicMock())
-
+async def test_trusted_claims_missing_user_id_raises_401():
+    with pytest.raises(HTTPException) as exc_info:
+        await trusted_claims(x_user_id=None, x_org_id="o-abc")
     assert exc_info.value.status_code == 401
 
 
-async def test_resolve_org_id_falls_back_to_preferences():
-    user_id = uuid4()
-    claims = TokenClaims(user_id=str(user_id), org_id=None)
-
-    mock_user = MagicMock()
-    mock_user.preferences = {"home_org_id": "org-from-prefs"}
-
-    with patch("auth.UserRepo") as mock_user_repo:
-        mock_user_repo.return_value.get = AsyncMock(return_value=mock_user)
-        mock_user_repo.return_value.get_first_org_id = AsyncMock(return_value=None)
-        result = await resolve_org_id(claims, MagicMock())
-
-    assert result == "org-from-prefs"
+async def test_trusted_claims_empty_org_id_returns_none():
+    result = await trusted_claims(x_user_id="u-123", x_org_id="")
+    assert result.org_id is None
 
 
-# ─── /auth/verify dual auth ────────────────────────────────────────────────
+# ─── /auth/verify ──────────────────────────────────────────────────────────
 
 
-def test_verify_missing_bearer_returns_401():
+def test_verify_no_headers_returns_401():
+    res = client.get("/auth/verify")
+    assert res.status_code == 401
+
+
+def test_verify_invalid_authorization_returns_401():
     res = client.get("/auth/verify", headers={"Authorization": "notbearer xyz"})
     assert res.status_code == 401
 
@@ -187,6 +144,7 @@ def test_verify_jwt_returns_identity_headers():
     with (
         patch("auth._get_jwks_client", return_value=mock_client),
         patch("auth.jwt.decode", return_value={"sub": "u-123", "org_id": "o-abc"}),
+        patch("auth.resolve_org_id", new=AsyncMock(return_value="o-abc")),
     ):
         res = client.get("/auth/verify", headers={"Authorization": f"Bearer {token}"})
 
@@ -205,8 +163,28 @@ def test_verify_api_key_returns_identity_headers():
         mock_repo.return_value.find_active_by_hash = AsyncMock(return_value=mock_key)
         mock_repo.return_value.update_last_used = AsyncMock()
 
-        res = client.get("/auth/verify", headers={"Authorization": "Bearer sk-someapikey"})
+        res = client.get("/auth/verify", headers={"X-API-Key": "sk-someapikey"})
 
     assert res.status_code == 200
     assert res.headers["x-user-id"] == str(user_id)
     assert res.headers["x-org-id"] == str(org_id)
+
+
+def test_verify_api_key_takes_priority_over_bearer():
+    """X-API-Key is used when both headers are present."""
+    user_id, org_id = uuid4(), uuid4()
+
+    with patch("auth.ApiKeyRepo") as mock_repo:
+        mock_key = MagicMock()
+        mock_key.user_id = user_id
+        mock_key.org_id = org_id
+        mock_repo.return_value.find_active_by_hash = AsyncMock(return_value=mock_key)
+        mock_repo.return_value.update_last_used = AsyncMock()
+
+        res = client.get(
+            "/auth/verify",
+            headers={"X-API-Key": "sk-someapikey", "Authorization": "Bearer somejwt"},
+        )
+
+    assert res.status_code == 200
+    assert res.headers["x-user-id"] == str(user_id)
