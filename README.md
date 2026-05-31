@@ -1,4 +1,14 @@
+<p align="center">
+  <img src="docs/images/synteles_logo.png" alt="Synteles Logo" width="360"/>
+</p>
+
 # Synteles
+
+[![CI](https://github.com/Synteles/synteles/actions/workflows/ci.yml/badge.svg)](https://github.com/Synteles/synteles/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/Synteles/synteles/actions/workflows/codeql.yml/badge.svg)](https://github.com/Synteles/synteles/actions/workflows/codeql.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Powered by Synteles Agentlet](https://img.shields.io/badge/powered%20by-Synteles%20Agentlet-6f42c1)](https://github.com/Synteles/agentlet)
 
 **Open-source platform for AI workers and enterprise workflows.**
 
@@ -202,7 +212,7 @@ uv run pytest
 ```text
 synteles/
   core-service/         # REST API — agentlets, users, secrets, files, org management
-  scheduler-service/    # Execution engine — deploys and monitors agentlet containers
+  scheduler-service/    # Execution engine — deploys and monitors agentlet containers (see Agentlet Runtime below)
   synte-service/        # Synte chat assistant — AI agent powering the chat UI
   ux-console/           # Web UI — Next.js frontend (App Router)
   platform-db/          # Shared database library (synteles_db) + Alembic migrations
@@ -213,6 +223,12 @@ synteles/
   docker-compose.yml    # Local development environment
   install.sh            # First-time setup script
 ```
+
+## Agentlet Runtime
+
+Each agentlet execution runs inside an isolated Docker container using the [Synteles Agentlet](https://github.com/Synteles/agentlet) harness. The harness reads the agentlet's YAML definition, injects secrets, reads input files, runs the agent loop.
+
+The default image is `synteles/agentlet:edge`. See the [Configuration](#configuration) section and [docs/configuration.md](docs/configuration.md) for how to pin a specific release tag via `AGENTLET_IMAGE`.
 
 ## Documentation
 
