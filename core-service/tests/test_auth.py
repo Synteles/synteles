@@ -153,6 +153,30 @@ def test_verify_jwt_returns_identity_headers():
     assert res.headers["x-org-id"] == "o-abc"
 
 
+def test_verify_jwt_unprovisioned_user_still_returns_200():
+    """verify passes through when org not yet in DB (first login / not provisioned)."""
+    import jwt as pyjwt
+
+    token = pyjwt.encode({"sub": "u-new", "org_id": ""}, "secret", algorithm="HS256")
+
+    mock_signing_key = MagicMock()
+    mock_client = MagicMock()
+    mock_client.get_signing_key_from_jwt.return_value = mock_signing_key
+
+    from fastapi import HTTPException as _HTTPException
+
+    with (
+        patch("auth._get_jwks_client", return_value=mock_client),
+        patch("auth.jwt.decode", return_value={"sub": "u-new"}),
+        patch("auth.resolve_org_id", new=AsyncMock(side_effect=_HTTPException(status_code=401))),
+    ):
+        res = client.get("/auth/verify", headers={"Authorization": f"Bearer {token}"})
+
+    assert res.status_code == 200
+    assert res.headers["x-user-id"] == "u-new"
+    assert res.headers["x-org-id"] == ""
+
+
 def test_verify_api_key_returns_identity_headers():
     user_id, org_id = uuid4(), uuid4()
 

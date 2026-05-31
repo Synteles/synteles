@@ -166,7 +166,10 @@ async def verify(
         claims = await apikey_auth(db, x_api_key)
     elif authorization and authorization.startswith("Bearer "):
         raw = await oidc_auth(authorization)
-        org_id = await resolve_org_id(raw, db)
+        try:
+            org_id: str | None = await resolve_org_id(raw, db)
+        except HTTPException:
+            org_id = raw.org_id  # not yet provisioned; routes enforce org when required
         claims = TokenClaims(user_id=raw.user_id, org_id=org_id)
     else:
         raise HTTPException(status_code=401, detail="Unauthorized")

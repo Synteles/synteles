@@ -173,7 +173,7 @@ def org_id(client: httpx.Client) -> str:
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="session")
-def api_key(client: httpx.Client) -> str:
+def api_key(client: httpx.Client, org_id: str) -> str:
     """Create a platform API key for the session; delete it after all tests."""
     response = client.post("/api/users/apikeys", json={"key_name": "integration-test-key"})
     assert response.status_code == 200, (
