@@ -101,10 +101,10 @@ test.describe('authenticated session', () => {
     const authCookies = remaining.filter((c) => ['sid_at', 'sid_rt', 'sid_it'].includes(c.name))
     expect(authCookies).toHaveLength(0)
 
-    // Redirect must target OIDC logout with logout_uri pointing back to /login
+    // Redirect must target OIDC logout with post_logout_redirect_uri pointing back to /login
     const location = response.headers()['location'] ?? ''
     expect(location).toContain('/logout')
-    expect(location).toContain('logout_uri')
+    expect(location).toContain('post_logout_redirect_uri')
     expect(location).toContain(encodeURIComponent('/login'))
   })
 })

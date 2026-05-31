@@ -32,12 +32,12 @@ export default defineConfig({
   ],
   // reuseExistingServer is intentionally false: the webServer.env below must
   // reach the Next.js process, which only happens when Playwright spawns it.
-  // Stop any running `pnpm dev` on port 3000 before running `pnpm test:e2e`.
+  // Requires a prior `pnpm build` — run `pnpm build && pnpm test:e2e` locally.
   webServer: {
-    command: 'pnpm dev',
+    command: 'pnpm start',
     url: 'http://localhost:3000/api/health',
     reuseExistingServer: false,
-    timeout: 60_000,
+    timeout: 30_000,
     env: {
       OIDC_ISSUER_URL: MOCK_OIDC_ISSUER,
       OIDC_CLIENT_ID: 'test-client',
