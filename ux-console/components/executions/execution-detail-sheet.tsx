@@ -306,9 +306,11 @@ export function ExecutionDetailSheet({ executionId, onClose }: Props) {
     const nowActive = isActive(execution.status)
     if (prevActiveRef.current === true && !nowActive) {
       qc.invalidateQueries({ queryKey: ['executions', 'active'] })
+      qc.invalidateQueries({ queryKey: ['execution', executionId, 'logs'] })
+      qc.invalidateQueries({ queryKey: ['execution', executionId, 'files'] })
     }
     prevActiveRef.current = nowActive
-  }, [execution?.status, qc])
+  }, [execution?.status, executionId, qc])
 
   const { mutate: cancel, isPending: cancelling } = useMutation({
     mutationFn: () => cancelExecution(executionId!),
