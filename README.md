@@ -8,6 +8,7 @@
 [![CodeQL](https://github.com/Synteles/synteles/actions/workflows/codeql.yml/badge.svg)](https://github.com/Synteles/synteles/actions/workflows/codeql.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Powered by Synteles Agentlet](https://img.shields.io/badge/powered%20by-Synteles%20Agentlet-6f42c1)](https://github.com/Synteles/agentlet)
 
 **Open-source platform for AI workers and enterprise workflows.**
 
@@ -225,7 +226,7 @@ synteles/
 
 ## Agentlet Runtime
 
-Each agentlet execution runs inside an isolated Docker container using the [Synteles Agentlet](https://github.com/Synteles/agentlet) harness. The harness reads the agentlet's YAML definition, injects secrets and input files, runs the agent loop, and streams logs to S3.
+Each agentlet execution runs inside an isolated Docker container using the [Synteles Agentlet](https://github.com/Synteles/agentlet) harness. The harness reads the agentlet's YAML definition, injects secrets, reads input files, runs the agent loop.
 
 The default image is `synteles/agentlet:edge`. See the [Configuration](#configuration) section and [docs/configuration.md](docs/configuration.md) for how to pin a specific release tag via `AGENTLET_IMAGE`.
 
