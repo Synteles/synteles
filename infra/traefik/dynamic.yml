@@ -7,6 +7,14 @@ http:
           - "X-User-Id"
           - "X-Org-Id"
 
+    # Tells Keycloak the public hostname regardless of which internal hostname
+    # the request originated from (browser vs. ux-console server).
+    keycloak-public-host:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Host: "localhost:8080"
+          X-Forwarded-Proto: "http"
+
   routers:
     # Keycloak: /auth/* — no authentication, highest priority
     keycloak:
@@ -14,6 +22,8 @@ http:
       priority: 100
       entryPoints:
         - web
+      middlewares:
+        - keycloak-public-host
       service: keycloak
 
     # Public: GET single agentlet definition — no auth, goes to core-service

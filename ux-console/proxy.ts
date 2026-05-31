@@ -37,20 +37,25 @@ export function proxy(req: NextRequest) {
   const hasAccess = !!req.cookies.get(COOKIE_ACCESS)?.value
   if (hasAccess) return NextResponse.next()
 
+  // API calls must always get 401, never a redirect. fetch() follows redirects
+  // silently — if the refresh chain fails it ends up at the login page (200 HTML)
+  // which the client can't parse as JSON, producing a generic error toast.
+  // The client-side 401 handler does window.location.href to /api/auth/refresh
+  // which is a full page navigation and handles both success and failure correctly.
+  if (pathname.startsWith('/api/')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const hasRefresh = !!req.cookies.get(COOKIE_REFRESH)?.value
   const dest = pathname + req.nextUrl.search
 
   if (hasRefresh) {
-    // Redirect through the refresh route; it will set new cookies then send the
-    // user to their original destination (or /dashboard on success, /login on failure).
+    // For page navigations: redirect through the refresh route. It will set new
+    // cookies and send the user to their original destination on success, or to
+    // /login?error=session_expired on failure.
     const refreshUrl = new URL('/api/auth/refresh', req.url)
     if (isSafeRedirect(dest) && dest !== '/') refreshUrl.searchParams.set('next', dest)
     return NextResponse.redirect(refreshUrl)
-  }
-
-  // No tokens at all.
-  if (pathname.startsWith('/api/')) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const loginUrl = new URL('/login', req.url)
