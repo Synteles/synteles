@@ -21,4 +21,4 @@ export const config = {
   redirectUri: process.env.REDIRECT_URI!,
 } as const
 
-export const appOrigin = new URL(config.redirectUri).origin
+export const appOrigin = config.redirectUri ? new URL(config.redirectUri).origin : ''
