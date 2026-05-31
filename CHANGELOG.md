@@ -34,6 +34,7 @@ Before `v1.0`, breaking changes may occur without a major version bump.
 
 - `synte-service/tests/test_model_catalog.py` — tested platform config loading which requires a populated `config/platform.toml`; removed to keep CI environment-independent (error still raised at runtime when config is missing)
 - `ux-console/CLAUDE.md` — removed stale AI assistant context file
+- Removed all direct AWS Cognito integration traces (`COGNITO_DOMAIN`, `COGNITO_USER_POOL_ID`) from `core-service`, `synte-service`, and `ux-console`; Cognito is now accessed exclusively through Keycloak as an identity broker
 
 ### Security
 
