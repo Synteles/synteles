@@ -114,7 +114,7 @@ Python service that schedules and monitors agentlet executions.
 | `EXECUTION_BACKEND` | Optional | `docker` | Execution backend for agentlet containers. Currently only `docker` is supported. |
 | `AGENTLET_IMAGE` | Optional | `synteles/agentlet:edge` | Docker image used to spawn agentlet containers. Override to pin a specific tag or use a private registry, e.g. `synteles/agentlet:1.2.3`. |
 | `DOCKER_NETWORK` | Optional | _(empty)_ | Docker network name to attach agentlet containers to, e.g. `synteles_default`. When empty, no explicit network is set. Required for containers to reach internal services (MinIO, PostgreSQL). |
-| `MONITOR_INTERVAL_SECONDS` | Optional | `60` | How often (in seconds) the scheduler polls running executions for status updates. |
+| `MONITOR_INTERVAL_SECONDS` | Optional | `30` | How often (in seconds) the scheduler polls running executions for status updates. |
 | `TAVILY_API_KEY` | Optional | _(empty)_ | See [Shared / Root](#shared--root). |
 
 ### Networking

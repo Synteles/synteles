@@ -76,6 +76,13 @@ export function MessageInput({
     ? agentlets.filter(a => a.id.toLowerCase().includes(mention.query)).slice(0, 6)
     : []
 
+  // Browsers don't restore focus after re-enabling a disabled element
+  useEffect(() => {
+    if (!disabled && document.activeElement !== textareaRef.current) {
+      textareaRef.current?.focus()
+    }
+  }, [disabled])
+
   // Close dropdown on outside click
   useEffect(() => {
     if (!mention) return

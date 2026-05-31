@@ -30,7 +30,7 @@ S3_UPLOAD_BUCKET: str = os.environ.get("S3_UPLOAD_BUCKET", "")
 REGION: str = os.environ.get("AWS_REGION", os.environ.get("REGION", "eu-central-1"))
 AGENTLET_IMAGE: str = os.environ.get("AGENTLET_IMAGE", "synteles/agentlet:edge")
 DOCKER_NETWORK: str = os.environ.get("DOCKER_NETWORK", "")
-MONITOR_INTERVAL_SECONDS: int = int(os.environ.get("MONITOR_INTERVAL_SECONDS", "60"))
+MONITOR_INTERVAL_SECONDS: int = int(os.environ.get("MONITOR_INTERVAL_SECONDS", "30"))
 EXECUTION_BACKEND: str = os.environ.get("EXECUTION_BACKEND", "docker")
 TAVILY_API_KEY: str = os.environ.get("TAVILY_API_KEY", "")
 
