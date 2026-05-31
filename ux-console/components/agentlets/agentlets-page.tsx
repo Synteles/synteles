@@ -281,7 +281,7 @@ function RunsTable({ runs, onSelect }: {
 }
 
 // ── API Integration tab ────────────────────────────────────────────────────
-const API_BASE = 'https://api.synteles.dev'
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.synteles.dev'
 
 type DrawerTab = 'properties' | 'api' | 'danger'
 

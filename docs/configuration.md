@@ -162,7 +162,8 @@ Next.js frontend application.
 | `OIDC_PUBLIC_BASE` | Optional | _(same as OIDC_ISSUER_URL base)_ | Public base URL for browser-side Keycloak endpoints, e.g. `http://localhost:8080`. Used to rewrite server-generated URLs so the browser can reach them. |
 | `OIDC_CLIENT_ID` | **Required** | — | OIDC client ID registered in Keycloak, e.g. `synteles-app`. |
 | `OIDC_CLIENT_SECRET` | **Required** | — | See [Shared / Root](#shared--root). Used server-side only for the token exchange. |
-| `API_BASE_URL` | **Required** | — | Base URL of the platform API gateway, e.g. `http://traefik:8080` inside Docker or `https://api.synteles.dev` in production. |
+| `API_BASE_URL` | **Required** | — | Base URL of the platform API gateway used by server-side Next.js code, e.g. `http://traefik:8080` inside Docker. |
+| `NEXT_PUBLIC_API_BASE_URL` | Optional | `https://api.synteles.dev` | Publicly reachable API base URL embedded in the client-side bundle. Shown in the **API Integration** curl snippets so developers can copy-paste working commands. Set to `http://localhost:8080` for local dev, `https://api.synteles.dev` for production. |
 | `CHAT_STREAM_URL` | **Required** | — | Full URL of the synte-service streaming endpoint, e.g. `http://synte-service:8080/chat/stream`. |
 | `REDIRECT_URI` | **Required** | — | OIDC redirect URI registered in Keycloak, e.g. `http://localhost:3000/callback`. Must exactly match the URI configured in the Keycloak client. |
 
