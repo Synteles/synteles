@@ -27,7 +27,6 @@ labels: bug
 - OS:
 - `AGENTLET_IMAGE` (run `grep AGENTLET_IMAGE .env`):
 - Failing service (core-service / scheduler-service / synte-service / ux-console):
-- Install method (Docker Compose / source):
 - Output of `docker compose ps`:
 
 ## Additional context
