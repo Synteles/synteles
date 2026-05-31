@@ -109,7 +109,9 @@ async def apikey_auth(
     api_key = authorization.removeprefix("Bearer ").strip()
     # SHA256 is safe here: tokens are issued exclusively via create_api_key
     # using token_urlsafe(32) (256-bit entropy).  # nosec B324
-    key_hash = hashlib.sha256(api_key.encode()).hexdigest()  # codeql[py/weak-sensitive-data-hashing]
+    key_hash = hashlib.sha256(
+        api_key.encode()
+    ).hexdigest()  # codeql[py/weak-sensitive-data-hashing]
     try:
         repo = ApiKeyRepo(db)
         key = await repo.find_active_by_hash(key_hash)

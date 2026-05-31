@@ -61,7 +61,9 @@ async def create_api_key(
     api_key = secrets.token_urlsafe(32)
     # SHA256 is safe here: token_urlsafe(32) produces 256 bits of entropy,
     # making brute-force against the stored hash infeasible.  # nosec B324
-    key_hash = hashlib.sha256(api_key.encode()).hexdigest()  # codeql[py/weak-sensitive-data-hashing]
+    key_hash = hashlib.sha256(
+        api_key.encode()
+    ).hexdigest()  # codeql[py/weak-sensitive-data-hashing]
 
     key = await ApiKeyRepo(db).create(
         org_id=UUID(org_id),
