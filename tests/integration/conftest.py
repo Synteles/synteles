@@ -20,8 +20,8 @@ Required environment variables (see .env.example):
   OIDC_ISSUER_URL                    Keycloak realm URL (e.g. http://localhost:8080/auth/realms/synteles)
   OIDC_CLIENT_ID                     OIDC client ID (default: synteles-app)
   OIDC_CLIENT_SECRET                 OIDC client secret
-  TEST_USER                          Username of the test user (default: synteles)
-  TEST_USER_PASSWORD                 Password of the test user (default: synteles)
+  TEST_USER                          Username of the integration test user (default: synteles-test)
+  TEST_USER_PASSWORD                 Password for TEST_USER (default: synteles-test)
   FRESH_USER                         Base username for provisioning tests (default: synteles-fresh)
   FRESH_USER_PASSWORD                Password for FRESH_USER (default: synteles-fresh)
   KEYCLOAK_PROVISIONER_CLIENT_SECRET Secret for synteles-provisioner client (default: provisioner-dev-secret)
@@ -79,7 +79,7 @@ def _get_token_via_password_grant(
             raise RuntimeError(
                 f"Token request failed ({resp.status_code}): {resp.text[:300]}\n"
                 "Check OIDC_ISSUER_URL, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET, "
-                "TEST_USER, TEST_USER_PASSWORD."
+                "TEST_USER (default: synteles-test), TEST_USER_PASSWORD."
             )
         return resp.json()["access_token"]
 
@@ -118,8 +118,8 @@ def access_token() -> str:
     issuer_url = _require_env("OIDC_ISSUER_URL").rstrip("/")
     client_id = os.environ.get("OIDC_CLIENT_ID", "synteles-app")
     client_secret = _require_env("OIDC_CLIENT_SECRET")
-    username = os.environ.get("TEST_USER", "synteles")
-    password = os.environ.get("TEST_USER_PASSWORD", "synteles")
+    username = os.environ.get("TEST_USER", "synteles-test")
+    password = os.environ.get("TEST_USER_PASSWORD", "synteles-test")
 
     return _get_token_via_password_grant(
         issuer_url=issuer_url,
