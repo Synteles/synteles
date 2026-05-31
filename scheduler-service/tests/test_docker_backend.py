@@ -128,7 +128,7 @@ async def test_submit_returns_container_id(backend: DockerBackend, mock_client: 
 
     config = ExecutionConfig(
         execution_id="exec-1",
-        image="synteles/agentlet-core:latest",
+        image="synteles/agentlet:edge",
         env={"KEY": "VALUE"},
         timeout_seconds=300,
     )
@@ -136,7 +136,7 @@ async def test_submit_returns_container_id(backend: DockerBackend, mock_client: 
 
     assert result == "deadbeef"
     mock_client.containers.run.assert_called_once_with(
-        "synteles/agentlet-core:latest",
+        "synteles/agentlet:edge",
         detach=True,
         name="exec-1",
         environment={"KEY": "VALUE"},
@@ -154,14 +154,14 @@ async def test_submit_with_network(backend: DockerBackend, mock_client: MagicMoc
 
     config = ExecutionConfig(
         execution_id="exec-2",
-        image="synteles/agentlet-core:latest",
+        image="synteles/agentlet:edge",
         env={},
         timeout_seconds=300,
     )
     await backend.submit(config)
 
     mock_client.containers.run.assert_called_once_with(
-        "synteles/agentlet-core:latest",
+        "synteles/agentlet:edge",
         detach=True,
         name="exec-2",
         environment={},

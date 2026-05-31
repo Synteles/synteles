@@ -331,7 +331,7 @@ Do not commit:
 - Internal URLs or infrastructure details
 - Proprietary prompts or private configurations
 
-Use `.env.example` for configuration templates.
+Use `.env.example` for configuration templates. See [docs/configuration.md](docs/configuration.md) for the full environment variable reference across all services.
 
 Security-related changes should consider:
 

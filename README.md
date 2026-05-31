@@ -218,6 +218,7 @@ synteles/
 
 - [docs/architecture.md](docs/architecture.md) — system overview and component diagram
 - [docs/api-contracts.md](docs/api-contracts.md) — API reference
+- [docs/configuration.md](docs/configuration.md) — environment variable reference for all services
 
 ## Project Status
 
@@ -229,6 +230,14 @@ Not yet guaranteed:
 - Backward-compatible workflow definitions
 - Production-ready defaults
 - Long-term support guarantees
+
+**Agentlet image channel:** the default agentlet runtime image is `synteles/agentlet:edge`, which tracks the latest development build. For production use or reproducible deployments, pin a specific release tag by setting `AGENTLET_IMAGE` in your `.env`:
+
+```env
+AGENTLET_IMAGE=synteles/agentlet:1.2.3
+```
+
+Stable release tags are published alongside each GitHub release. See [docs/configuration.md](docs/configuration.md) for full details.
 
 ## Roadmap
 

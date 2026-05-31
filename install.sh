@@ -356,6 +356,10 @@ generate_env() {
     printf "KEYCLOAK_ADMIN_PASSWORD=admin\n"
     printf "OIDC_CLIENT_SECRET=synteles-dev-secret\n"
     printf "KEYCLOAK_PROVISIONER_CLIENT_SECRET=provisioner-dev-secret\n"
+    printf "\n"
+    printf "# Agentlet runtime image. 'edge' tracks the latest development build.\n"
+    printf "# Pin to a release tag for stable/production deployments, e.g. synteles/agentlet:1.2.3\n"
+    printf "AGENTLET_IMAGE=synteles/agentlet:edge\n"
   } > .env
 
   ok "Generated .env"
@@ -414,9 +418,15 @@ generate_platform_toml() {
 # ─── Docker image ─────────────────────────────────────────────────────────────
 pull_docker_image() {
   step "Docker image"
-  info "Pulling synteles/agentlet-core:latest …"
+  # Honour AGENTLET_IMAGE from the freshly written .env, falling back to the
+  # default edge build. This means a user who sets AGENTLET_IMAGE=synteles/agentlet:1.2.3
+  # in their .env before running install.sh will pull the pinned release.
+  local image
+  image=$(grep -E '^AGENTLET_IMAGE=' .env 2>/dev/null | cut -d= -f2-)
+  image=${image:-synteles/agentlet:edge}
+  info "Pulling ${image} …"
   printf "\n"
-  docker pull synteles/agentlet-core:latest
+  docker pull "${image}"
   printf "\n"
   ok "Image ready"
 }
