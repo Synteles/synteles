@@ -200,8 +200,12 @@ Variables for Keycloak and its provisioner.
 |---|---|---|---|
 | `KEYCLOAK_ADMIN_USER` | **Required** | `admin` | Keycloak master realm admin username. |
 | `KEYCLOAK_ADMIN_PASSWORD` | **Required** | `admin` | Keycloak master realm admin password. Change for any non-local deployment. |
-| `KEYCLOAK_DEFAULT_USER` | Optional | `synteles` | Username of the default test user created in the `synteles` realm on first provisioning. |
-| `KEYCLOAK_DEFAULT_PASSWORD` | Optional | `synteles` | Password for the default test user. Change for any non-local deployment. |
+| `KEYCLOAK_DEFAULT_USER` | Optional | `synteles` | Username of the default **human login** account created in the `synteles` realm on first provisioning. Used for manual browser access after `docker compose up`. Not used by the automated test suite. |
+| `KEYCLOAK_DEFAULT_PASSWORD` | Optional | `synteles` | Password for `KEYCLOAK_DEFAULT_USER`. Change for any non-local deployment. |
+| `KEYCLOAK_TEST_USER` | Optional | `synteles-test` | Username of the dedicated **integration test** account. The automated test suite authenticates as this user — keeping it separate from `KEYCLOAK_DEFAULT_USER` prevents test runs from polluting the developer's working environment. |
+| `KEYCLOAK_TEST_PASSWORD` | Optional | `synteles-test` | Password for `KEYCLOAK_TEST_USER`. Change for any non-local deployment. |
+| `KEYCLOAK_FRESH_USER` | Optional | `synteles-fresh` | Base username for **provisioning integration tests**. The test fixture creates a unique `synteles-fresh-{uuid}` Keycloak user per session from this credential so the first-login provisioning path is exercised every run. |
+| `KEYCLOAK_FRESH_PASSWORD` | Optional | `synteles-fresh` | Password for `KEYCLOAK_FRESH_USER` (and all derived ephemeral users). |
 
 ---
 
@@ -213,6 +217,8 @@ Before deploying to a non-local environment, rotate or set all of the following 
 - `OIDC_CLIENT_SECRET` — use a strong random secret, register it in Keycloak
 - `KEYCLOAK_PROVISIONER_CLIENT_SECRET` — use a strong random secret
 - `KEYCLOAK_ADMIN_PASSWORD` — set a strong admin password
-- `KEYCLOAK_DEFAULT_PASSWORD` — set or disable the default user
+- `KEYCLOAK_DEFAULT_PASSWORD` — set or disable the human login account
+- `KEYCLOAK_TEST_PASSWORD` — set a strong password for the test user, or disable the account in production
+- `KEYCLOAK_FRESH_PASSWORD` — set or disable the provisioning test base account
 - `POSTGRES_PASSWORD` — use a strong database password
 - `MINIO_ROOT_PASSWORD` — use a strong MinIO password (or replace with managed S3)
