@@ -281,7 +281,7 @@ function RunsTable({ runs, onSelect }: {
 }
 
 // ── API Integration tab ────────────────────────────────────────────────────
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://api.synteles.dev'
+const DEFAULT_API_BASE = 'https://api.synteles.dev'
 
 type DrawerTab = 'properties' | 'api' | 'danger'
 
@@ -354,13 +354,13 @@ function IC({ children }: { children: ReactNode }) {
   )
 }
 
-function ApiIntegrationTab({ agentletName }: { agentletName: string }) {
+function ApiIntegrationTab({ agentletName, apiBaseUrl }: { agentletName: string; apiBaseUrl: string }) {
   const getCurl =
-    `curl -X GET \\\n  "${API_BASE}/v1/api/public/agentlets/${agentletName}" \\\n  -H "X-API-Key: \${SYNTELES_API_KEY}"`
+    `curl -X GET \\\n  "${apiBaseUrl}/v1/api/public/agentlets/${agentletName}" \\\n  -H "X-API-Key: \${SYNTELES_API_KEY}"`
   const runCurl =
-    `curl -X POST \\\n  "${API_BASE}/v1/api/public/agentlets/${agentletName}/executions" \\\n  -H "X-API-Key: \${SYNTELES_API_KEY}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"prompt": "Your task description here", "timeout": 900}'`
+    `curl -X POST \\\n  "${apiBaseUrl}/v1/api/public/agentlets/${agentletName}/executions" \\\n  -H "X-API-Key: \${SYNTELES_API_KEY}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"prompt": "Your task description here", "timeout": 900}'`
   const statusCurl =
-    `curl -X GET \\\n  "${API_BASE}/v1/api/public/executions/\${EXECUTION_ID}" \\\n  -H "X-API-Key: \${SYNTELES_API_KEY}"`
+    `curl -X GET \\\n  "${apiBaseUrl}/v1/api/public/executions/\${EXECUTION_ID}" \\\n  -H "X-API-Key: \${SYNTELES_API_KEY}"`
 
   return (
     <div className="flex flex-col gap-4 px-6 py-5">
@@ -419,6 +419,7 @@ function AgentletDrawer({
   onClose,
   onSave,
   onDeleteRequest,
+  apiBaseUrl,
 }: {
   open: boolean
   initial: Agentlet | null
@@ -427,6 +428,7 @@ function AgentletDrawer({
   onClose: () => void
   onSave: (name: string, description: string) => void
   onDeleteRequest: () => void
+  apiBaseUrl: string
 }) {
   const isEdit = !!initial?.id
   const [name, setName]        = useState(initial?.name ?? '')
@@ -498,7 +500,7 @@ function AgentletDrawer({
           {/* Body */}
           {isEdit && drawerTab === 'api' ? (
             <div className="flex-1 overflow-y-auto scrollbar-thin">
-              <ApiIntegrationTab agentletName={initial!.name} />
+              <ApiIntegrationTab agentletName={initial!.name} apiBaseUrl={apiBaseUrl} />
             </div>
           ) : isEdit && drawerTab === 'danger' ? (
             <div className="flex-1 overflow-y-auto scrollbar-thin">
@@ -657,7 +659,7 @@ function DeleteAgentletModal({
 }
 
 // ── Main page ──────────────────────────────────────────────────────────────
-export function AgentletsPage({ initialData, initialRuns }: { initialData: AgentletApi[]; initialRuns: ExecutionApi[] }) {
+export function AgentletsPage({ initialData, initialRuns, apiBaseUrl = DEFAULT_API_BASE }: { initialData: AgentletApi[]; initialRuns: ExecutionApi[]; apiBaseUrl?: string }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { activeRuns: liveActiveRuns } = useWatchdog()
@@ -872,6 +874,7 @@ export function AgentletsPage({ initialData, initialRuns }: { initialData: Agent
         onClose={() => setDrawer(false)}
         onSave={handleSave}
         onDeleteRequest={() => { if (editTarget) setDeleteTarget(editTarget) }}
+        apiBaseUrl={apiBaseUrl}
       />
 
       {/* Delete modal */}

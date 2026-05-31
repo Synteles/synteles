@@ -247,7 +247,7 @@ services:
       OIDC_CLIENT_ID: synteles-app
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-synteles-dev-secret}
       API_BASE_URL: http://traefik:8080
-      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080}
+      API_PUBLIC_BASE_URL: ${API_PUBLIC_BASE_URL:-http://localhost:8080}
       CHAT_STREAM_URL: http://synte-service:8080/chat/stream
       REDIRECT_URI: http://localhost:3000/callback
     depends_on:
