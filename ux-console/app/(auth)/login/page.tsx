@@ -25,6 +25,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_state: 'Login session expired. Please try again.',
   token_exchange_failed: 'Authentication failed. Please try again.',
   access_denied: 'Access was denied.',
+  session_expired: 'Your session has expired. Please sign in again.',
 }
 
 export default async function LoginPage({ searchParams }: Props) {

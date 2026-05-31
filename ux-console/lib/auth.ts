@@ -90,6 +90,33 @@ export async function getServerToken(): Promise<string | null> {
   return cookieStore.get(COOKIE_ACCESS)?.value ?? null
 }
 
+export async function refreshAccessToken(refreshToken: string): Promise<TokenSet | null> {
+  try {
+    const { token_endpoint } = await getOidcConfig()
+    const body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      client_id: config.oidcClientId,
+      client_secret: config.oidcClientSecret,
+      refresh_token: refreshToken,
+    })
+    const res = await fetch(token_endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    })
+    if (!res.ok) return null
+    const data: OidcTokenResponse = await res.json()
+    return {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token ?? refreshToken,
+      idToken: data.id_token,
+      expiresIn: data.expires_in,
+    }
+  } catch {
+    return null
+  }
+}
+
 export async function getMe(): Promise<MeProfile | null> {
   const token = await getServerToken()
   if (!token) return null

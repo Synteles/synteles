@@ -69,6 +69,11 @@ export function isTerminal(status: ExecutionStatus): boolean {
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { credentials: 'include', ...init })
   if (!res.ok) {
+    if (res.status === 401) {
+      const next = encodeURIComponent(window.location.pathname + window.location.search)
+      window.location.href = `/api/auth/refresh?next=${next}`
+      return new Promise<T>(() => {})
+    }
     const body = await res.json().catch(() => null) as { error?: string } | null
     throw new Error(body?.error ?? `Request failed: ${res.status}`)
   }
