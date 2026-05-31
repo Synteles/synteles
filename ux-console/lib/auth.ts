@@ -64,7 +64,7 @@ async function postToTokenEndpoint(params: Record<string, string>): Promise<Oidc
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
   })
-  if (!res.ok) throw new Error(await res.text())
+  if (!res.ok) throw new Error(`Token exchange failed: ${await res.text()}`)
   return res.json() as Promise<OidcTokenResponse>
 }
 
