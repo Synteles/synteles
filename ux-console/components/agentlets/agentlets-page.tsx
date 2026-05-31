@@ -356,17 +356,17 @@ function IC({ children }: { children: ReactNode }) {
 
 function ApiIntegrationTab({ agentletName }: { agentletName: string }) {
   const getCurl =
-    `curl -X GET \\\n  "${API_BASE}/v1/api/public/agentlets/${agentletName}" \\\n  -H "Authorization: \${SYNTELES_API_KEY}"`
+    `curl -X GET \\\n  "${API_BASE}/v1/api/public/agentlets/${agentletName}" \\\n  -H "X-API-Key: \${SYNTELES_API_KEY}"`
   const runCurl =
-    `curl -X POST \\\n  "${API_BASE}/v1/api/public/agentlets/${agentletName}/executions" \\\n  -H "Authorization: \${SYNTELES_API_KEY}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"prompt": "Your task description here", "timeout": 900}'`
+    `curl -X POST \\\n  "${API_BASE}/v1/api/public/agentlets/${agentletName}/executions" \\\n  -H "X-API-Key: \${SYNTELES_API_KEY}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"prompt": "Your task description here", "timeout": 900}'`
   const statusCurl =
-    `curl -X GET \\\n  "${API_BASE}/v1/api/public/executions/\${EXECUTION_ID}" \\\n  -H "Authorization: \${SYNTELES_API_KEY}"`
+    `curl -X GET \\\n  "${API_BASE}/v1/api/public/executions/\${EXECUTION_ID}" \\\n  -H "X-API-Key: \${SYNTELES_API_KEY}"`
 
   return (
     <div className="flex flex-col gap-4 px-6 py-5">
       <p className="text-sm text-muted leading-relaxed">
         Use the <strong className="text-foreground">Synteles Public API</strong> to interact with this agentlet
-        programmatically. Authenticate with your API key in the <IC>Authorization</IC> header (no <IC>Bearer</IC> prefix).
+        programmatically. Authenticate with your API key in the <IC>X-API-Key</IC> header.
       </p>
       <ApiSection title="Get agentlet definition" description="Retrieve the full YAML configuration of this agentlet.">
         <CurlBlock code={getCurl} />
