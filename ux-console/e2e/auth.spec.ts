@@ -152,24 +152,10 @@ test.describe('login flow', () => {
 // ── Callback (login completion) ────────────────────────────────────────────
 
 test.describe('callback route', () => {
-  test('completes login and lands on /dashboard', async ({ page, context }) => {
-    await context.addCookies([
-      { name: 'pkce_verifier', value: 'test-verifier', domain: 'localhost', path: '/', httpOnly: true, secure: false, sameSite: 'Lax' },
-      { name: 'oauth_state',   value: 'test-state',    domain: 'localhost', path: '/', httpOnly: true, secure: false, sameSite: 'Lax' },
-    ])
-
-    // Mock the server-side OIDC token exchange — this is called from Next.js server
-    // via proxy.ts / callback/route.ts, not from the browser, so it is NOT interceptable
-    // by context.route(). To exercise this E2E path you need either:
-    //   a) a real Keycloak user + valid auth code, or
-    //   b) a local mock server at OIDC_ISSUER_URL (set in .env.test.local)
-    //
-    // The unit test in __tests__/routes/callback.test.ts provides full coverage of
-    // the token exchange logic. This test verifies only the CSRF rejection path which
-    // does not require an OIDC provider connection.
-    await page.goto('/callback?code=auth-code&state=wrong-state')
-    await expect(page).toHaveURL(/\/login\?error=invalid_state/)
-  })
+  // The happy path (successful token exchange → /dashboard) requires a server-side
+  // OIDC call that Playwright cannot intercept via context.route(). Full coverage
+  // of the token exchange logic lives in __tests__/routes/callback.test.ts.
+  // The fixme block below tracks the E2E version for when a mock OIDC server is wired in.
 
   test('redirects to /login on state mismatch', async ({ page, context }) => {
     await context.addCookies([
@@ -233,38 +219,32 @@ test.describe('dashboard pages', () => {
 // ── Token refresh (requires OIDC provider connection or local mock) ───────
 
 test.describe('token refresh via proxy', () => {
-  // The proxy's silent token refresh calls the OIDC provider server-side. Playwright's
-  // context.route() only intercepts browser-initiated requests, not server-side
-  // fetch calls from the Next.js process. These tests require:
-  //   - A valid OIDC_ISSUER_URL pointing to a mock server (set in .env.test.local), OR
-  //   - A real Keycloak instance with a valid long-lived refresh token in TEST_REFRESH_TOKEN
+  // The proxy delegates refresh to /api/auth/refresh, which calls the OIDC token
+  // endpoint server-side. The in-process OIDC stub (global-setup.ts) handles
+  // these calls so no real Keycloak instance is required.
   //
-  // The unit tests in __tests__/proxy.test.ts cover all refresh branches fully.
+  // Stub behaviour:
+  //   refresh_token=invalid-refresh-token → 400 invalid_grant
+  //   any other refresh_token             → 200 with fresh tokens
 
-  test.fixme(
-    'silently refreshes expired access token and continues to /dashboard',
-    async ({ page, context }) => {
-      await context.addCookies([{
-        name: 'sid_rt', value: process.env.TEST_REFRESH_TOKEN ?? 'test-rt',
-        domain: 'localhost', path: '/', httpOnly: true, secure: false, sameSite: 'Lax',
-      }])
-      await mockPlatformApi(context)
-      await page.goto('/dashboard')
-      await expect(page).toHaveURL('/dashboard')
-      const cookies = await context.cookies()
-      expect(cookies.find((c) => c.name === 'sid_at')).toBeDefined()
-    }
-  )
+  test('silently refreshes expired access token and continues to /dashboard', async ({ page, context }) => {
+    await context.addCookies([{
+      name: 'sid_rt', value: 'test-rt',
+      domain: 'localhost', path: '/', httpOnly: true, secure: false, sameSite: 'Lax',
+    }])
+    await mockPlatformApi(context)
+    await page.goto('/dashboard')
+    await expect(page).toHaveURL(/\/dashboard/)
+    const cookies = await context.cookies()
+    expect(cookies.find((c) => c.name === 'sid_at')).toBeDefined()
+  })
 
-  test.fixme(
-    'redirects to /login when refresh token is rejected by the OIDC provider',
-    async ({ page, context }) => {
-      await context.addCookies([{
-        name: 'sid_rt', value: 'invalid-refresh-token',
-        domain: 'localhost', path: '/', httpOnly: true, secure: false, sameSite: 'Lax',
-      }])
-      await page.goto('/dashboard')
-      await expect(page).toHaveURL(/\/login/)
-    }
-  )
+  test('redirects to /login when refresh token is rejected by the OIDC provider', async ({ page, context }) => {
+    await context.addCookies([{
+      name: 'sid_rt', value: 'invalid-refresh-token',
+      domain: 'localhost', path: '/', httpOnly: true, secure: false, sameSite: 'Lax',
+    }])
+    await page.goto('/dashboard')
+    await expect(page).toHaveURL(/\/login/)
+  })
 })
