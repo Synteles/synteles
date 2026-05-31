@@ -31,6 +31,6 @@ os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
 os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 os.environ["SECRET_ENCRYPTION_KEY"] = "deadbeef" * 8
 os.environ["EXECUTION_BACKEND"] = "docker"
-os.environ["AGENTLET_IMAGE"] = "synteles/agentlet-core:latest"
+os.environ["AGENTLET_IMAGE"] = "synteles/agentlet:edge"
 os.environ["DOCKER_NETWORK"] = ""
 os.environ["MONITOR_INTERVAL_SECONDS"] = "60"
