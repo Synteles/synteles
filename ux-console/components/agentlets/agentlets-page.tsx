@@ -356,11 +356,11 @@ function IC({ children }: { children: ReactNode }) {
 
 function ApiIntegrationTab({ agentletName, apiBaseUrl }: { agentletName: string; apiBaseUrl: string }) {
   const getCurl =
-    `curl -X GET \\\n  "${apiBaseUrl}/v1/api/public/agentlets/${agentletName}" \\\n  -H "X-API-Key: \${SYNTELES_API_KEY}"`
+    `curl -X GET \\\n  "${apiBaseUrl}/api/public/agentlets/${agentletName}" \\\n  -H "X-API-Key: \${SYNTELES_API_KEY}"`
   const runCurl =
-    `curl -X POST \\\n  "${apiBaseUrl}/v1/api/public/agentlets/${agentletName}/executions" \\\n  -H "X-API-Key: \${SYNTELES_API_KEY}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"prompt": "Your task description here", "timeout": 900}'`
+    `curl -X POST \\\n  "${apiBaseUrl}/api/public/agentlets/${agentletName}/executions" \\\n  -H "X-API-Key: \${SYNTELES_API_KEY}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"prompt": "Your task description here", "timeout": 900}'`
   const statusCurl =
-    `curl -X GET \\\n  "${apiBaseUrl}/v1/api/public/executions/\${EXECUTION_ID}" \\\n  -H "X-API-Key: \${SYNTELES_API_KEY}"`
+    `curl -X GET \\\n  "${apiBaseUrl}/api/public/executions/\${EXECUTION_ID}" \\\n  -H "X-API-Key: \${SYNTELES_API_KEY}"`
 
   return (
     <div className="flex flex-col gap-4 px-6 py-5">
