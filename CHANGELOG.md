@@ -26,6 +26,8 @@ Before `v1.0`, breaking changes may occur without a major version bump.
 
 ### Fixed
 
+- Execution detail sheet now auto-refreshes logs and output files when an agentlet run completes, eliminating the need for a manual browser refresh
+- Reduced `MONITOR_INTERVAL_SECONDS` default from 60 s to 30 s so the scheduler-service detects run completion roughly twice as fast
 - Chat input textarea now automatically regains focus after streaming completes, eliminating the need to manually click or press Tab to continue typing
 - Chat no longer resets to the new-conversation view after the access token expires; a `SessionRefresher` component proactively renews the token 60 s before expiry and on tab re-focus, preventing the 401 → full-page-reload cycle that was resetting the selected conversation
 - `synte-service` tests: replaced deprecated `asyncio.get_event_loop().run_until_complete()` with `asyncio.run()`, which raises `RuntimeError` in Python 3.12+ when no event loop exists
