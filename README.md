@@ -211,7 +211,7 @@ uv run pytest
 ```text
 synteles/
   core-service/         # REST API — agentlets, users, secrets, files, org management
-  scheduler-service/    # Execution engine — deploys and monitors agentlet containers
+  scheduler-service/    # Execution engine — deploys and monitors agentlet containers (see Agentlet Runtime below)
   synte-service/        # Synte chat assistant — AI agent powering the chat UI
   ux-console/           # Web UI — Next.js frontend (App Router)
   platform-db/          # Shared database library (synteles_db) + Alembic migrations
@@ -222,6 +222,12 @@ synteles/
   docker-compose.yml    # Local development environment
   install.sh            # First-time setup script
 ```
+
+## Agentlet Runtime
+
+Each agentlet execution runs inside an isolated Docker container using the [Synteles Agentlet](https://github.com/Synteles/agentlet) harness. The harness reads the agentlet's YAML definition, injects secrets and input files, runs the agent loop, and streams logs to S3.
+
+The default image is `synteles/agentlet:edge`. See the [Configuration](#configuration) section and [docs/configuration.md](docs/configuration.md) for how to pin a specific release tag via `AGENTLET_IMAGE`.
 
 ## Documentation
 
