@@ -76,9 +76,9 @@ export function MessageInput({
     ? agentlets.filter(a => a.id.toLowerCase().includes(mention.query)).slice(0, 6)
     : []
 
-  // Restore focus when input becomes enabled (e.g. after streaming completes)
+  // Browsers don't restore focus after re-enabling a disabled element
   useEffect(() => {
-    if (!disabled) {
+    if (!disabled && document.activeElement !== textareaRef.current) {
       textareaRef.current?.focus()
     }
   }, [disabled])
