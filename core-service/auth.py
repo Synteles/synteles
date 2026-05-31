@@ -164,6 +164,7 @@ async def verify(
     """Traefik forward-auth: validate X-API-Key or Bearer JWT and propagate identity headers."""
     if x_api_key:
         claims = await apikey_auth(db, x_api_key)
+        await db.commit()
     elif authorization and authorization.startswith("Bearer "):
         raw = await oidc_auth(authorization)
         try:
