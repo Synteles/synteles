@@ -25,7 +25,6 @@ os.environ["OIDC_AUDIENCE"] = ""
 os.environ["S3_LOGS_BUCKET"] = "test-logs"
 os.environ["S3_UPLOADS_BUCKET"] = "test-uploads"
 os.environ["AWS_REGION"] = "us-east-1"
-os.environ["COGNITO_DOMAIN"] = "test.auth.us-east-1.amazoncognito.com"
 os.environ["CORS_ALLOWED_ORIGINS"] = "http://localhost"
 os.environ["SECRET_ENCRYPTION_KEY"] = "deadbeef" * 8
 os.environ["AWS_ACCESS_KEY_ID"] = "testing"

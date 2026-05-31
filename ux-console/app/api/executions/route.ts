@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     input_objects?: string[]
   }
 
-  // POST /api/executions — agentlet_id + params in body; org_id resolved from Cognito token server-side
+  // POST /api/executions — agentlet_id + params in body; org_id resolved from OIDC token server-side
   const res = await fetch(`${config.apiBaseUrl}/api/executions`, {
     method: 'POST',
     headers: {

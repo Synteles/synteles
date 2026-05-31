@@ -30,12 +30,12 @@ export async function GET(req: NextRequest) {
   const error = searchParams.get('error')
 
   if (error) {
-    const KNOWN_COGNITO_ERRORS = new Set([
+    const KNOWN_OIDC_ERRORS = new Set([
       'access_denied', 'invalid_request', 'unauthorized_client',
       'unsupported_response_type', 'invalid_scope', 'server_error',
       'temporarily_unavailable',
     ])
-    const safeError = KNOWN_COGNITO_ERRORS.has(error) ? error : 'auth_error'
+    const safeError = KNOWN_OIDC_ERRORS.has(error) ? error : 'auth_error'
     return NextResponse.redirect(new URL(`/login?error=${safeError}`, appOrigin))
   }
 

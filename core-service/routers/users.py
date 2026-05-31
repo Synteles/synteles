@@ -127,13 +127,11 @@ async def _build_profile(claims: TokenClaims, db: AsyncSession) -> dict[str, Any
 
 
 async def _fetch_userinfo(token: str) -> dict[str, Any]:
-    from config import COGNITO_DOMAIN, OIDC_ISSUER_URL
+    from config import OIDC_ISSUER_URL
 
     url: str | None = None
     if OIDC_ISSUER_URL:
         url = f"{OIDC_ISSUER_URL}/protocol/openid-connect/userinfo"
-    elif COGNITO_DOMAIN:
-        url = f"https://{COGNITO_DOMAIN}/oauth2/userInfo"
 
     if not url:
         return {}

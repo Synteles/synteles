@@ -101,7 +101,7 @@ test.describe('authenticated session', () => {
     const authCookies = remaining.filter((c) => ['sid_at', 'sid_rt', 'sid_it'].includes(c.name))
     expect(authCookies).toHaveLength(0)
 
-    // Redirect must target Cognito logout with logout_uri pointing back to /login
+    // Redirect must target OIDC logout with logout_uri pointing back to /login
     const location = response.headers()['location'] ?? ''
     expect(location).toContain('/logout')
     expect(location).toContain('logout_uri')
@@ -112,8 +112,8 @@ test.describe('authenticated session', () => {
 // ── Login flow (PKCE initiation) ───────────────────────────────────────────
 
 test.describe('login flow', () => {
-  test('sets PKCE and state cookies then redirects to Cognito authorize', async ({ context }) => {
-    // Stop at the 302 — don't let the browser follow the redirect to Cognito
+  test('sets PKCE and state cookies then redirects to OIDC authorize', async ({ context }) => {
+    // Stop at the 302 — don't let the browser follow the redirect to the OIDC provider
     const response = await context.request.get('http://localhost:3000/login/start', { maxRedirects: 0 })
     expect(response.status()).toBeGreaterThanOrEqual(300)
     expect(response.status()).toBeLessThan(400)
@@ -153,22 +153,20 @@ test.describe('login flow', () => {
 
 test.describe('callback route', () => {
   test('completes login and lands on /dashboard', async ({ page, context }) => {
-    const cognitoDomain = process.env.COGNITO_DOMAIN ?? 'auth.test.dev'
-
     await context.addCookies([
       { name: 'pkce_verifier', value: 'test-verifier', domain: 'localhost', path: '/', httpOnly: true, secure: false, sameSite: 'Lax' },
       { name: 'oauth_state',   value: 'test-state',    domain: 'localhost', path: '/', httpOnly: true, secure: false, sameSite: 'Lax' },
     ])
 
-    // Mock the server-side Cognito token exchange — this is called from Next.js server
+    // Mock the server-side OIDC token exchange — this is called from Next.js server
     // via proxy.ts / callback/route.ts, not from the browser, so it is NOT interceptable
     // by context.route(). To exercise this E2E path you need either:
-    //   a) a real Cognito sandbox user + valid auth code, or
-    //   b) a local mock server at COGNITO_DOMAIN (set in .env.test.local)
+    //   a) a real Keycloak user + valid auth code, or
+    //   b) a local mock server at OIDC_ISSUER_URL (set in .env.test.local)
     //
     // The unit test in __tests__/routes/callback.test.ts provides full coverage of
     // the token exchange logic. This test verifies only the CSRF rejection path which
-    // does not require a Cognito connection.
+    // does not require an OIDC provider connection.
     await page.goto('/callback?code=auth-code&state=wrong-state')
     await expect(page).toHaveURL(/\/login\?error=invalid_state/)
   })
@@ -182,7 +180,7 @@ test.describe('callback route', () => {
     await expect(page).toHaveURL(/\/login\?error=invalid_state/)
   })
 
-  test('redirects to /login on known Cognito error', async ({ page }) => {
+  test('redirects to /login on known OIDC error', async ({ page }) => {
     await page.goto('/callback?error=access_denied')
     await expect(page).toHaveURL(/\/login\?error=access_denied/)
   })
@@ -232,14 +230,14 @@ test.describe('dashboard pages', () => {
   })
 })
 
-// ── Token refresh (requires Cognito connection or local mock) ──────────────
+// ── Token refresh (requires OIDC provider connection or local mock) ───────
 
 test.describe('token refresh via proxy', () => {
-  // The proxy's silent token refresh calls Cognito server-side. Playwright's
+  // The proxy's silent token refresh calls the OIDC provider server-side. Playwright's
   // context.route() only intercepts browser-initiated requests, not server-side
   // fetch calls from the Next.js process. These tests require:
-  //   - A valid COGNITO_DOMAIN pointing to a mock server (set in .env.test.local), OR
-  //   - A real Cognito sandbox with a valid long-lived refresh token in TEST_REFRESH_TOKEN
+  //   - A valid OIDC_ISSUER_URL pointing to a mock server (set in .env.test.local), OR
+  //   - A real Keycloak instance with a valid long-lived refresh token in TEST_REFRESH_TOKEN
   //
   // The unit tests in __tests__/proxy.test.ts cover all refresh branches fully.
 
@@ -259,7 +257,7 @@ test.describe('token refresh via proxy', () => {
   )
 
   test.fixme(
-    'redirects to /login when refresh token is rejected by Cognito',
+    'redirects to /login when refresh token is rejected by the OIDC provider',
     async ({ page, context }) => {
       await context.addCookies([{
         name: 'sid_rt', value: 'invalid-refresh-token',

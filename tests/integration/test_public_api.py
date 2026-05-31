@@ -45,7 +45,7 @@ def public_execution(
 
     yield execution
 
-    # Terminate via Cognito client (public endpoint has no DELETE)
+    # Terminate via the API client (public endpoint has no DELETE)
     client.delete(f"/api/executions/{execution['execution_id']}")
 
 

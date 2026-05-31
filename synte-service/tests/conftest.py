@@ -45,7 +45,6 @@ def pytest_configure(config: object) -> None:
 
 
 # ── Set environment variables before any service code is imported ────────────
-os.environ.setdefault("COGNITO_USER_POOL_ID", "us-east-1_TESTPOOL")
 os.environ.setdefault("CHAT_MODEL_ID", "azure_ai/test-model")
 os.environ.setdefault("PORTAL_DOMAIN_NAME", "https://test.synteles.dev")
 os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-1")
@@ -97,7 +96,7 @@ def reset_jwks_client():
     mod._JWKS_CLIENT = None
 
     # Provide a mock JWKS client and a passthrough jwt.decode so that any
-    # Bearer token is accepted without a real Cognito round-trip.
+    # Bearer token is accepted without a real OIDC round-trip.
     mock_signing_key = MagicMock()
     mock_signing_key.key = "test-key"
     mock_jwks = MagicMock()
