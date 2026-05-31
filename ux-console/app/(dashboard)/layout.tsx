@@ -18,6 +18,7 @@ import { AppSidebar } from '@/components/sidebar/sidebar'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { WatchdogProvider } from '@/components/executions/watchdog-provider'
 import { ExecutionSheetProvider } from '@/components/executions/execution-sheet-provider'
+import { SessionRefresher } from '@/components/auth/session-refresher'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const token = await getServerToken()
@@ -27,6 +28,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <SidebarProvider className="h-screen overflow-hidden">
+      <SessionRefresher />
       <WatchdogProvider>
         <ExecutionSheetProvider>
           <AppSidebar user={user} />

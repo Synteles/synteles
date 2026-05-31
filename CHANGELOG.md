@@ -26,6 +26,8 @@ Before `v1.0`, breaking changes may occur without a major version bump.
 
 ### Fixed
 
+- Chat input textarea now automatically regains focus after streaming completes, eliminating the need to manually click or press Tab to continue typing
+- Chat no longer resets to the new-conversation view after the access token expires; a `SessionRefresher` component proactively renews the token 60 s before expiry and on tab re-focus, preventing the 401 → full-page-reload cycle that was resetting the selected conversation
 - `synte-service` tests: replaced deprecated `asyncio.get_event_loop().run_until_complete()` with `asyncio.run()`, which raises `RuntimeError` in Python 3.12+ when no event loop exists
 - `synte-service` CI: `pytest_configure` hook in `tests/conftest.py` creates a stub `config/platform.toml` before test collection so `tools.model_catalog` can be imported in environments where `install.sh` has not been run
 - `synte-service` `platform_tools.py` and `agent_creator.py`: `PLATFORM_DEFAULT_MODELS` import moved inside the calling function to prevent `FileNotFoundError` propagating at module import time

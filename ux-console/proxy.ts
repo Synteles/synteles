@@ -18,7 +18,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { COOKIE_ACCESS, COOKIE_REFRESH, isSafeRedirect } from '@/lib/auth-constants'
 
-const UNPROTECTED = ['/login', '/callback', '/logout', '/api/auth/refresh', '/api/health']
+const UNPROTECTED = ['/login', '/callback', '/logout', '/api/auth/refresh', '/api/auth/silent-refresh', '/api/health']
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl

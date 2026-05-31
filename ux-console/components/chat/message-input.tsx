@@ -76,6 +76,13 @@ export function MessageInput({
     ? agentlets.filter(a => a.id.toLowerCase().includes(mention.query)).slice(0, 6)
     : []
 
+  // Restore focus when input becomes enabled (e.g. after streaming completes)
+  useEffect(() => {
+    if (!disabled) {
+      textareaRef.current?.focus()
+    }
+  }, [disabled])
+
   // Close dropdown on outside click
   useEffect(() => {
     if (!mention) return

@@ -17,6 +17,7 @@ import { NextResponse } from 'next/server'
 export const COOKIE_ACCESS = 'sid_at'
 export const COOKIE_REFRESH = 'sid_rt'
 export const COOKIE_ID     = 'sid_it'
+export const COOKIE_EXP    = 'sid_exp' // JS-readable UTC expiry timestamp (ms) for proactive refresh
 export const PKCE_VERIFIER_COOKIE = 'pkce_verifier'
 export const OAUTH_STATE_COOKIE = 'oauth_state'
 export const NEXT_REDIRECT_COOKIE = 'auth_next'
@@ -43,4 +44,10 @@ export function setSessionCookies(
   response.cookies.set(COOKIE_ACCESS, tokens.accessToken, { ...SESSION_COOKIE_OPTS, maxAge: tokens.expiresIn })
   response.cookies.set(COOKIE_REFRESH, tokens.refreshToken, { ...SESSION_COOKIE_OPTS, maxAge: REFRESH_TOKEN_MAX_AGE })
   response.cookies.set(COOKIE_ID, tokens.idToken, { ...SESSION_COOKIE_OPTS, maxAge: REFRESH_TOKEN_MAX_AGE })
+  // Not httpOnly — read by SessionRefresher for proactive token renewal
+  response.cookies.set(COOKIE_EXP, String(Date.now() + tokens.expiresIn * 1000), {
+    ...SESSION_COOKIE_OPTS,
+    httpOnly: false,
+    maxAge: tokens.expiresIn,
+  })
 }
