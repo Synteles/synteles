@@ -16,12 +16,15 @@
 Session-level fixtures for Synteles Platform integration tests.
 
 Required environment variables (see .env.example):
-  API_BASE_URL          Base URL of the Synteles API (e.g. http://localhost:8080)
-  OIDC_ISSUER_URL       Keycloak realm URL (e.g. http://localhost:8080/auth/realms/synteles)
-  OIDC_CLIENT_ID        OIDC client ID (default: synteles-app)
-  OIDC_CLIENT_SECRET    OIDC client secret
-  TEST_USER             Username of the test user (default: synteles)
-  TEST_USER_PASSWORD    Password of the test user (default: synteles)
+  API_BASE_URL                       Base URL of the Synteles API (e.g. http://localhost:8080)
+  OIDC_ISSUER_URL                    Keycloak realm URL (e.g. http://localhost:8080/auth/realms/synteles)
+  OIDC_CLIENT_ID                     OIDC client ID (default: synteles-app)
+  OIDC_CLIENT_SECRET                 OIDC client secret
+  TEST_USER                          Username of the test user (default: synteles)
+  TEST_USER_PASSWORD                 Password of the test user (default: synteles)
+  FRESH_USER                         Base username for provisioning tests (default: synteles-fresh)
+  FRESH_USER_PASSWORD                Password for FRESH_USER (default: synteles-fresh)
+  KEYCLOAK_PROVISIONER_CLIENT_SECRET Secret for synteles-provisioner client (default: provisioner-dev-secret)
 """
 
 import os
@@ -234,6 +237,114 @@ output:
   show_reasoning: false
   show_tool_calls: false
 """
+
+
+# ---------------------------------------------------------------------------
+# Session-scoped: fresh (unprovisioned) user for provisioning tests
+#
+# Each session creates a unique Keycloak user derived from FRESH_USER so it
+# is guaranteed to have no record in the Synteles DB. The user is deleted
+# from Keycloak on teardown. The DB record (created by users/me) is harmless
+# leftover data — it does not affect other tests.
+# ---------------------------------------------------------------------------
+
+def _keycloak_admin_url(issuer_url: str) -> str:
+    """Derive the Keycloak admin REST URL from the realm issuer URL.
+
+    e.g. http://localhost:8080/auth/realms/synteles
+      → http://localhost:8080/auth/admin/realms/synteles
+    """
+    base, realm_part = issuer_url.rstrip("/").rsplit("/realms/", 1)
+    return f"{base}/admin/realms/{realm_part}"
+
+
+def _get_provisioner_admin_token(issuer_url: str, provisioner_secret: str) -> str:
+    """Get a service-account token for synteles-provisioner (has manage-users role)."""
+    with httpx.Client(timeout=15.0) as c:
+        resp = c.post(
+            f"{issuer_url}/protocol/openid-connect/token",
+            data={
+                "grant_type": "client_credentials",
+                "client_id": "synteles-provisioner",
+                "client_secret": provisioner_secret,
+            },
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"Provisioner token request failed ({resp.status_code}): {resp.text[:300]}"
+            )
+        return resp.json()["access_token"]
+
+
+@pytest.fixture(scope="session")
+def fresh_user_client(api_base_url: str) -> httpx.Client:
+    """httpx client for a brand-new user guaranteed not to exist in the Synteles DB.
+
+    Creates a unique Keycloak user (FRESH_USER + short UUID suffix) via the
+    provisioner service account, obtains an ROPC access token, and yields a
+    pre-configured httpx.Client. The Keycloak user is deleted on teardown.
+    """
+    issuer_url = _require_env("OIDC_ISSUER_URL").rstrip("/")
+    client_id = os.environ.get("OIDC_CLIENT_ID", "synteles-app")
+    client_secret = _require_env("OIDC_CLIENT_SECRET")
+    provisioner_secret = os.environ.get(
+        "KEYCLOAK_PROVISIONER_CLIENT_SECRET", "provisioner-dev-secret"
+    )
+    fresh_base = os.environ.get("FRESH_USER", "synteles-fresh")
+    fresh_password = os.environ.get("FRESH_USER_PASSWORD", "synteles-fresh")
+
+    admin_url = _keycloak_admin_url(issuer_url)
+    admin_token = _get_provisioner_admin_token(issuer_url, provisioner_secret)
+    auth_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    # Unique username per session — never exists in Synteles DB
+    username = f"{fresh_base}-{uuid.uuid4().hex[:8]}"
+
+    with httpx.Client(timeout=15.0) as adm:
+        create_resp = adm.post(
+            f"{admin_url}/users",
+            headers=auth_headers,
+            json={
+                "username": username,
+                "email": f"{username}@synteles.local",
+                "firstName": "Fresh",
+                "lastName": "TestUser",
+                "enabled": True,
+                "emailVerified": True,
+                "credentials": [{"type": "password", "value": fresh_password, "temporary": False}],
+            },
+        )
+        if create_resp.status_code not in (201, 409):
+            raise RuntimeError(
+                f"Failed to create fresh Keycloak user ({create_resp.status_code}): "
+                f"{create_resp.text[:300]}"
+            )
+        # Location header: .../users/{user_id}
+        user_id = create_resp.headers.get("Location", "").rstrip("/").rsplit("/", 1)[-1]
+
+    access_token = _get_token_via_password_grant(
+        issuer_url=issuer_url,
+        client_id=client_id,
+        client_secret=client_secret,
+        username=username,
+        password=fresh_password,
+    )
+
+    with httpx.Client(
+        base_url=api_base_url,
+        headers={"Authorization": f"Bearer {access_token}"},
+        timeout=30.0,
+    ) as c:
+        yield c
+
+    # Teardown: remove the ephemeral user from Keycloak
+    if user_id:
+        admin_token = _get_provisioner_admin_token(issuer_url, provisioner_secret)
+        with httpx.Client(timeout=15.0) as adm:
+            adm.delete(
+                f"{admin_url}/users/{user_id}",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
 
 
 @pytest.fixture(scope="session")
