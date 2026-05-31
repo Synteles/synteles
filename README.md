@@ -1,4 +1,13 @@
+<p align="center">
+  <img src="docs/images/synteles_logo.png" alt="Synteles Logo" width="360"/>
+</p>
+
 # Synteles
+
+[![CI](https://github.com/Synteles/synteles/actions/workflows/ci.yml/badge.svg)](https://github.com/Synteles/synteles/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/Synteles/synteles/actions/workflows/codeql.yml/badge.svg)](https://github.com/Synteles/synteles/actions/workflows/codeql.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 **Open-source platform for AI workers and enterprise workflows.**
 
