@@ -416,6 +416,7 @@ async def execute_agentlet(
         raise HTTPException(status_code=400, detail="agentlet_id is required")
 
     org_id = claims.org_id
+    assert org_id  # guaranteed by trusted_claims_with_org
 
     if body.org_id and body.org_id != org_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this organization")

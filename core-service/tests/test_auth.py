@@ -25,7 +25,13 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from auth import TokenClaims, _claims_from_payload, oidc_auth, trusted_claims, trusted_claims_with_org
+from auth import (
+    TokenClaims,
+    _claims_from_payload,
+    oidc_auth,
+    trusted_claims,
+    trusted_claims_with_org,
+)
 from main import app
 
 client = TestClient(app)
@@ -123,9 +129,7 @@ async def test_trusted_claims_empty_org_id_returns_none():
 
 
 async def test_trusted_claims_with_org_passes_when_org_present():
-    result = await trusted_claims_with_org(
-        TokenClaims(user_id="u-123", org_id="o-abc")
-    )
+    result = await trusted_claims_with_org(TokenClaims(user_id="u-123", org_id="o-abc"))
     assert result.user_id == "u-123"
     assert result.org_id == "o-abc"
 
