@@ -29,7 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from synteles_db.models import ExecStatus
 from synteles_db.repos.executions import ExecutionRepo
 
-from auth import TokenClaims, trusted_claims
+from auth import TokenClaims, trusted_claims, trusted_claims_with_org
 from backends import get_backend
 from db import get_db, get_s3
 from monitor import _finalize
@@ -92,7 +92,7 @@ def _format_execution(e: Any) -> dict[str, Any]:
 
 @router.get("/api/executions")
 async def list_executions(
-    claims: Annotated[TokenClaims, Depends(trusted_claims)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
     agentlet_id: Annotated[str | None, Query()] = None,
     status: Annotated[str | None, Query()] = None,
@@ -141,7 +141,7 @@ async def list_executions(
 @router.get("/api/executions/{execution_id}/logs")
 async def get_execution_logs(
     execution_id: str,
-    claims: Annotated[TokenClaims, Depends(trusted_claims)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
     format: Annotated[str, Query()] = "text",
     download: Annotated[bool, Query()] = False,
@@ -215,7 +215,7 @@ async def get_execution_logs(
 @router.get("/api/executions/{execution_id}")
 async def get_execution_status(
     execution_id: str,
-    claims: Annotated[TokenClaims, Depends(trusted_claims)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     org_id = claims.org_id
@@ -245,7 +245,7 @@ async def get_execution_status(
 @router.post("/api/executions/{execution_id}/cancel")
 async def cancel_execution(
     execution_id: str,
-    claims: Annotated[TokenClaims, Depends(trusted_claims)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     org_id = claims.org_id
@@ -305,7 +305,7 @@ async def get_public_execution_status(
 @router.delete("/api/executions/{execution_id}", status_code=204)
 async def delete_execution(
     execution_id: str,
-    claims: Annotated[TokenClaims, Depends(trusted_claims)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
     org_id = claims.org_id

@@ -29,7 +29,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from synteles_db.repos.executions import ExecutionRepo
 
-from auth import TokenClaims, trusted_claims
+from auth import TokenClaims, trusted_claims, trusted_claims_with_org
 from db import get_db, get_s3, get_s3_public
 
 router = APIRouter()
@@ -113,7 +113,7 @@ async def create_upload_session(
 @router.get("/api/executions/{execution_id}/files")
 async def get_execution_files(
     execution_id: str,
-    claims: Annotated[TokenClaims, Depends(trusted_claims)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     from config import S3_LOGS_BUCKET

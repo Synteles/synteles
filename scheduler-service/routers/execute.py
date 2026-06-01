@@ -34,7 +34,7 @@ from synteles_db.repos.agentlets import AgentletRepo
 from synteles_db.repos.executions import ExecutionRepo
 from synteles_db.repos.secrets import SecretRepo
 
-from auth import TokenClaims, trusted_claims
+from auth import TokenClaims, trusted_claims, trusted_claims_with_org
 from db import get_db, get_s3
 
 router = APIRouter()
@@ -409,15 +409,13 @@ class PublicExecuteRequest(BaseModel):
 @router.post("/api/executions", status_code=202)
 async def execute_agentlet(
     body: ExecuteRequest,
-    claims: Annotated[TokenClaims, Depends(trusted_claims)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     if not body.agentlet_id:
         raise HTTPException(status_code=400, detail="agentlet_id is required")
 
     org_id = claims.org_id
-    if not org_id:
-        raise HTTPException(status_code=401, detail="Unauthorized")
 
     if body.org_id and body.org_id != org_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this organization")

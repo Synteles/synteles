@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from synteles_db.repos.orgs import OrgRepo
 from synteles_db.repos.users import UserRepo
 
-from auth import TokenClaims, trusted_claims
+from auth import TokenClaims, trusted_claims_with_org
 from db import get_db
 
 router = APIRouter()
@@ -33,7 +33,7 @@ router = APIRouter()
 @router.get("/api/organizations/{org_id}")
 async def get_organization(
     org_id: str,
-    claims: Annotated[TokenClaims, Depends(trusted_claims)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     caller_org_id = claims.org_id

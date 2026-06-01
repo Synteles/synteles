@@ -19,7 +19,7 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from auth import TokenClaims, trusted_claims
+from auth import TokenClaims, trusted_claims, trusted_claims_with_org
 
 
 async def test_trusted_claims_returns_token_claims() -> None:
@@ -49,3 +49,18 @@ async def test_trusted_claims_empty_org_id_returns_none() -> None:
 async def test_trusted_claims_no_org_id_returns_none() -> None:
     result = await trusted_claims(x_user_id="u-123", x_org_id=None)
     assert result.org_id is None
+
+
+# ─── trusted_claims_with_org ───────────────────────────────────────────────
+
+
+async def test_trusted_claims_with_org_passes_when_org_present() -> None:
+    result = await trusted_claims_with_org(TokenClaims(user_id="u-123", org_id="o-abc"))
+    assert result.user_id == "u-123"
+    assert result.org_id == "o-abc"
+
+
+async def test_trusted_claims_with_org_raises_401_when_org_missing() -> None:
+    with pytest.raises(HTTPException) as exc_info:
+        await trusted_claims_with_org(TokenClaims(user_id="u-123", org_id=None))
+    assert exc_info.value.status_code == 401

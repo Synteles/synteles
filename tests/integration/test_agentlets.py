@@ -227,3 +227,19 @@ class TestDeleteAgentlet:
         response = client.delete(f"/api/agentlets/{agentlet_id}")
 
         assert response.status_code == 404
+
+    def test_delete_agentlet_with_executions_returns_409(
+        self, client: httpx.Client, org_id: str
+    ) -> None:
+        agentlet_id = f"delx_{uuid.uuid4().hex[:8]}"
+        create = client.post(
+            "/api/agentlets",
+            json={"id": agentlet_id, "YAML": AGENTLET_YAML, "description": "has executions"},
+        )
+        assert create.status_code == 201
+
+        launch = client.post("/api/executions", json={"agentlet_id": agentlet_id})
+        assert launch.status_code == 202
+
+        response = client.delete(f"/api/agentlets/{agentlet_id}")
+        assert response.status_code == 409

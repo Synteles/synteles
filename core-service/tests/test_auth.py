@@ -25,7 +25,7 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from auth import _claims_from_payload, oidc_auth, trusted_claims
+from auth import TokenClaims, _claims_from_payload, oidc_auth, trusted_claims, trusted_claims_with_org
 from main import app
 
 client = TestClient(app)
@@ -117,6 +117,23 @@ async def test_trusted_claims_missing_user_id_raises_401():
 async def test_trusted_claims_empty_org_id_returns_none():
     result = await trusted_claims(x_user_id="u-123", x_org_id="")
     assert result.org_id is None
+
+
+# ─── trusted_claims_with_org ───────────────────────────────────────────────
+
+
+async def test_trusted_claims_with_org_passes_when_org_present():
+    result = await trusted_claims_with_org(
+        TokenClaims(user_id="u-123", org_id="o-abc")
+    )
+    assert result.user_id == "u-123"
+    assert result.org_id == "o-abc"
+
+
+async def test_trusted_claims_with_org_raises_401_when_org_missing():
+    with pytest.raises(HTTPException) as exc_info:
+        await trusted_claims_with_org(TokenClaims(user_id="u-123", org_id=None))
+    assert exc_info.value.status_code == 401
 
 
 # ─── /auth/verify ──────────────────────────────────────────────────────────

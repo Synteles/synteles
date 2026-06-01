@@ -28,7 +28,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from synteles_db.repos.conversations import ConversationRepo
 
-from auth import TokenClaims, trusted_claims
+from auth import TokenClaims, trusted_claims_with_org
 from db import get_db, get_s3
 
 router = APIRouter()
@@ -92,7 +92,7 @@ class UpdateConversationRequest(BaseModel):
 
 @router.get("/api/conversations")
 async def list_conversations(
-    claims: Annotated[TokenClaims, Depends(trusted_claims)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     org_id = claims.org_id
@@ -114,7 +114,7 @@ async def list_conversations(
 @router.post("/api/conversations", status_code=201)
 async def create_conversation(
     body: CreateConversationRequest,
-    claims: Annotated[TokenClaims, Depends(trusted_claims)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     from config import S3_LOGS_BUCKET
@@ -153,7 +153,7 @@ async def create_conversation(
 @router.get("/api/conversations/{conv_id}")
 async def get_conversation(
     conv_id: str,
-    claims: Annotated[TokenClaims, Depends(trusted_claims)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     from config import S3_LOGS_BUCKET
@@ -184,7 +184,7 @@ async def get_conversation(
 async def update_conversation(
     conv_id: str,
     body: UpdateConversationRequest,
-    claims: Annotated[TokenClaims, Depends(trusted_claims)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     from config import S3_LOGS_BUCKET
@@ -224,7 +224,7 @@ async def update_conversation(
 @router.delete("/api/conversations/{conv_id}")
 async def delete_conversation(
     conv_id: str,
-    claims: Annotated[TokenClaims, Depends(trusted_claims)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     from config import S3_LOGS_BUCKET

@@ -27,7 +27,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from synteles_db.repos.connectors import ConnectorRepo
 
-from auth import TokenClaims, trusted_claims
+from auth import TokenClaims, trusted_claims_with_org
 from db import get_db
 
 router = APIRouter()
@@ -83,7 +83,7 @@ class UpdateMcpPresetRequest(BaseModel):
 @router.post("/api/connectors", status_code=201)
 async def create_preset(
     body: CreateMcpPresetRequest,
-    claims: Annotated[TokenClaims, Depends(trusted_claims)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     org_id = claims.org_id
@@ -114,7 +114,7 @@ async def create_preset(
 
 @router.get("/api/connectors")
 async def list_presets(
-    claims: Annotated[TokenClaims, Depends(trusted_claims)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     org_id = claims.org_id
@@ -125,7 +125,7 @@ async def list_presets(
 @router.get("/api/connectors/{name}")
 async def get_preset(
     name: str,
-    claims: Annotated[TokenClaims, Depends(trusted_claims)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     org_id = claims.org_id
@@ -139,7 +139,7 @@ async def get_preset(
 async def update_preset(
     name: str,
     body: UpdateMcpPresetRequest,
-    claims: Annotated[TokenClaims, Depends(trusted_claims)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     org_id = claims.org_id
@@ -167,7 +167,7 @@ async def update_preset(
 @router.delete("/api/connectors/{name}")
 async def delete_preset(
     name: str,
-    claims: Annotated[TokenClaims, Depends(trusted_claims)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     org_id = claims.org_id

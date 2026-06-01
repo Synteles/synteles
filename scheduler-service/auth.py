@@ -23,7 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Annotated
 
-from fastapi import Header, HTTPException
+from fastapi import Depends, Header, HTTPException
 
 
 @dataclass
@@ -40,3 +40,12 @@ async def trusted_claims(
     if not x_user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
     return TokenClaims(user_id=x_user_id, org_id=x_org_id or None)
+
+
+async def trusted_claims_with_org(
+    claims: Annotated[TokenClaims, Depends(trusted_claims)],
+) -> TokenClaims:
+    """Like trusted_claims, but also requires org_id — rejects unprovisioned users with 401."""
+    if not claims.org_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return claims
