@@ -7,7 +7,6 @@
 [![CI](https://github.com/Synteles/synteles/actions/workflows/ci.yml/badge.svg)](https://github.com/Synteles/synteles/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/Synteles/synteles/actions/workflows/codeql.yml/badge.svg)](https://github.com/Synteles/synteles/actions/workflows/codeql.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Latest Release](https://img.shields.io/github/v/tag/Synteles/synteles?label=release)](https://github.com/Synteles/synteles/releases/tag/v0.1.0-alpha)
 [![Powered by Synteles Agentlet](https://img.shields.io/badge/powered%20by-Synteles%20Agentlet-6f42c1)](https://github.com/Synteles/agentlet)
 
 **Open-source platform for AI workers and enterprise workflows.**
