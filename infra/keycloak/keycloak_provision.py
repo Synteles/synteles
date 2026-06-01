@@ -31,6 +31,10 @@ ADMIN_USER = os.environ["KC_ADMIN_USER"]
 ADMIN_PASS = os.environ["KC_ADMIN_PASSWORD"]
 DEFAULT_USER = os.environ.get("KEYCLOAK_DEFAULT_USER", "synteles")
 DEFAULT_PASS = os.environ.get("KEYCLOAK_DEFAULT_PASSWORD", "synteles")
+TEST_USER = os.environ.get("KEYCLOAK_TEST_USER", "synteles-test")
+TEST_PASS = os.environ.get("KEYCLOAK_TEST_PASSWORD", "synteles-test")
+FRESH_USER = os.environ.get("KEYCLOAK_FRESH_USER", "synteles-fresh")
+FRESH_PASS = os.environ.get("KEYCLOAK_FRESH_PASSWORD", "synteles-fresh")
 OIDC_CLIENT_SECRET = os.environ.get("OIDC_CLIENT_SECRET", "synteles-dev-secret")
 PROVISIONER_SECRET = os.environ.get("KEYCLOAK_PROVISIONER_CLIENT_SECRET", "provisioner-dev-secret")
 
@@ -145,7 +149,7 @@ def main():
                  data=user_profile, headers=auth_headers(token))
             print("Made firstName/lastName optional in user profile")
 
-    # 5. Create default user
+    # 5. Create default user — human login identity after `docker compose up`
     http("POST", f"{KC_BASE}/admin/realms/{REALM}/users",
          data={
              "username": DEFAULT_USER,
@@ -158,6 +162,34 @@ def main():
          },
          headers=auth_headers(token))
     print(f"Created default user '{DEFAULT_USER}'")
+
+    # 6. Create integration test user — dedicated identity for automated tests
+    http("POST", f"{KC_BASE}/admin/realms/{REALM}/users",
+         data={
+             "username": TEST_USER,
+             "email": f"{TEST_USER}@synteles.local",
+             "firstName": "Test",
+             "lastName": "User",
+             "enabled": True,
+             "emailVerified": True,
+             "credentials": [{"type": "password", "value": TEST_PASS, "temporary": False}],
+         },
+         headers=auth_headers(token))
+    print(f"Created integration test user '{TEST_USER}'")
+
+    # 7. Create fresh test user — base identity for provisioning integration tests
+    http("POST", f"{KC_BASE}/admin/realms/{REALM}/users",
+         data={
+             "username": FRESH_USER,
+             "email": f"{FRESH_USER}@synteles.local",
+             "firstName": "Fresh",
+             "lastName": "TestUser",
+             "enabled": True,
+             "emailVerified": True,
+             "credentials": [{"type": "password", "value": FRESH_PASS, "temporary": False}],
+         },
+         headers=auth_headers(token))
+    print(f"Created fresh test user '{FRESH_USER}'")
 
     print("Provisioning complete.")
 

@@ -27,7 +27,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from synteles_db.repos.connectors import ConnectorRepo
 
-from auth import TokenClaims, oidc_auth, resolve_org_id
+from auth import TokenClaims, trusted_claims_with_org
 from db import get_db
 
 router = APIRouter()
@@ -83,10 +83,10 @@ class UpdateMcpPresetRequest(BaseModel):
 @router.post("/api/connectors", status_code=201)
 async def create_preset(
     body: CreateMcpPresetRequest,
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
-    org_id = await resolve_org_id(claims, db)
+    org_id = claims.org_id
 
     if err := _validate_name(body.name):
         raise HTTPException(status_code=400, detail=err)
@@ -114,10 +114,10 @@ async def create_preset(
 
 @router.get("/api/connectors")
 async def list_presets(
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
-    org_id = await resolve_org_id(claims, db)
+    org_id = claims.org_id
     connectors = await ConnectorRepo(db).list_by_org(UUID(org_id))
     return {"presets": [_format_connector(c) for c in connectors]}
 
@@ -125,10 +125,10 @@ async def list_presets(
 @router.get("/api/connectors/{name}")
 async def get_preset(
     name: str,
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
-    org_id = await resolve_org_id(claims, db)
+    org_id = claims.org_id
     connector = await ConnectorRepo(db).get(UUID(org_id), name)
     if not connector:
         raise HTTPException(status_code=404, detail=f"Preset '{name}' not found")
@@ -139,10 +139,10 @@ async def get_preset(
 async def update_preset(
     name: str,
     body: UpdateMcpPresetRequest,
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
-    org_id = await resolve_org_id(claims, db)
+    org_id = claims.org_id
     connector = await ConnectorRepo(db).get(UUID(org_id), name)
     if not connector:
         raise HTTPException(status_code=404, detail=f"Preset '{name}' not found")
@@ -167,10 +167,10 @@ async def update_preset(
 @router.delete("/api/connectors/{name}")
 async def delete_preset(
     name: str,
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
-    org_id = await resolve_org_id(claims, db)
+    org_id = claims.org_id
     connector = await ConnectorRepo(db).get(UUID(org_id), name)
     if not connector:
         raise HTTPException(status_code=404, detail=f"Preset '{name}' not found")

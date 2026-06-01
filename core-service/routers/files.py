@@ -29,7 +29,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from synteles_db.repos.executions import ExecutionRepo
 
-from auth import TokenClaims, oidc_auth, resolve_org_id
+from auth import TokenClaims, trusted_claims, trusted_claims_with_org
 from db import get_db, get_s3, get_s3_public
 
 router = APIRouter()
@@ -57,7 +57,7 @@ class CreateUploadSessionRequest(BaseModel):
 @router.post("/api/files", status_code=201)
 async def create_upload_session(
     body: CreateUploadSessionRequest,
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims)],
 ) -> dict[str, Any]:
     from config import S3_UPLOADS_BUCKET
 
@@ -113,7 +113,7 @@ async def create_upload_session(
 @router.get("/api/executions/{execution_id}/files")
 async def get_execution_files(
     execution_id: str,
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     from config import S3_LOGS_BUCKET
@@ -121,7 +121,7 @@ async def get_execution_files(
     if not _UUID_RE.match(execution_id):
         raise HTTPException(status_code=400, detail="Invalid execution_id format")
 
-    org_id = await resolve_org_id(claims, db)
+    org_id = claims.org_id
     execution = await ExecutionRepo(db).get_by_id(UUID(execution_id))
     if not execution:
         raise HTTPException(status_code=404, detail="Execution not found")

@@ -162,7 +162,8 @@ Next.js frontend application.
 | `OIDC_PUBLIC_BASE` | Optional | _(same as OIDC_ISSUER_URL base)_ | Public base URL for browser-side Keycloak endpoints, e.g. `http://localhost:8080`. Used to rewrite server-generated URLs so the browser can reach them. |
 | `OIDC_CLIENT_ID` | **Required** | — | OIDC client ID registered in Keycloak, e.g. `synteles-app`. |
 | `OIDC_CLIENT_SECRET` | **Required** | — | See [Shared / Root](#shared--root). Used server-side only for the token exchange. |
-| `API_BASE_URL` | **Required** | — | Base URL of the platform API gateway, e.g. `http://traefik:8080` inside Docker or `https://api.synteles.dev` in production. |
+| `API_BASE_URL` | **Required** | — | Base URL of the platform API gateway used by server-side Next.js code, e.g. `http://traefik:8080` inside Docker. |
+| `API_PUBLIC_BASE_URL` | Optional | `https://api.synteles.dev` | Publicly reachable API base URL shown in the **API Integration** curl snippets. Read server-side at request time (not baked into the bundle), so it reflects the running environment. Set to `http://localhost:8080` for local dev, `https://api.synteles.dev` for production. |
 | `CHAT_STREAM_URL` | **Required** | — | Full URL of the synte-service streaming endpoint, e.g. `http://synte-service:8080/chat/stream`. |
 | `REDIRECT_URI` | **Required** | — | OIDC redirect URI registered in Keycloak, e.g. `http://localhost:3000/callback`. Must exactly match the URI configured in the Keycloak client. |
 
@@ -200,8 +201,12 @@ Variables for Keycloak and its provisioner.
 |---|---|---|---|
 | `KEYCLOAK_ADMIN_USER` | **Required** | `admin` | Keycloak master realm admin username. |
 | `KEYCLOAK_ADMIN_PASSWORD` | **Required** | `admin` | Keycloak master realm admin password. Change for any non-local deployment. |
-| `KEYCLOAK_DEFAULT_USER` | Optional | `synteles` | Username of the default test user created in the `synteles` realm on first provisioning. |
-| `KEYCLOAK_DEFAULT_PASSWORD` | Optional | `synteles` | Password for the default test user. Change for any non-local deployment. |
+| `KEYCLOAK_DEFAULT_USER` | Optional | `synteles` | Username of the default **human login** account created in the `synteles` realm on first provisioning. Used for manual browser access after `docker compose up`. Not used by the automated test suite. |
+| `KEYCLOAK_DEFAULT_PASSWORD` | Optional | `synteles` | Password for `KEYCLOAK_DEFAULT_USER`. Change for any non-local deployment. |
+| `KEYCLOAK_TEST_USER` | Optional | `synteles-test` | Username of the dedicated **integration test** account. The automated test suite authenticates as this user — keeping it separate from `KEYCLOAK_DEFAULT_USER` prevents test runs from polluting the developer's working environment. |
+| `KEYCLOAK_TEST_PASSWORD` | Optional | `synteles-test` | Password for `KEYCLOAK_TEST_USER`. Change for any non-local deployment. |
+| `KEYCLOAK_FRESH_USER` | Optional | `synteles-fresh` | Base username for **provisioning integration tests**. The test fixture creates a unique `synteles-fresh-{uuid}` Keycloak user per session from this credential so the first-login provisioning path is exercised every run. |
+| `KEYCLOAK_FRESH_PASSWORD` | Optional | `synteles-fresh` | Password for `KEYCLOAK_FRESH_USER` (and all derived ephemeral users). |
 
 ---
 
@@ -213,6 +218,8 @@ Before deploying to a non-local environment, rotate or set all of the following 
 - `OIDC_CLIENT_SECRET` — use a strong random secret, register it in Keycloak
 - `KEYCLOAK_PROVISIONER_CLIENT_SECRET` — use a strong random secret
 - `KEYCLOAK_ADMIN_PASSWORD` — set a strong admin password
-- `KEYCLOAK_DEFAULT_PASSWORD` — set or disable the default user
+- `KEYCLOAK_DEFAULT_PASSWORD` — set or disable the human login account
+- `KEYCLOAK_TEST_PASSWORD` — set a strong password for the test user, or disable the account in production
+- `KEYCLOAK_FRESH_PASSWORD` — set or disable the provisioning test base account
 - `POSTGRES_PASSWORD` — use a strong database password
 - `MINIO_ROOT_PASSWORD` — use a strong MinIO password (or replace with managed S3)

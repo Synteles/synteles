@@ -27,9 +27,10 @@ Synteles is designed to be portable. Depending on environment where it is deploy
 
 ## Architecture Diagram
 
-```mermaid 
+```mermaid  
 graph TB
     User["User"]
+    Service["External Service/App"]
 
     subgraph Stack["Synteles"]
 
@@ -41,13 +42,17 @@ graph TB
         Traefik["API Gateway </br> (Traefik)"]
 
         subgraph Backend["Backend Services"]
-            Core["core-service"]
+            
+            subgraph Core["core-service"]
+                CoreService["core-api"]
+                AuthService["auth-api"]
+            end
             Scheduler["scheduler-service"]
         end
 
 
         PG[("Platform DB </br> (PostgreSQL)")]
-        Minio[("Object Storage </br> S3 compatible </br> (MinIO)")]
+        Minio[("Object Storage </br> (MinIO)")]
 
         KC["Identity Provider/Broker </br> (Keycloak)"]
         
@@ -58,20 +63,21 @@ graph TB
 
     end
 
-    subgraph External["External"]
-        LLM["LLM Providers </br> (OpenAI, Azure, Amazon Bedrock, Ollama etc.)"]
-    end
+    LLM["LLM Providers </br> (OpenAI, Azure, Amazon Bedrock, Ollama etc.)"]
 
     User --> UX
     UX -->|"/api"| Traefik
     UX -->|"/chat/stream"| Synte
-    Traefik --> Core
+    Service -->|"/api/public"| Traefik
+    Traefik --> CoreService
     Traefik --> Scheduler
+    Traefik -->|"/auth/verify"| AuthService
     Traefik -->|"/auth"| KC
-    Core -->|"ForwardAuth / JWKS"| KC
+    AuthService -->|"ForwardAuth </br> JWKS"| KC
+    AuthService -->|"API Key </br> validation"| PG
     Synte -->|"/api"| Traefik
-    Core --> PG
-    Core --> Minio
+    CoreService --> PG
+    CoreService --> Minio
     Scheduler --> PG
     Scheduler --> Minio
     Scheduler -->|"launch / monitor agentlets"| EE
@@ -131,6 +137,12 @@ Supported federation protocols include:
 - **LDAP / Active Directory** — direct user federation for organisations that prefer to synchronise the user directory into Keycloak rather than delegate authentication
 
 In broker mode, Keycloak handles the protocol translation and attribute mapping. Enterprise users log in through their existing SSO experience; Synteles sees a normalised JWT token with the expected claims.
+
+**Gateway-enforced authentication**
+
+Authentication is enforced at the API gateway layer rather than inside each backend service. Traefik routes every request through a `forwardAuth` middleware that calls `core-service /auth/verify` before the request reaches its destination. Two middleware variants enforce credential type structurally: private routes (`/api/*`) accept only `Authorization: Bearer <JWT>`, validated against Keycloak's JWKS endpoint; public routes (`/api/public/*`) accept only `X-API-Key`, validated against a SHA-256 hash stored in PostgreSQL. A JWT cannot authenticate a public route and an API key cannot authenticate a private route — this is enforced by gateway configuration, not application code.
+
+On successful verification, the gateway injects `X-User-Id` and `X-Org-Id` headers and forwards the request downstream. Backend services trust these headers without performing any token validation themselves, keeping auth logic centralised in a single place. The first-login provisioning flow is an intentional exception: a user whose organisation has not yet been created in the database is allowed through `verify` with an empty `X-Org-Id`, so that their first call to `GET /api/users/me` can trigger automatic provisioning. All other routes that require an organisation reject such requests with a 401 before any business logic runs.
 
 ## Deployment
 

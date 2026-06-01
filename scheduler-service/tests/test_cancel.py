@@ -61,18 +61,13 @@ async def test_cancel_active_execution_calls_finalize(app: FastAPI, mock_claims:
     mock_db = AsyncMock()
     mock_backend = MagicMock()
 
-    from auth import oidc_auth
+    from auth import trusted_claims
     from db import get_db
 
-    app.dependency_overrides[oidc_auth] = lambda: mock_claims
+    app.dependency_overrides[trusted_claims] = lambda: mock_claims
     app.dependency_overrides[get_db] = lambda: mock_db
 
     with (
-        patch(
-            "routers.management.resolve_org_id",
-            new_callable=AsyncMock,
-            return_value="00000000-0000-0000-0000-000000000001",
-        ),
         patch("routers.management.ExecutionRepo") as mock_repo_cls,
         patch("routers.management.get_backend", return_value=mock_backend),
         patch("routers.management._finalize", new_callable=AsyncMock) as mock_finalize,
@@ -98,18 +93,13 @@ async def test_cancel_terminal_execution_skips_finalize(
 
     mock_db = AsyncMock()
 
-    from auth import oidc_auth
+    from auth import trusted_claims
     from db import get_db
 
-    app.dependency_overrides[oidc_auth] = lambda: mock_claims
+    app.dependency_overrides[trusted_claims] = lambda: mock_claims
     app.dependency_overrides[get_db] = lambda: mock_db
 
     with (
-        patch(
-            "routers.management.resolve_org_id",
-            new_callable=AsyncMock,
-            return_value="00000000-0000-0000-0000-000000000001",
-        ),
         patch("routers.management.ExecutionRepo") as mock_repo_cls,
         patch("routers.management._finalize", new_callable=AsyncMock) as mock_finalize,
     ):
@@ -129,18 +119,13 @@ async def test_cancel_terminal_execution_skips_finalize(
 async def test_cancel_not_found_returns_404(app: FastAPI, mock_claims: MagicMock) -> None:
     mock_db = AsyncMock()
 
-    from auth import oidc_auth
+    from auth import trusted_claims
     from db import get_db
 
-    app.dependency_overrides[oidc_auth] = lambda: mock_claims
+    app.dependency_overrides[trusted_claims] = lambda: mock_claims
     app.dependency_overrides[get_db] = lambda: mock_db
 
     with (
-        patch(
-            "routers.management.resolve_org_id",
-            new_callable=AsyncMock,
-            return_value="org-1",
-        ),
         patch("routers.management.ExecutionRepo") as mock_repo_cls,
     ):
         mock_repo = MagicMock()

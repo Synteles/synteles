@@ -24,7 +24,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import IntegrityError
 
-from auth import TokenClaims, oidc_auth
+from auth import TokenClaims, trusted_claims
 from db import get_db
 from routers.agentlets import _validate_agentlet_id
 
@@ -60,7 +60,7 @@ def client(mock_db: AsyncMock):
     def fake_db():
         yield mock_db
 
-    app.dependency_overrides[oidc_auth] = fake_auth
+    app.dependency_overrides[trusted_claims] = fake_auth
     app.dependency_overrides[get_db] = fake_db
     yield TestClient(app)
     app.dependency_overrides.clear()

@@ -22,7 +22,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from auth import TokenClaims, oidc_auth
+from auth import TokenClaims, trusted_claims
 from db import get_db
 
 _USER_ID = str(uuid4())
@@ -44,7 +44,7 @@ def client(mock_db):
     def fake_db():
         yield mock_db
 
-    app.dependency_overrides[oidc_auth] = fake_auth
+    app.dependency_overrides[trusted_claims] = fake_auth
     app.dependency_overrides[get_db] = fake_db
     yield TestClient(app)
     app.dependency_overrides.clear()

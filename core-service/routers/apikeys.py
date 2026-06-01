@@ -27,7 +27,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from synteles_db.repos.apikeys import ApiKeyRepo
 
-from auth import TokenClaims, oidc_auth, resolve_org_id
+from auth import TokenClaims, trusted_claims_with_org
 from db import get_db
 
 router = APIRouter()
@@ -42,10 +42,10 @@ class CreateApiKeyRequest(BaseModel):
 @router.post("/api/users/apikeys")
 async def create_api_key(
     body: CreateApiKeyRequest,
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
-    org_id = await resolve_org_id(claims, db)
+    org_id = claims.org_id
 
     if not body.key_name:
         raise HTTPException(status_code=400, detail="key_name is required")
@@ -83,10 +83,10 @@ async def create_api_key(
 
 @router.get("/api/users/apikeys")
 async def list_api_keys(
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> list[dict[str, Any]]:
-    org_id = await resolve_org_id(claims, db)
+    org_id = claims.org_id
     keys = await ApiKeyRepo(db).list_by_user(UUID(org_id), UUID(claims.user_id))
     return [
         {
@@ -102,14 +102,14 @@ async def list_api_keys(
 @router.delete("/api/users/apikeys/{apikey_id}", status_code=204)
 async def delete_api_key(
     apikey_id: str,
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> Response:
     try:
         key_uuid = UUID(apikey_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="API key not found") from None
-    org_id = await resolve_org_id(claims, db)
+    org_id = claims.org_id
     key = await ApiKeyRepo(db).get_by_id_and_user(key_uuid, UUID(claims.user_id), UUID(org_id))
     if not key:
         raise HTTPException(status_code=404, detail="API key not found")

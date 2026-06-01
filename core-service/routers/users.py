@@ -27,7 +27,7 @@ from synteles_db.models import Organization, User, UserOrg
 from synteles_db.repos.orgs import OrgRepo
 from synteles_db.repos.users import UserRepo
 
-from auth import TokenClaims, oidc_auth
+from auth import TokenClaims, trusted_claims
 from db import get_db
 
 router = APIRouter()
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 @router.get("/api/users/me")
 async def get_user_profile(
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     user = await UserRepo(db).get(UUID(claims.user_id))
@@ -152,7 +152,7 @@ async def _fetch_userinfo(token: str) -> dict[str, Any]:
 
 @router.get("/api/users/me/profile")
 async def get_user_profile_rich(
-    claims: Annotated[TokenClaims, Depends(oidc_auth)],
+    claims: Annotated[TokenClaims, Depends(trusted_claims)],
     db: Annotated[AsyncSession, Depends(get_db)],
     authorization: Annotated[str, __import__("fastapi").Header()],
 ) -> dict[str, Any]:

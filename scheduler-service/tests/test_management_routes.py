@@ -197,18 +197,13 @@ def test_list_executions_happy_path(app: FastAPI, mock_claims: MagicMock) -> Non
     executions = [_make_execution(), _make_execution()]
     mock_db = AsyncMock()
 
-    from auth import oidc_auth
+    from auth import trusted_claims
     from db import get_db
 
-    app.dependency_overrides[oidc_auth] = lambda: mock_claims
+    app.dependency_overrides[trusted_claims] = lambda: mock_claims
     app.dependency_overrides[get_db] = lambda: mock_db
 
     with (
-        patch(
-            "routers.management.resolve_org_id",
-            new_callable=AsyncMock,
-            return_value=ORG_ID,
-        ),
         patch("routers.management.ExecutionRepo") as mock_repo_cls,
     ):
         mock_repo = MagicMock()
@@ -231,10 +226,10 @@ def test_list_executions_happy_path(app: FastAPI, mock_claims: MagicMock) -> Non
 def test_list_executions_invalid_status_returns_400(app: FastAPI, mock_claims: MagicMock) -> None:
     mock_db = AsyncMock()
 
-    from auth import oidc_auth
+    from auth import trusted_claims
     from db import get_db
 
-    app.dependency_overrides[oidc_auth] = lambda: mock_claims
+    app.dependency_overrides[trusted_claims] = lambda: mock_claims
     app.dependency_overrides[get_db] = lambda: mock_db
 
     client = TestClient(app, raise_server_exceptions=True)
@@ -251,18 +246,13 @@ def test_list_executions_pagination_next_token(app: FastAPI, mock_claims: MagicM
     executions = [_make_execution() for _ in range(limit + 1)]
     mock_db = AsyncMock()
 
-    from auth import oidc_auth
+    from auth import trusted_claims
     from db import get_db
 
-    app.dependency_overrides[oidc_auth] = lambda: mock_claims
+    app.dependency_overrides[trusted_claims] = lambda: mock_claims
     app.dependency_overrides[get_db] = lambda: mock_db
 
     with (
-        patch(
-            "routers.management.resolve_org_id",
-            new_callable=AsyncMock,
-            return_value=ORG_ID,
-        ),
         patch("routers.management.ExecutionRepo") as mock_repo_cls,
     ):
         mock_repo = MagicMock()
@@ -291,18 +281,13 @@ def test_get_execution_status_found(app: FastAPI, mock_claims: MagicMock) -> Non
     exec_id = str(execution.id)
     mock_db = AsyncMock()
 
-    from auth import oidc_auth
+    from auth import trusted_claims
     from db import get_db
 
-    app.dependency_overrides[oidc_auth] = lambda: mock_claims
+    app.dependency_overrides[trusted_claims] = lambda: mock_claims
     app.dependency_overrides[get_db] = lambda: mock_db
 
     with (
-        patch(
-            "routers.management.resolve_org_id",
-            new_callable=AsyncMock,
-            return_value=ORG_ID,
-        ),
         patch("routers.management.ExecutionRepo") as mock_repo_cls,
     ):
         mock_repo = MagicMock()
@@ -325,18 +310,13 @@ def test_get_execution_status_found(app: FastAPI, mock_claims: MagicMock) -> Non
 def test_get_execution_status_not_found_returns_404(app: FastAPI, mock_claims: MagicMock) -> None:
     mock_db = AsyncMock()
 
-    from auth import oidc_auth
+    from auth import trusted_claims
     from db import get_db
 
-    app.dependency_overrides[oidc_auth] = lambda: mock_claims
+    app.dependency_overrides[trusted_claims] = lambda: mock_claims
     app.dependency_overrides[get_db] = lambda: mock_db
 
     with (
-        patch(
-            "routers.management.resolve_org_id",
-            new_callable=AsyncMock,
-            return_value=ORG_ID,
-        ),
         patch("routers.management.ExecutionRepo") as mock_repo_cls,
     ):
         mock_repo = MagicMock()
@@ -357,18 +337,13 @@ def test_get_execution_status_wrong_org_returns_403(app: FastAPI, mock_claims: M
     exec_id = str(execution.id)
     mock_db = AsyncMock()
 
-    from auth import oidc_auth
+    from auth import trusted_claims
     from db import get_db
 
-    app.dependency_overrides[oidc_auth] = lambda: mock_claims
+    app.dependency_overrides[trusted_claims] = lambda: mock_claims
     app.dependency_overrides[get_db] = lambda: mock_db
 
     with (
-        patch(
-            "routers.management.resolve_org_id",
-            new_callable=AsyncMock,
-            return_value=ORG_ID,
-        ),
         patch("routers.management.ExecutionRepo") as mock_repo_cls,
     ):
         mock_repo = MagicMock()
@@ -394,18 +369,13 @@ def test_get_execution_logs_text_format(app: FastAPI, mock_claims: MagicMock) ->
     exec_id = str(execution.id)
     mock_db = AsyncMock()
 
-    from auth import oidc_auth
+    from auth import trusted_claims
     from db import get_db
 
-    app.dependency_overrides[oidc_auth] = lambda: mock_claims
+    app.dependency_overrides[trusted_claims] = lambda: mock_claims
     app.dependency_overrides[get_db] = lambda: mock_db
 
     with (
-        patch(
-            "routers.management.resolve_org_id",
-            new_callable=AsyncMock,
-            return_value=ORG_ID,
-        ),
         patch("routers.management.ExecutionRepo") as mock_repo_cls,
         patch("routers.management.get_s3") as mock_get_s3,
     ):
@@ -437,18 +407,13 @@ def test_get_execution_logs_running_no_uri_returns_json(
     exec_id = str(execution.id)
     mock_db = AsyncMock()
 
-    from auth import oidc_auth
+    from auth import trusted_claims
     from db import get_db
 
-    app.dependency_overrides[oidc_auth] = lambda: mock_claims
+    app.dependency_overrides[trusted_claims] = lambda: mock_claims
     app.dependency_overrides[get_db] = lambda: mock_db
 
     with (
-        patch(
-            "routers.management.resolve_org_id",
-            new_callable=AsyncMock,
-            return_value=ORG_ID,
-        ),
         patch("routers.management.ExecutionRepo") as mock_repo_cls,
     ):
         mock_repo = MagicMock()
@@ -473,18 +438,13 @@ def test_get_execution_logs_terminal_no_uri_returns_410(
     exec_id = str(execution.id)
     mock_db = AsyncMock()
 
-    from auth import oidc_auth
+    from auth import trusted_claims
     from db import get_db
 
-    app.dependency_overrides[oidc_auth] = lambda: mock_claims
+    app.dependency_overrides[trusted_claims] = lambda: mock_claims
     app.dependency_overrides[get_db] = lambda: mock_db
 
     with (
-        patch(
-            "routers.management.resolve_org_id",
-            new_callable=AsyncMock,
-            return_value=ORG_ID,
-        ),
         patch("routers.management.ExecutionRepo") as mock_repo_cls,
     ):
         mock_repo = MagicMock()
@@ -509,15 +469,14 @@ def test_get_public_execution_status_found(app: FastAPI) -> None:
     exec_id = str(execution.id)
     mock_db = AsyncMock()
 
-    # apikey_auth returns TokenClaims with org_id set — no resolve_org_id call needed
     mock_apikey_claims = MagicMock(spec=TokenClaims)
     mock_apikey_claims.org_id = ORG_ID
     mock_apikey_claims.user_id = "api-user-1"
 
-    from auth import apikey_auth
+    from auth import trusted_claims
     from db import get_db
 
-    app.dependency_overrides[apikey_auth] = lambda: mock_apikey_claims
+    app.dependency_overrides[trusted_claims] = lambda: mock_apikey_claims
     app.dependency_overrides[get_db] = lambda: mock_db
 
     with patch("routers.management.ExecutionRepo") as mock_repo_cls:

@@ -102,6 +102,10 @@ services:
       KC_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
       KEYCLOAK_DEFAULT_USER: ${KEYCLOAK_DEFAULT_USER:-synteles}
       KEYCLOAK_DEFAULT_PASSWORD: ${KEYCLOAK_DEFAULT_PASSWORD:-synteles}
+      KEYCLOAK_TEST_USER: ${KEYCLOAK_TEST_USER:-synteles-test}
+      KEYCLOAK_TEST_PASSWORD: ${KEYCLOAK_TEST_PASSWORD:-synteles-test}
+      KEYCLOAK_FRESH_USER: ${KEYCLOAK_FRESH_USER:-synteles-fresh}
+      KEYCLOAK_FRESH_PASSWORD: ${KEYCLOAK_FRESH_PASSWORD:-synteles-fresh}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-synteles-dev-secret}
       KEYCLOAK_PROVISIONER_CLIENT_SECRET: ${KEYCLOAK_PROVISIONER_CLIENT_SECRET:-provisioner-dev-secret}
     depends_on:
@@ -243,6 +247,7 @@ services:
       OIDC_CLIENT_ID: synteles-app
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-synteles-dev-secret}
       API_BASE_URL: http://traefik:8080
+      API_PUBLIC_BASE_URL: ${API_PUBLIC_BASE_URL:-http://localhost:8080}
       CHAT_STREAM_URL: http://synte-service:8080/chat/stream
       REDIRECT_URI: http://localhost:3000/callback
     depends_on:

@@ -1,8 +1,19 @@
 http:
   middlewares:
-    api-auth:
+    jwt-auth:
       forwardAuth:
         address: "http://core-service:8000/auth/verify"
+        authRequestHeaders:
+          - "Authorization"
+        authResponseHeaders:
+          - "X-User-Id"
+          - "X-Org-Id"
+
+    api-key-auth:
+      forwardAuth:
+        address: "http://core-service:8000/auth/verify"
+        authRequestHeaders:
+          - "X-API-Key"
         authResponseHeaders:
           - "X-User-Id"
           - "X-Org-Id"
@@ -26,20 +37,24 @@ http:
         - keycloak-public-host
       service: keycloak
 
-    # Public: GET single agentlet definition — no auth, goes to core-service
+    # Public: GET single agentlet definition — API key auth via gateway
     public-agentlet-get:
       rule: "PathPrefix(`/api/public/agentlets`) && Method(`GET`) && !PathRegexp(`executions`)"
       priority: 60
       entryPoints:
         - web
+      middlewares:
+        - api-key-auth
       service: core-service
 
-    # Public: POST execute + GET execution status — no auth, goes to scheduler-service
+    # Public: POST execute + GET execution status — API key auth via gateway
     public-scheduler:
       rule: "PathPrefix(`/api/public`)"
       priority: 50
       entryPoints:
         - web
+      middlewares:
+        - api-key-auth
       service: scheduler-service
 
     # Authenticated: execution files endpoint — core-service (must be higher than scheduler-executions)
@@ -49,7 +64,7 @@ http:
       entryPoints:
         - web
       middlewares:
-        - api-auth
+        - jwt-auth
       service: core-service
 
     # Authenticated: execution routes — scheduler-service
@@ -59,7 +74,7 @@ http:
       entryPoints:
         - web
       middlewares:
-        - api-auth
+        - jwt-auth
       service: scheduler-service
 
     # Authenticated: POST create execution under org/agentlet — scheduler-service
@@ -69,7 +84,7 @@ http:
       entryPoints:
         - web
       middlewares:
-        - api-auth
+        - jwt-auth
       service: scheduler-service
 
     # Authenticated: everything else — core-service (catch-all)
@@ -79,7 +94,7 @@ http:
       entryPoints:
         - web
       middlewares:
-        - api-auth
+        - jwt-auth
       service: core-service
 
   services:
