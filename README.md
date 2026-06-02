@@ -19,11 +19,12 @@ Synteles is a platform for AI workers (agentlets) that execute workflows. Busine
 
 ## Screenshots
 
-<img src="docs/images/Screenshot1.png" width="49%"> <img src="docs/images/Screenshot2.png" width="49%">
-
-<img src="docs/images/Screenshot3.png" width="49%"> <img src="docs/images/Screenshot4.png" width="49%">
-
-<img src="docs/images/Screenshot5.png" width="49%"> <img src="docs/images/Screenshot6.png" width="49%">
+![](docs/images/Screenshot1.png)
+![](docs/images/Screenshot2.png)
+![](docs/images/Screenshot3.png)
+![](docs/images/Screenshot4.png)
+![](docs/images/Screenshot5.png)
+![](docs/images/Screenshot6.png)
 
 ## Quick Start
 
