@@ -35,8 +35,8 @@ from strands_tools.tavily import tavily_search
 
 from agents.agentlet_creator import agent_creator_assistant
 from core.protocol import map_strands_event
-from tools.platform_tools import PlatformTools
 from tools.agentlet_validator import validate_agentlet
+from tools.platform_tools import PlatformTools
 
 _SYSTEM_PROMPT = """
     # SYNTE — System Instructions
@@ -706,7 +706,11 @@ def _load_chat_config() -> tuple[str, dict[str, str]]:
         if raw:
             try:
                 secret_dict: dict[str, Any] = json.loads(raw)
-                env_vars = {k: v for k, v in secret_dict.items() if isinstance(k, str) and isinstance(v, str)}
+                env_vars = {
+                    k: v
+                    for k, v in secret_dict.items()
+                    if isinstance(k, str) and isinstance(v, str)
+                }
             except Exception:  # nosec B110
                 pass
 

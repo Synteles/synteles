@@ -78,7 +78,9 @@ def _make_mock_agent_cls(mocker, return_value: str = _VALID_YAML):
 class TestAgentCreatorBasic:
     def test_returns_yaml_string_when_valid(self, mocker):
         _mock_agent_cls, _mock_agent_instance = _make_mock_agent_cls(mocker, _VALID_YAML)
-        mocker.patch("agents.agentlet_creator.validate_agentlet_yaml", return_value="VALID - all good")
+        mocker.patch(
+            "agents.agentlet_creator.validate_agentlet_yaml", return_value="VALID - all good"
+        )
 
         result = agent_creator_assistant("Create a simple agent")
 
