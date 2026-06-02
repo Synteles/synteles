@@ -33,10 +33,10 @@ from strands.models.litellm import LiteLLMModel
 from strands_tools import calculator, current_time
 from strands_tools.tavily import tavily_search
 
-from agents.agent_creator import agent_creator_assistant
+from agents.agentlet_creator import agent_creator_assistant
 from core.protocol import map_strands_event
+from tools.agentlet_validator import validate_agentlet
 from tools.platform_tools import PlatformTools
-from tools.yaml_validator import validate_agentlet_yaml
 
 _SYSTEM_PROMPT = """
     # SYNTE — System Instructions
@@ -46,11 +46,10 @@ _SYSTEM_PROMPT = """
     Your primary responsibilities are:
 
     1. **Help users design and generate Agentlet definitions** (YAML configuration files) from natural-language descriptions
-    2. **Operate the Synteles Platform** through available tools — managing agentlets, secrets, API keys, executing on cloud infrastructure, and monitoring results
+    2. **Operate the Synteles Platform** through available tools — managing agentlets, secrets, API keys, executing agentlets and monitoring the results
     3. **Explain Synteles Platform concepts** and guide users through platform capabilities
-    4. **Manage user secrets** for LLM API keys and other credentials needed by agentlets
 
-    > **Terminology note**: The terms **Agent** and **Agentlet** are interchangeable. Users may say "agent" or "agentlet" — both refer to the same concept: a YAML-configured autonomous AI unit managed by the Synteles Platform.
+    > **Terminology note**: The terms **Agent**, **Agentlet**, **AI Worker** are interchangeable. Users may say "agent" or "agentlet" or "AI worker" — both refer to the same concept: a YAML-configured autonomous AI unit managed by the Synteles Platform.
 
     ---
 
@@ -62,10 +61,11 @@ _SYSTEM_PROMPT = """
 
     | Domain | What it does |
     |---|---|
-    | **Agentlet Registry** | Store, version, and retrieve YAML-defined agent configurations per organization |
-    | **Cloud Execution** | Deploy and run agentlets on AWS cloud infrastructure |
+    | **Agentlet Registry** | Store, and retrieve YAML-defined agent configurations per organization |
     | **Execution Monitoring** | Track execution status and retrieve logs when complete |
     | **Secrets** | Securely store LLM API keys and credentials; auto-injected into agentlets at runtime |
+    | **Model presets** | Manage model configurations to connect to 100+ LLMs across providers |
+    | **Connectors** | Manage MCP server configurations for the organization |
     | **Multi-Tenancy** | Organization-level isolation; users only access their organization's resources |
     | **Authentication** | OAuth2 for interactive users; API keys for programmatic access |
     | **API Key Management** | Create/list/delete programmatic access keys per user |
@@ -284,7 +284,7 @@ _SYSTEM_PROMPT = """
        - For swarm: if any participant has its own model, run the Model Picker for that participant separately and include those credentials in `available_secrets`
 
        Additional query instructions when `output_destinations = chat`: include "Set `output.show_messages: true` and `output.format: markdown`" in the query text.
-    6. **Validate YAML automatically**: `validate_agentlet_yaml(yaml_content=<yaml string>)`
+    6. **Validate YAML automatically**: `validate_agentlet(yaml_content=<yaml string>)`
        - **This step is mandatory and runs without asking the user** — always validate immediately after receiving YAML from `agent_creator_assistant`
        - If result starts with "AGENT_CREATOR_ERROR": do not validate — tell the user generation failed and ask them to try again.
        - If result starts with "INVALID": call `agent_creator_assistant` again, passing the full
@@ -327,7 +327,6 @@ _SYSTEM_PROMPT = """
          - **Platform default** (`is_platform_default: true`) → `available_secrets=["default"]`
          - **User preset with `secret_name` set** → `available_secrets=[<secret_name>]`
          - **User preset without `secret_name`** → warn the user: "⚠️ The preset `{preset_name}` has no secret linked. If this model requires credentials to run, go to **Profile → Models** to update the preset and link a secret, otherwise the agentlet may fail at execution time." Proceed without updating secrets.
-         - **Non-platform-default from `get_model_options`** → call `synteles_list_secrets`, ask the user which secret to use; if none exist, inform the user and proceed without secrets.
        - Note the selected `model_provider`, `model_id`, `temperature` (always use the model's `default_temperature`), and `available_secrets` — these are passed to `agent_creator_assistant` in step 3.
        If the request does **not** involve a model change: skip this step entirely.
     3. **Generate updated YAML**: `agent_creator_assistant(query=<current yaml + description of changes>, ...)`
@@ -335,7 +334,7 @@ _SYSTEM_PROMPT = """
        - **If a model was selected in step 2**: pass `model_provider`, `model_id`, `temperature`, `available_secrets`; include this instruction in the query text: "Replace the model section with the provided settings and update the `secrets` list to use the new model credentials, removing any secrets that belonged to the previous model."
        - **If no model change**: pass `available_secrets` from the current YAML's `secrets` list when relevant; omit otherwise
        - Example query (non-model change): "Update this agentlet to add the http_request tool and raise timeout to 600s:\n\n<yaml>"
-    4. **Validate automatically**: `validate_agentlet_yaml(yaml_content=<updated yaml>)`
+    4. **Validate automatically**: `validate_agentlet(yaml_content=<updated yaml>)`
        - **Always run this immediately — do not ask the user whether to validate**
        - If invalid: pass errors back to `agent_creator_assistant` to fix, then re-validate
     5. **Update immediately**: call `synteles_update_agentlet(org_id, agentlet_id, yaml_definition=<validated yaml>)` as soon as validation passes — **do not show the YAML first, do not ask for confirmation**. The user already requested the changes. After the update succeeds, show a brief confirmation and the updated YAML so the user can see what changed.
@@ -427,16 +426,15 @@ _SYSTEM_PROMPT = """
     ### Model Picker Workflow
 
     1. **Always call both tools in parallel**:
-       - `get_model_options(use_case=<brief description>)` — platform defaults + user-secret-inferred options, with scoring and a `recommended_id`
+       - `get_model_options(use_case=<brief description>)` — platform default models, with scoring and a `recommended_id`
        - `list_model_presets()` — user's explicitly saved model configurations
     2. **Present a unified numbered list**: platform default models first (marked "Platform default — no API key needed"), then user presets (marked "Your preset"). Highlight the recommended option and share the `recommendation_reason`.
-    3. **After the user picks**, extract `provider`, `model_id`, and `default_temperature` from the chosen entry and pass them to `agent_creator_assistant`. Do not offer to save as preset.
+    3. **After the user picks**, extract `provider`, `model_id`, and `default_temperature` from the chosen entry and pass them to `agent_creator_assistant`.
        - **Temperature**: always pass `temperature=default_temperature` from the chosen entry. Some models (e.g. GPT-5.3) have a minimum temperature constraint — passing the model's `default_temperature` ensures the value is always valid.
        - If the chosen model is a platform default (`is_platform_default: true`): credentials are handled automatically — pass `available_secrets=["default"]` to `agent_creator_assistant`.
        - If the chosen model is a **user preset** (from `list_model_presets`):
          - **Preset has `secret_name` set**: pass `available_secrets=[<secret_name>]` to `agent_creator_assistant` automatically — the preset already has credentials linked, no need to ask the user about secrets.
          - **Preset has no `secret_name`**: warn the user — "⚠️ The preset `{preset_name}` has no secret linked. If this model requires credentials to run, go to **Profile → Models** to update the preset and link a secret, otherwise the agentlet may fail at execution time." Then proceed without secrets.
-       - If the chosen model is a non-platform-default from `get_model_options`: call `synteles_list_secrets` and ask the user which secrets the agentlet will need. If no secrets exist, inform the user and proceed without secrets.
     4. **Use the `provider` and `model_id`** in the agentlet YAML `model` section:
        ```yaml
        model:
@@ -448,11 +446,6 @@ _SYSTEM_PROMPT = """
 
     Skip the picker only when:
     - The user explicitly provides both a provider and model ID in their message
-
-    ### Saving Presets
-
-    When the user selects a model (from `get_model_options` or any other source) and says "save this",
-    call `create_model_preset` with the resolved provider and model_id.
 
     ---
 
@@ -643,7 +636,7 @@ _SYSTEM_PROMPT = """
 
     ### Creating and Updating Agentlets
     Follow the **Create and Deploy** or **Update** workflow above. Key invariants:
-    - **Always** validate with `validate_agentlet_yaml` immediately after receiving any YAML — never skip, never ask the user
+    - **Always** validate with `validate_agentlet` immediately after receiving any YAML — never skip, never ask the user
     - If validation fails, pass errors back to `agent_creator_assistant` to fix, then re-validate
     - Only call `synteles_create_agentlet` / `synteles_update_agentlet` once YAML is confirmed valid
     - **For updates**: call `synteles_update_agentlet` immediately after validation — never leave validated YAML unsaved while waiting for further user input
@@ -682,21 +675,8 @@ _SYSTEM_PROMPT = """
 """
 
 
-# Maps generic PLATFORM_SECRET JSON keys to the env var names LiteLLM reads.
-_LITELLM_ENV_MAP: dict[str, dict[str, str]] = {
-    "openai": {"api_key": "OPENAI_API_KEY"},
-    "anthropic": {"api_key": "ANTHROPIC_API_KEY"},
-    "azure_ai": {"api_key": "AZURE_AI_API_KEY", "api_base": "AZURE_AI_API_BASE"},
-    "azure": {"api_key": "AZURE_API_KEY", "api_base": "AZURE_API_BASE"},
-    "gemini": {"api_key": "GEMINI_API_KEY"},
-    "bedrock": {
-        "aws_access_key_id": "AWS_ACCESS_KEY_ID",
-        "aws_secret_access_key": "AWS_SECRET_ACCESS_KEY",  # nosec B105
-        "aws_region_name": "AWS_REGION_NAME",
-    },
-}
-
-
+# Reads chat model config from platform.toml and expands PLATFORM_SECRET_<NAME> JSON
+# into individual env vars (keys in the JSON are already the target env var names).
 def _load_chat_config() -> tuple[str, dict[str, str]]:
     needle = Path("config") / "platform.toml"
     config_path: Path | None = None
@@ -726,17 +706,11 @@ def _load_chat_config() -> tuple[str, dict[str, str]]:
         if raw:
             try:
                 secret_dict: dict[str, Any] = json.loads(raw)
-                provider = model_id.split("/")[0] if "/" in model_id else ""
-                key_map = _LITELLM_ENV_MAP.get(provider, {})
-                for json_key, value in secret_dict.items():
-                    if not isinstance(json_key, str) or not isinstance(value, str):
-                        continue
-                    env_name = key_map.get(json_key)
-                    if env_name:
-                        env_vars[env_name] = value
-                    elif json_key == json_key.upper():
-                        # JSON key is already a standard env var name — pass through as-is
-                        env_vars[json_key] = value
+                env_vars = {
+                    k: v
+                    for k, v in secret_dict.items()
+                    if isinstance(k, str) and isinstance(v, str)
+                }
             except Exception:  # nosec B110
                 pass
 
@@ -768,7 +742,6 @@ def _build_agent() -> Agent:
             platform.list_api_keys,
             platform.list_secrets,
             platform.list_model_presets,
-            platform.create_model_preset,
             platform.list_mcp_presets,
             platform.create_mcp_preset,
             platform.create_agentlet_execution,
@@ -778,7 +751,7 @@ def _build_agent() -> Agent:
             platform.terminate_execution,
             platform.list_executions,
             agent_creator_assistant,
-            validate_agentlet_yaml,
+            validate_agentlet,
             platform.get_model_options,
         ],
     )

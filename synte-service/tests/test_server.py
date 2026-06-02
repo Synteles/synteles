@@ -78,7 +78,7 @@ class TestChatStreamSuccess:
             yield {"type": "start"}
             yield {"type": "done"}
 
-        mocker.patch("core.agent.stream_turn", new=_fake_stream)
+        mocker.patch("core.synte.stream_turn", new=_fake_stream)
 
         response = client.post(
             "/chat/stream",
@@ -93,7 +93,7 @@ class TestChatStreamSuccess:
         ):
             yield {"type": "start"}
 
-        mocker.patch("core.agent.stream_turn", new=_fake_stream)
+        mocker.patch("core.synte.stream_turn", new=_fake_stream)
 
         response = client.post(
             "/chat/stream",
@@ -109,7 +109,7 @@ class TestChatStreamSuccess:
             yield {"type": "start"}
             yield {"type": "done"}
 
-        mocker.patch("core.agent.stream_turn", new=_fake_stream)
+        mocker.patch("core.synte.stream_turn", new=_fake_stream)
 
         response = client.post(
             "/chat/stream",
@@ -125,7 +125,7 @@ class TestChatStreamSuccess:
             yield {"type": "start"}
             yield {"type": "done"}
 
-        mocker.patch("core.agent.stream_turn", new=_fake_stream)
+        mocker.patch("core.synte.stream_turn", new=_fake_stream)
 
         response = client.post(
             "/chat/stream",
@@ -143,7 +143,7 @@ class TestChatStreamSuccess:
             received_token.append(access_token)
             yield {"type": "done"}
 
-        mocker.patch("core.agent.stream_turn", new=_fake_stream)
+        mocker.patch("core.synte.stream_turn", new=_fake_stream)
 
         client.post(
             "/chat/stream",
@@ -166,7 +166,7 @@ class TestChatStreamOptionalFields:
             received_kwargs["org_id"] = org_id
             yield {"type": "done"}
 
-        mocker.patch("core.agent.stream_turn", new=_fake_stream)
+        mocker.patch("core.synte.stream_turn", new=_fake_stream)
 
         client.post(
             "/chat/stream",
@@ -184,7 +184,7 @@ class TestChatStreamOptionalFields:
             received_kwargs["pending_input_objects"] = pending_input_objects
             yield {"type": "done"}
 
-        mocker.patch("core.agent.stream_turn", new=_fake_stream)
+        mocker.patch("core.synte.stream_turn", new=_fake_stream)
 
         client.post(
             "/chat/stream",
@@ -203,7 +203,7 @@ class TestChatStreamOptionalFields:
             received_kwargs["manager_state"] = manager_state
             yield {"type": "done"}
 
-        mocker.patch("core.agent.stream_turn", new=_fake_stream)
+        mocker.patch("core.synte.stream_turn", new=_fake_stream)
 
         prior_messages = [{"role": "user", "content": "prior question"}]
         state = {"key": "value"}
@@ -226,7 +226,7 @@ class TestChatStreamErrorEvent:
         ):
             yield {"type": "error", "message": "something failed"}
 
-        mocker.patch("core.agent.stream_turn", new=_fake_stream)
+        mocker.patch("core.synte.stream_turn", new=_fake_stream)
 
         response = client.post(
             "/chat/stream",
@@ -241,7 +241,7 @@ class TestChatStreamErrorEvent:
         ):
             yield {"type": "error", "message": "something failed"}
 
-        mocker.patch("core.agent.stream_turn", new=_fake_stream)
+        mocker.patch("core.synte.stream_turn", new=_fake_stream)
 
         response = client.post(
             "/chat/stream",
@@ -258,7 +258,7 @@ class TestChatStreamErrorEvent:
             yield {"type": "text", "delta": "Hello!"}
             yield {"type": "done"}
 
-        mocker.patch("core.agent.stream_turn", new=_fake_stream)
+        mocker.patch("core.synte.stream_turn", new=_fake_stream)
 
         response = client.post(
             "/chat/stream",

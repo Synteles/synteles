@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for core/agent.py — stream_turn async generator."""
+"""Tests for core/synte.py — stream_turn async generator."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ import asyncio
 from typing import Any
 from unittest.mock import MagicMock
 
-from core.agent import stream_turn
+from core.synte import stream_turn
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -58,14 +58,14 @@ def _make_mock_agent(stream_events=None):
 class TestStreamTurnLifecycle:
     def test_yields_start_event_first(self, mocker):
         agent = _make_mock_agent()
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         events = _run(_collect(stream_turn("hi", [], {}, "token")))
         assert events[0] == {"type": "start"}
 
     def test_yields_state_event_before_done(self, mocker):
         agent = _make_mock_agent()
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         events = _run(_collect(stream_turn("hi", [], {}, "token")))
         types = [e["type"] for e in events]
@@ -75,14 +75,14 @@ class TestStreamTurnLifecycle:
 
     def test_yields_done_event_last(self, mocker):
         agent = _make_mock_agent()
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         events = _run(_collect(stream_turn("hi", [], {}, "token")))
         assert events[-1] == {"type": "done"}
 
     def test_empty_stream_produces_start_state_done(self, mocker):
         agent = _make_mock_agent(stream_events=[])
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         events = _run(_collect(stream_turn("hi", [], {}, "token")))
         types = [e["type"] for e in events]
@@ -95,7 +95,7 @@ class TestStreamTurnLifecycle:
 class TestStreamTurnTextEvent:
     def test_text_event_from_data_key(self, mocker):
         agent = _make_mock_agent(stream_events=[{"data": "Hello"}])
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         events = _run(_collect(stream_turn("hi", [], {}, "token")))
         text_events = [e for e in events if e.get("type") == "text"]
@@ -105,7 +105,7 @@ class TestStreamTurnTextEvent:
     def test_multiple_text_chunks_all_yielded(self, mocker):
         raw = [{"data": "chunk1"}, {"data": "chunk2"}, {"data": "chunk3"}]
         agent = _make_mock_agent(stream_events=raw)
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         events = _run(_collect(stream_turn("hi", [], {}, "token")))
         text_events = [e for e in events if e.get("type") == "text"]
@@ -121,7 +121,7 @@ class TestStreamTurnToolEvents:
     def test_tool_start_event_from_current_tool_use(self, mocker):
         raw = [{"current_tool_use": {"toolUseId": "t1", "name": "calculator"}}]
         agent = _make_mock_agent(stream_events=raw)
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         events = _run(_collect(stream_turn("hi", [], {}, "token")))
         tool_start = [e for e in events if e.get("type") == "tool_start"]
@@ -139,7 +139,7 @@ class TestStreamTurnToolEvents:
             }
         ]
         agent = _make_mock_agent(stream_events=raw)
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         events = _run(_collect(stream_turn("hi", [], {}, "token")))
         tool_end = [e for e in events if e.get("type") == "tool_end"]
@@ -158,7 +158,7 @@ class TestStreamTurnNoneEventsFiltered:
             {"data": "visible"},
         ]
         agent = _make_mock_agent(stream_events=raw)
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         events = _run(_collect(stream_turn("hi", [], {}, "token")))
         types = [e["type"] for e in events]
@@ -170,7 +170,7 @@ class TestStreamTurnNoneEventsFiltered:
     def test_empty_event_not_forwarded(self, mocker):
         raw: list[dict[str, Any]] = [{}]
         agent = _make_mock_agent(stream_events=raw)
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         events = _run(_collect(stream_turn("hi", [], {}, "token")))
         types = [e["type"] for e in events]
@@ -184,7 +184,7 @@ class TestStreamTurnNoneEventsFiltered:
 class TestStreamTurnWithPriorMessages:
     def test_agent_messages_set_from_prior_messages(self, mocker):
         agent = _make_mock_agent()
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         prior = [{"role": "user", "content": "prior question"}]
         _run(_collect(stream_turn("follow-up", prior, {}, "token")))
@@ -193,7 +193,7 @@ class TestStreamTurnWithPriorMessages:
 
     def test_restore_from_session_called_with_manager_state(self, mocker):
         agent = _make_mock_agent()
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         state = {"session_key": "session_value"}
         _run(_collect(stream_turn("hi", [{"role": "user", "content": "x"}], state, "token")))
@@ -202,7 +202,7 @@ class TestStreamTurnWithPriorMessages:
 
     def test_no_prior_messages_skips_restore(self, mocker):
         agent = _make_mock_agent()
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         _run(_collect(stream_turn("fresh start", [], {}, "token")))
 
@@ -212,7 +212,7 @@ class TestStreamTurnWithPriorMessages:
         agent = _make_mock_agent()
         prepend = [{"role": "system", "content": "prepended"}]
         agent.conversation_manager.restore_from_session.return_value = prepend
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         prior = [{"role": "user", "content": "prior"}]
         _run(_collect(stream_turn("hi", prior, {}, "token")))
@@ -236,7 +236,7 @@ class TestStreamTurnInvocationKwargs:
             yield  # make it an async generator
 
         agent.stream_async = _capture_stream
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         _run(_collect(stream_turn("hi", [], {}, "my-token")))
         assert received_kwargs.get("access_token") == "my-token"
@@ -251,7 +251,7 @@ class TestStreamTurnInvocationKwargs:
             yield
 
         agent.stream_async = _capture_stream
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         _run(_collect(stream_turn("hi", [], {}, "token", org_id="org-123")))
         assert received_kwargs.get("org_id") == "org-123"
@@ -266,7 +266,7 @@ class TestStreamTurnInvocationKwargs:
             yield
 
         agent.stream_async = _capture_stream
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         _run(_collect(stream_turn("hi", [], {}, "token")))
         assert "org_id" not in received_kwargs
@@ -281,7 +281,7 @@ class TestStreamTurnInvocationKwargs:
             yield
 
         agent.stream_async = _capture_stream
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         _run(_collect(stream_turn("hi", [], {}, "token", pending_input_objects=["f.csv"])))
         assert received_kwargs.get("pending_input_objects") == ["f.csv"]
@@ -296,7 +296,7 @@ class TestStreamTurnInvocationKwargs:
             yield
 
         agent.stream_async = _capture_stream
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         _run(_collect(stream_turn("hi", [], {}, "token")))
         assert "pending_input_objects" not in received_kwargs
@@ -309,7 +309,7 @@ class TestStreamTurnStateEvent:
     def test_state_event_has_messages_key(self, mocker):
         agent = _make_mock_agent()
         agent.messages = [{"role": "assistant", "content": "reply"}]
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         events = _run(_collect(stream_turn("hi", [], {}, "token")))
         state_events = [e for e in events if e.get("type") == "state"]
@@ -319,7 +319,7 @@ class TestStreamTurnStateEvent:
     def test_state_event_has_manager_state_key(self, mocker):
         agent = _make_mock_agent()
         agent.conversation_manager.get_state.return_value = {"k": "v"}
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         events = _run(_collect(stream_turn("hi", [], {}, "token")))
         state_events = [e for e in events if e.get("type") == "state"]
@@ -329,7 +329,7 @@ class TestStreamTurnStateEvent:
     def test_state_event_messages_come_from_agent(self, mocker):
         agent = _make_mock_agent()
         agent.messages = [{"role": "user", "content": "q"}, {"role": "assistant", "content": "a"}]
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         events = _run(_collect(stream_turn("hi", [], {}, "token")))
         state_events = [e for e in events if e.get("type") == "state"]
@@ -348,7 +348,7 @@ class TestStreamTurnException:
             yield  # make it an async generator
 
         agent.stream_async = _raise_stream
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         events = _run(_collect(stream_turn("hi", [], {}, "token")))
         error_events = [e for e in events if e.get("type") == "error"]
@@ -363,7 +363,7 @@ class TestStreamTurnException:
             yield
 
         agent.stream_async = _raise_stream
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         events = _run(_collect(stream_turn("hi", [], {}, "token")))
         types = [e["type"] for e in events]
@@ -378,7 +378,7 @@ class TestStreamTurnException:
             yield
 
         agent.stream_async = _raise_stream
-        mocker.patch("core.agent._build_agent", return_value=agent)
+        mocker.patch("core.synte._build_agent", return_value=agent)
 
         events = _run(_collect(stream_turn("hi", [], {}, "token")))
         types = [e["type"] for e in events]

@@ -17,6 +17,8 @@ Synteles is a platform for AI workers (agentlets) that execute workflows. Busine
 
 **If you find this useful, please consider [starring this repository](https://github.com/Synteles/synteles) to help other developers discover it!** ⭐
 
+<img src="docs/images/Screenshot1.png" width="49%"/> <img src="docs/images/Screenshot2.png" width="49%"/>
+
 ## Quick Start
 
 ### Prerequisites
@@ -234,6 +236,7 @@ The default image is `synteles/agentlet:edge`. See the [Configuration](#configur
 - [docs/architecture.md](docs/architecture.md) — system overview and component diagram
 - [docs/api-contracts.md](docs/api-contracts.md) — API reference
 - [docs/configuration.md](docs/configuration.md) — environment variable reference for all services
+- [docs/testing.md](docs/testing.md) — unit and integration test guide
 
 ## Project Status
 

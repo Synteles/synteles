@@ -90,7 +90,7 @@ class ChatRequest(BaseModel):
 
 
 async def _sse_stream(req: ChatRequest, access_token: str) -> AsyncGenerator[bytes]:
-    from core.agent import (
+    from core.synte import (
         stream_turn,
     )  # lazy import: avoids loading strands/litellm at module level
 

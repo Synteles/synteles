@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Agentlet YAML validation tool for the Synteles Platform chat agent."""
+"""Agentlet validation tool for the Synteles Platform chat agent."""
 
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ def _load_schema() -> dict[Any, Any]:
         return cast(dict[Any, Any], json.load(f))
 
 
-def validate_yaml(content: str) -> str:
+def validate_agentlet_yaml(content: str) -> str:
     """Pure validation function — no Strands dependency.
 
     Returns a string starting with "VALID" on success, or "INVALID - ..."
@@ -82,7 +82,7 @@ def validate_yaml(content: str) -> str:
 
 
 @tool
-def validate_agentlet_yaml(yaml_content: str) -> str:
+def validate_agentlet(yaml_content: str) -> str:
     """Validate an agentlet YAML definition against the Synteles schema.
 
     Checks both YAML syntax and conformance to the agentlet JSON Schema
@@ -101,4 +101,4 @@ def validate_agentlet_yaml(yaml_content: str) -> str:
         A string starting with "VALID" if the definition passes all checks,
         or "INVALID - <detailed error list>" describing every issue found.
     """
-    return validate_yaml(yaml_content)
+    return validate_agentlet_yaml(yaml_content)
