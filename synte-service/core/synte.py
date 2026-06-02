@@ -33,7 +33,7 @@ from strands.models.litellm import LiteLLMModel
 from strands_tools import calculator, current_time
 from strands_tools.tavily import tavily_search
 
-from agents.agent_creator import agent_creator_assistant
+from agents.agentlet_creator import agent_creator_assistant
 from core.protocol import map_strands_event
 from tools.platform_tools import PlatformTools
 from tools.agentlet_validator import validate_agentlet

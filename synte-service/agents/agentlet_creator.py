@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Agentlet creator tool for the Synteles Platform chat agent."""
+
 import os
 from typing import Any
 
