@@ -36,7 +36,7 @@ from strands_tools.tavily import tavily_search
 from agents.agent_creator import agent_creator_assistant
 from core.protocol import map_strands_event
 from tools.platform_tools import PlatformTools
-from tools.yaml_validator import validate_agentlet
+from tools.agentlet_validator import validate_agentlet
 
 _SYSTEM_PROMPT = """
     # SYNTE — System Instructions

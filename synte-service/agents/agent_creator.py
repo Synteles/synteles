@@ -19,7 +19,7 @@ from strands import Agent, tool
 from strands.models.litellm import LiteLLMModel
 from strands_tools import calculator, current_time
 
-from tools.yaml_validator import validate_yaml
+from tools.agentlet_validator import validate_agentlet_yaml
 
 _MAX_VALIDATION_RETRIES = 2
 
@@ -934,7 +934,7 @@ def agent_creator_assistant(
         yaml_str = str(agent_creator_agent(query + context_note))
 
         for _attempt in range(_MAX_VALIDATION_RETRIES):
-            result = validate_yaml(yaml_str)
+            result = validate_agentlet_yaml(yaml_str)
             if result.startswith("VALID"):
                 break
             fix_prompt = (
