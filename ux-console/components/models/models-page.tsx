@@ -56,21 +56,25 @@ function fromApi(m: ModelPresetApi): ModelPreset {
 
 // ── Provider catalog ────────────────────────────────────────────────────────
 const PROVIDERS = [
-  { id: 'anthropic',  name: 'Anthropic',        deploymentBased: false, models: ['claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'] },
-  { id: 'openai',     name: 'OpenAI',            deploymentBased: false, models: ['gpt-5', 'gpt-5-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4o-mini'] },
-  { id: 'bedrock',    name: 'AWS Bedrock',        deploymentBased: false, models: ['anthropic.claude-sonnet-4-6', 'anthropic.claude-opus-4-6-v1', 'amazon.nova-pro-v1:0', 'amazon.nova-lite-v1:0'] },
-  { id: 'vertex_ai',  name: 'Google Vertex AI',   deploymentBased: false, models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'] },
-  { id: 'gemini',     name: 'Google AI Studio',   deploymentBased: false, models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'] },
-  { id: 'azure_ai',   name: 'Azure AI',           deploymentBased: false, models: ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4o-mini'] },
-  { id: 'azure',      name: 'Azure OpenAI',       deploymentBased: true,  models: [] },
-  { id: 'sagemaker',  name: 'AWS SageMaker',      deploymentBased: true,  models: [] },
+  { id: 'anthropic',   name: 'Anthropic' },
+  { id: 'openai',      name: 'OpenAI' },
+  { id: 'bedrock',     name: 'AWS Bedrock' },
+  { id: 'vertex_ai',   name: 'Google Vertex AI' },
+  { id: 'gemini',      name: 'Google AI Studio' },
+  { id: 'azure',       name: 'Azure OpenAI' },
+  { id: 'azure_ai',    name: 'Azure AI' },
+  { id: 'mistral',     name: 'Mistral AI' },
+  { id: 'groq',        name: 'Groq' },
+  { id: 'cohere',      name: 'Cohere' },
+  { id: 'together_ai', name: 'Together AI' },
+  { id: 'ollama',      name: 'Ollama' },
 ] as const
 
-const CUSTOM_OPTION = '-- custom --'
+const CUSTOM_PROVIDER = '-- custom --'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function providerById(id: string) {
-  return PROVIDERS.find(p => p.id === id) ?? PROVIDERS[0]
+  return PROVIDERS.find(p => p.id === id)
 }
 
 function truncate(str: string, max: number) {
@@ -92,7 +96,7 @@ function NameBadge({ name }: { name: string }) {
 // ── Provider label ────────────────────────────────────────────────────────────
 function ProviderLabel({ providerId }: { providerId: string }) {
   const p = providerById(providerId)
-  return <span className="text-xs text-muted">{p.name}</span>
+  return <span className="text-xs text-muted">{p?.name ?? providerId}</span>
 }
 
 // ── Delete confirmation modal ─────────────────────────────────────────────────
@@ -182,68 +186,43 @@ function ModelDrawer({
 }) {
   const isEdit = !!initial?.name
 
-  const [name, setName]           = useState(initial?.name ?? '')
-  const [description, setDesc]    = useState(initial?.description ?? '')
-  const [providerId, setProvider] = useState(initial?.provider ?? 'anthropic')
-  const [modelId, setModelId]     = useState(initial?.modelId ?? '')
-  const [customModel, setCustom]  = useState('')
-  const [useCustom, setUseCustom] = useState(false)
-  const [secretName, setSecret]   = useState<string | null>(initial?.secretName ?? null)
+  const [name, setName]                   = useState(initial?.name ?? '')
+  const [description, setDesc]            = useState(initial?.description ?? '')
+  const [providerId, setProvider]         = useState(initial?.provider ?? 'anthropic')
+  const [customProvider, setCustomProvider] = useState('')
+  const [modelId, setModelId]             = useState(initial?.modelId ?? '')
+  const [secretName, setSecret]           = useState<string | null>(initial?.secretName ?? null)
 
   useEffect(() => {
     setName(initial?.name ?? '')
     setDesc(initial?.description ?? '')
     const pid = initial?.provider ?? 'anthropic'
-    setProvider(pid)
-    const prov = providerById(pid)
-    const mid = initial?.modelId ?? ''
-    if (prov.deploymentBased || !prov.models.includes(mid as never)) {
-      setUseCustom(true)
-      setModelId(CUSTOM_OPTION)
-      setCustom(mid)
+    if (PROVIDERS.some(p => p.id === pid)) {
+      setProvider(pid)
+      setCustomProvider('')
     } else {
-      setUseCustom(false)
-      setModelId(mid || (prov.models[0] ?? ''))
-      setCustom('')
+      setProvider(CUSTOM_PROVIDER)
+      setCustomProvider(pid)
     }
+    setModelId(initial?.modelId ?? '')
     setSecret(initial?.secretName ?? null)
   }, [initial, open])
 
   function handleProviderChange(pid: string) {
     setProvider(pid)
-    const prov = providerById(pid)
-    if (prov.deploymentBased) {
-      setUseCustom(true)
-      setModelId(CUSTOM_OPTION)
-      setCustom('')
-    } else {
-      setUseCustom(false)
-      setModelId(prov.models[0] ?? '')
-      setCustom('')
-    }
+    if (pid !== CUSTOM_PROVIDER) setCustomProvider('')
   }
 
-  function handleModelSelect(val: string) {
-    if (val === CUSTOM_OPTION) {
-      setUseCustom(true)
-      setModelId(CUSTOM_OPTION)
-    } else {
-      setUseCustom(false)
-      setModelId(val)
-    }
-  }
-
-  const prov = providerById(providerId)
-  const effectiveModelId = useCustom ? customModel.trim() : modelId
-  const isValid = name.trim() !== '' && effectiveModelId !== '' && !pending
+  const effectiveProvider = providerId === CUSTOM_PROVIDER ? customProvider.trim() : providerId
+  const isValid = name.trim() !== '' && effectiveProvider !== '' && modelId.trim() !== '' && !pending
 
   function handleSave() {
     if (!isValid) return
     onSave({
       name: name.trim(),
       description: description.trim(),
-      provider: providerId,
-      modelId: effectiveModelId,
+      provider: effectiveProvider,
+      modelId: modelId.trim(),
       secretName: secretName || null,
     })
   }
@@ -296,38 +275,40 @@ function ModelDrawer({
                   {PROVIDERS.map(p => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
+                  <SelectItem value={CUSTOM_PROVIDER}>{CUSTOM_PROVIDER}</SelectItem>
                 </SelectGroup>
               </SelectContent>
             </Select>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-foreground-2">
-              {prov.deploymentBased ? 'Deployment name' : 'Model ID'}
-            </label>
-            {!prov.deploymentBased && prov.models.length > 0 && (
-              <Select value={modelId} onValueChange={(v) => v && handleModelSelect(v)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {prov.models.map(m => (
-                      <SelectItem key={m} value={m}>{m}</SelectItem>
-                    ))}
-                    <SelectItem value={CUSTOM_OPTION}>{CUSTOM_OPTION}</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            )}
-            {(useCustom || prov.deploymentBased) && (
+            {providerId === CUSTOM_PROVIDER && (
               <input
-                value={customModel}
-                onChange={e => setCustom(e.target.value)}
-                placeholder={prov.deploymentBased ? 'e.g. my-gpt4o-deployment' : 'Custom model string'}
+                value={customProvider}
+                onChange={e => setCustomProvider(e.target.value)}
+                placeholder="e.g. huggingface, alephalpha, deepinfra"
                 className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-faint outline-none focus:border-accent-focus transition-colors"
               />
             )}
+            <p className="text-[11px] text-faint">
+              Full list of supported providers on{' '}
+              <a
+                href="https://docs.litellm.ai/docs/providers"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent underline-offset-2 hover:underline"
+              >
+                LiteLLM docs
+              </a>
+              .
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-foreground-2">Model ID</label>
+            <input
+              value={modelId}
+              onChange={e => setModelId(e.target.value)}
+              placeholder="e.g. claude-sonnet-4-6, gpt-4o, llama3:8b"
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-faint outline-none focus:border-accent-focus transition-colors"
+            />
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -399,7 +380,7 @@ export function ModelsPage({
   const filtered = presets.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
     p.description.toLowerCase().includes(search.toLowerCase()) ||
-    providerById(p.provider).name.toLowerCase().includes(search.toLowerCase())
+    (providerById(p.provider)?.name ?? p.provider).toLowerCase().includes(search.toLowerCase())
   )
 
   function openCreate() { setEdit(null); setSaveError(null); setDrawer(true) }
