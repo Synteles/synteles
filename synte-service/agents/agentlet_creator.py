@@ -66,7 +66,7 @@ Your primary goal: Transform natural-language descriptions of desired agent beha
   - gemini: "gemini-2.5-pro", "gemini-2.0-flash"
   - azure / sagemaker: deployment or endpoint name provided by user
 - `parameters`: (optional) temperature, top_p, top_k, max_tokens
-- `retry`: (optional) max_retries, initial_retry_interval, backoff_factor, max_retry_interval
+- `retry`: (optional) max_retries, initial_retry_interval, backoff_factor, max_retry_interval, retry_on_errors (list of error class names that trigger a retry)
 
 ### Optional Sections
 
@@ -93,6 +93,8 @@ Your primary goal: Transform natural-language descriptions of desired agent beha
   - `environment` — manage environment variables and configuration
   - `current_time` — get current time in ISO 8601 format for a given timezone
   - `use_llm` — create nested AI loops with custom system prompts for specialised sub-tasks
+  - `think` — structured internal reasoning step; useful before complex tool calls
+  - `use_computer` — computer use / desktop automation (vision + pointer/keyboard control)
   - `workflow` — define, execute, and manage multi-step automated workflows
   - `batch` — call multiple tools in parallel
   - `swarm` — dynamic swarm tool: the LLM assembles a team of agents at runtime (used in dynamic and combined swarm modes)
@@ -308,11 +310,15 @@ Bad: `"DevOps stuff"`
 
 **observability** (OpenTelemetry integration)
 - `otel.enabled`: export traces to OTLP endpoint (default: false)
-- `otel.otlp_endpoint`: base URL for OTLP (auto-appends /v1/traces)
-- `otel.otlp_traces_endpoint`: override for traces
-- `otel.otlp_headers`: authentication headers (e.g., for Langfuse)
-- `otel.console_exporter`: print traces to stdout (default: false)
+- `otel.otlp_endpoint`: base OTLP URL; used as fallback when signal-specific endpoints are absent
+- `otel.otlp_traces_endpoint`: override for traces only
+- `otel.otlp_metrics_endpoint`: override for metrics only
+- `otel.otlp_headers`: HTTP headers sent with every OTLP request (e.g., authentication for Langfuse)
+- `otel.console_exporter`: print trace spans to stdout for local debugging (default: false)
+- `otel.sampler`: trace sampler strategy — "always_on", "always_off", "traceidratio", or "parentbased_always_on"
+- `otel.sampler_arg`: fraction of traces to export when using "traceidratio" (0.0–1.0)
 - `otel.enable_metrics`: export metrics in addition to traces (default: false)
+- `otel.trace_attributes`: custom key-value attributes added to every trace span (e.g. environment, service.name)
 
 ---
 
@@ -680,7 +686,8 @@ sub_agentlets:
 
 ## Important Notes
 
-- **Agentlet IDs**: Must start with letter/underscore, alphanumeric + underscores only
+- **Agentlet name** (`agentlet.name`): must start with a letter or digit; may contain letters, digits, underscores, and hyphens; max 128 chars (pattern: `^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$`)
+- **Sub-agentlet / swarm participant names**: must be valid Python identifiers — start with letter or underscore, only letters/digits/underscores, no hyphens, max 128 chars
 - **Environment variables**: Use `${VAR_NAME}` or `$VAR_NAME` syntax in YAML
 - **`${WORK_DIR}`**: Special variable replaced at runtime with working directory
 - **Secrets**: Referenced by name only, resolved relative to agentlet owner
