@@ -36,7 +36,7 @@ from strands_tools.tavily import tavily_search
 from agents.agent_creator import agent_creator_assistant
 from core.protocol import map_strands_event
 from tools.platform_tools import PlatformTools
-from tools.yaml_validator import validate_agentlet_yaml
+from tools.yaml_validator import validate_agentlet
 
 _SYSTEM_PROMPT = """
     # SYNTE — System Instructions
@@ -284,7 +284,7 @@ _SYSTEM_PROMPT = """
        - For swarm: if any participant has its own model, run the Model Picker for that participant separately and include those credentials in `available_secrets`
 
        Additional query instructions when `output_destinations = chat`: include "Set `output.show_messages: true` and `output.format: markdown`" in the query text.
-    6. **Validate YAML automatically**: `validate_agentlet_yaml(yaml_content=<yaml string>)`
+    6. **Validate YAML automatically**: `validate_agentlet(yaml_content=<yaml string>)`
        - **This step is mandatory and runs without asking the user** — always validate immediately after receiving YAML from `agent_creator_assistant`
        - If result starts with "AGENT_CREATOR_ERROR": do not validate — tell the user generation failed and ask them to try again.
        - If result starts with "INVALID": call `agent_creator_assistant` again, passing the full
@@ -334,7 +334,7 @@ _SYSTEM_PROMPT = """
        - **If a model was selected in step 2**: pass `model_provider`, `model_id`, `temperature`, `available_secrets`; include this instruction in the query text: "Replace the model section with the provided settings and update the `secrets` list to use the new model credentials, removing any secrets that belonged to the previous model."
        - **If no model change**: pass `available_secrets` from the current YAML's `secrets` list when relevant; omit otherwise
        - Example query (non-model change): "Update this agentlet to add the http_request tool and raise timeout to 600s:\n\n<yaml>"
-    4. **Validate automatically**: `validate_agentlet_yaml(yaml_content=<updated yaml>)`
+    4. **Validate automatically**: `validate_agentlet(yaml_content=<updated yaml>)`
        - **Always run this immediately — do not ask the user whether to validate**
        - If invalid: pass errors back to `agent_creator_assistant` to fix, then re-validate
     5. **Update immediately**: call `synteles_update_agentlet(org_id, agentlet_id, yaml_definition=<validated yaml>)` as soon as validation passes — **do not show the YAML first, do not ask for confirmation**. The user already requested the changes. After the update succeeds, show a brief confirmation and the updated YAML so the user can see what changed.
@@ -636,7 +636,7 @@ _SYSTEM_PROMPT = """
 
     ### Creating and Updating Agentlets
     Follow the **Create and Deploy** or **Update** workflow above. Key invariants:
-    - **Always** validate with `validate_agentlet_yaml` immediately after receiving any YAML — never skip, never ask the user
+    - **Always** validate with `validate_agentlet` immediately after receiving any YAML — never skip, never ask the user
     - If validation fails, pass errors back to `agent_creator_assistant` to fix, then re-validate
     - Only call `synteles_create_agentlet` / `synteles_update_agentlet` once YAML is confirmed valid
     - **For updates**: call `synteles_update_agentlet` immediately after validation — never leave validated YAML unsaved while waiting for further user input
@@ -770,7 +770,7 @@ def _build_agent() -> Agent:
             platform.terminate_execution,
             platform.list_executions,
             agent_creator_assistant,
-            validate_agentlet_yaml,
+            validate_agentlet,
             platform.get_model_options,
         ],
     )

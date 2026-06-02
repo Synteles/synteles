@@ -82,7 +82,7 @@ def validate_yaml(content: str) -> str:
 
 
 @tool
-def validate_agentlet_yaml(yaml_content: str) -> str:
+def validate_agentlet(yaml_content: str) -> str:
     """Validate an agentlet YAML definition against the Synteles schema.
 
     Checks both YAML syntax and conformance to the agentlet JSON Schema
