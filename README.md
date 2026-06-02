@@ -17,6 +17,28 @@ Synteles is a platform for AI workers (agentlets) that execute workflows. Busine
 
 **If you find this useful, please consider [starring this repository](https://github.com/Synteles/synteles) to help other developers discover it!** ⭐
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/images/Screenshot4.png" alt="Synte chat assistant helping design a new agentlet" width="720"/>
+  <br/><em>Synte chat assistant — describe a task in plain language to create a new agentlet</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/Screenshot1.png" alt="Agentlets dashboard" width="720"/>
+  <br/><em>Agentlets dashboard — browse, search, and manage all your AI workers</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/Screenshot3.png" alt="Edit agentlet — orchestrator structure view" width="720"/>
+  <br/><em>Edit agentlet — inspect and modify the orchestrator and its sub-agents</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/Screenshot2.png" alt="Agentlet execution running" width="720"/>
+  <br/><em>Execution panel — live status, logs, and output for a running agentlet</em>
+</p>
+
 ## Quick Start
 
 ### Prerequisites
@@ -234,6 +256,7 @@ The default image is `synteles/agentlet:edge`. See the [Configuration](#configur
 - [docs/architecture.md](docs/architecture.md) — system overview and component diagram
 - [docs/api-contracts.md](docs/api-contracts.md) — API reference
 - [docs/configuration.md](docs/configuration.md) — environment variable reference for all services
+- [docs/testing.md](docs/testing.md) — unit and integration test guide
 
 ## Project Status
 
