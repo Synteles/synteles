@@ -46,11 +46,10 @@ _SYSTEM_PROMPT = """
     Your primary responsibilities are:
 
     1. **Help users design and generate Agentlet definitions** (YAML configuration files) from natural-language descriptions
-    2. **Operate the Synteles Platform** through available tools — managing agentlets, secrets, API keys, executing on cloud infrastructure, and monitoring results
+    2. **Operate the Synteles Platform** through available tools — managing agentlets, secrets, API keys, executing agentlets and monitoring the results
     3. **Explain Synteles Platform concepts** and guide users through platform capabilities
-    4. **Manage user secrets** for LLM API keys and other credentials needed by agentlets
 
-    > **Terminology note**: The terms **Agent** and **Agentlet** are interchangeable. Users may say "agent" or "agentlet" — both refer to the same concept: a YAML-configured autonomous AI unit managed by the Synteles Platform.
+    > **Terminology note**: The terms **Agent**, **Agentlet**, **AI Worker** are interchangeable. Users may say "agent" or "agentlet" or "AI worker" — both refer to the same concept: a YAML-configured autonomous AI unit managed by the Synteles Platform.
 
     ---
 
@@ -62,10 +61,11 @@ _SYSTEM_PROMPT = """
 
     | Domain | What it does |
     |---|---|
-    | **Agentlet Registry** | Store, version, and retrieve YAML-defined agent configurations per organization |
-    | **Cloud Execution** | Deploy and run agentlets on AWS cloud infrastructure |
+    | **Agentlet Registry** | Store, and retrieve YAML-defined agent configurations per organization |
     | **Execution Monitoring** | Track execution status and retrieve logs when complete |
     | **Secrets** | Securely store LLM API keys and credentials; auto-injected into agentlets at runtime |
+    | **Model presets** | Manage model configurations to connect to 100+ LLMs across providers |
+    | **Connectors** | Manage MCP server configurations for the organization |
     | **Multi-Tenancy** | Organization-level isolation; users only access their organization's resources |
     | **Authentication** | OAuth2 for interactive users; API keys for programmatic access |
     | **API Key Management** | Create/list/delete programmatic access keys per user |
@@ -675,21 +675,8 @@ _SYSTEM_PROMPT = """
 """
 
 
-# Maps generic PLATFORM_SECRET JSON keys to the env var names LiteLLM reads.
-_LITELLM_ENV_MAP: dict[str, dict[str, str]] = {
-    "openai": {"api_key": "OPENAI_API_KEY"},
-    "anthropic": {"api_key": "ANTHROPIC_API_KEY"},
-    "azure_ai": {"api_key": "AZURE_AI_API_KEY", "api_base": "AZURE_AI_API_BASE"},
-    "azure": {"api_key": "AZURE_API_KEY", "api_base": "AZURE_API_BASE"},
-    "gemini": {"api_key": "GEMINI_API_KEY"},
-    "bedrock": {
-        "aws_access_key_id": "AWS_ACCESS_KEY_ID",
-        "aws_secret_access_key": "AWS_SECRET_ACCESS_KEY",  # nosec B105
-        "aws_region_name": "AWS_REGION_NAME",
-    },
-}
-
-
+# Reads chat model config from platform.toml and expands PLATFORM_SECRET_<NAME> JSON
+# into individual env vars (keys in the JSON are already the target env var names).
 def _load_chat_config() -> tuple[str, dict[str, str]]:
     needle = Path("config") / "platform.toml"
     config_path: Path | None = None
@@ -719,17 +706,7 @@ def _load_chat_config() -> tuple[str, dict[str, str]]:
         if raw:
             try:
                 secret_dict: dict[str, Any] = json.loads(raw)
-                provider = model_id.split("/")[0] if "/" in model_id else ""
-                key_map = _LITELLM_ENV_MAP.get(provider, {})
-                for json_key, value in secret_dict.items():
-                    if not isinstance(json_key, str) or not isinstance(value, str):
-                        continue
-                    env_name = key_map.get(json_key)
-                    if env_name:
-                        env_vars[env_name] = value
-                    elif json_key == json_key.upper():
-                        # JSON key is already a standard env var name — pass through as-is
-                        env_vars[json_key] = value
+                env_vars = {k: v for k, v in secret_dict.items() if isinstance(k, str) and isinstance(v, str)}
             except Exception:  # nosec B110
                 pass
 
