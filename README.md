@@ -17,8 +17,7 @@ Synteles is a platform for AI workers (agentlets) that execute workflows. Busine
 
 **If you find this useful, please consider [starring this repository](https://github.com/Synteles/synteles) to help other developers discover it!** ⭐
 
-![](docs/images/Screenshot1.png)
-![](docs/images/Screenshot2.png)
+<img src="docs/images/Screenshot1.png" width="49%"/> <img src="docs/images/Screenshot2.png" width="49%"/>
 
 ## Quick Start
 
