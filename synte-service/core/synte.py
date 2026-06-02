@@ -327,7 +327,6 @@ _SYSTEM_PROMPT = """
          - **Platform default** (`is_platform_default: true`) → `available_secrets=["default"]`
          - **User preset with `secret_name` set** → `available_secrets=[<secret_name>]`
          - **User preset without `secret_name`** → warn the user: "⚠️ The preset `{preset_name}` has no secret linked. If this model requires credentials to run, go to **Profile → Models** to update the preset and link a secret, otherwise the agentlet may fail at execution time." Proceed without updating secrets.
-         - **Non-platform-default from `get_model_options`** → call `synteles_list_secrets`, ask the user which secret to use; if none exist, inform the user and proceed without secrets.
        - Note the selected `model_provider`, `model_id`, `temperature` (always use the model's `default_temperature`), and `available_secrets` — these are passed to `agent_creator_assistant` in step 3.
        If the request does **not** involve a model change: skip this step entirely.
     3. **Generate updated YAML**: `agent_creator_assistant(query=<current yaml + description of changes>, ...)`
@@ -427,16 +426,15 @@ _SYSTEM_PROMPT = """
     ### Model Picker Workflow
 
     1. **Always call both tools in parallel**:
-       - `get_model_options(use_case=<brief description>)` — platform defaults + user-secret-inferred options, with scoring and a `recommended_id`
+       - `get_model_options(use_case=<brief description>)` — platform default models, with scoring and a `recommended_id`
        - `list_model_presets()` — user's explicitly saved model configurations
     2. **Present a unified numbered list**: platform default models first (marked "Platform default — no API key needed"), then user presets (marked "Your preset"). Highlight the recommended option and share the `recommendation_reason`.
-    3. **After the user picks**, extract `provider`, `model_id`, and `default_temperature` from the chosen entry and pass them to `agent_creator_assistant`. Do not offer to save as preset.
+    3. **After the user picks**, extract `provider`, `model_id`, and `default_temperature` from the chosen entry and pass them to `agent_creator_assistant`.
        - **Temperature**: always pass `temperature=default_temperature` from the chosen entry. Some models (e.g. GPT-5.3) have a minimum temperature constraint — passing the model's `default_temperature` ensures the value is always valid.
        - If the chosen model is a platform default (`is_platform_default: true`): credentials are handled automatically — pass `available_secrets=["default"]` to `agent_creator_assistant`.
        - If the chosen model is a **user preset** (from `list_model_presets`):
          - **Preset has `secret_name` set**: pass `available_secrets=[<secret_name>]` to `agent_creator_assistant` automatically — the preset already has credentials linked, no need to ask the user about secrets.
          - **Preset has no `secret_name`**: warn the user — "⚠️ The preset `{preset_name}` has no secret linked. If this model requires credentials to run, go to **Profile → Models** to update the preset and link a secret, otherwise the agentlet may fail at execution time." Then proceed without secrets.
-       - If the chosen model is a non-platform-default from `get_model_options`: call `synteles_list_secrets` and ask the user which secrets the agentlet will need. If no secrets exist, inform the user and proceed without secrets.
     4. **Use the `provider` and `model_id`** in the agentlet YAML `model` section:
        ```yaml
        model:
@@ -448,11 +446,6 @@ _SYSTEM_PROMPT = """
 
     Skip the picker only when:
     - The user explicitly provides both a provider and model ID in their message
-
-    ### Saving Presets
-
-    When the user selects a model (from `get_model_options` or any other source) and says "save this",
-    call `create_model_preset` with the resolved provider and model_id.
 
     ---
 
@@ -768,7 +761,6 @@ def _build_agent() -> Agent:
             platform.list_api_keys,
             platform.list_secrets,
             platform.list_model_presets,
-            platform.create_model_preset,
             platform.list_mcp_presets,
             platform.create_mcp_preset,
             platform.create_agentlet_execution,

@@ -373,59 +373,6 @@ class TestListModelPresets:
         assert "error" in result
 
 
-# ── create_model_preset ───────────────────────────────────────────────────────
-
-
-class TestCreateModelPreset:
-    def test_creates_preset_with_all_fields(self, mocker):
-        mock_resp = _make_response(201, {"name": "my-preset"})
-        mock_request = mocker.patch("tools.platform_tools.requests.request", return_value=mock_resp)
-
-        pt = PlatformTools(api_base_url="https://api.test")
-        ctx = _make_tool_context()
-        result = pt.create_model_preset(
-            name="my-preset",
-            provider="openai",
-            model_id="gpt-4.1",
-            tool_context=ctx,
-            description="My preset",
-            secret_name="openai-keys",
-        )
-        assert result["name"] == "my-preset"
-        _, kwargs = mock_request.call_args
-        assert kwargs["json"]["description"] == "My preset"
-        assert kwargs["json"]["secret_name"] == "openai-keys"
-
-    def test_creates_preset_without_optional_fields(self, mocker):
-        mock_resp = _make_response(201, {"name": "bare"})
-        mock_request = mocker.patch("tools.platform_tools.requests.request", return_value=mock_resp)
-
-        pt = PlatformTools(api_base_url="https://api.test")
-        ctx = _make_tool_context()
-        pt.create_model_preset(
-            name="bare",
-            provider="anthropic",
-            model_id="claude-sonnet-4-6",
-            tool_context=ctx,
-        )
-        _, kwargs = mock_request.call_args
-        assert "description" not in kwargs["json"]
-        assert "secret_name" not in kwargs["json"]
-
-    def test_returns_error_dict_on_failure(self, mocker):
-        mocker.patch(
-            "tools.platform_tools.requests.request",
-            side_effect=requests.exceptions.ConnectionError("down"),
-        )
-
-        pt = PlatformTools(api_base_url="https://api.test")
-        ctx = _make_tool_context()
-        result = pt.create_model_preset(
-            name="x", provider="openai", model_id="gpt-4o", tool_context=ctx
-        )
-        assert "error" in result
-
-
 # ── list_mcp_presets ──────────────────────────────────────────────────────────
 
 
@@ -712,108 +659,39 @@ class TestGetModelOptions:
     def _patch_platform_defaults(self, mocker: Any) -> None:
         mocker.patch("tools.model_catalog.PLATFORM_DEFAULT_MODELS", _TEST_PLATFORM_DEFAULTS)
 
-    def test_returns_options_and_recommended_id(self, mocker):
-        mock_resp = _make_response(200, [])
-        mocker.patch("tools.platform_tools.requests.request", return_value=mock_resp)
-
+    def test_returns_options_and_recommended_id(self):
         pt = PlatformTools(api_base_url="https://api.test")
-        ctx = _make_tool_context()
-        result = pt.get_model_options(tool_context=ctx)
+        result = pt.get_model_options()
 
         assert "options" in result
         assert "recommended_id" in result
         assert "recommendation_reason" in result
         assert len(result["options"]) > 0
 
-    def test_platform_defaults_always_included(self, mocker):
-        mock_resp = _make_response(200, [])
-        mocker.patch("tools.platform_tools.requests.request", return_value=mock_resp)
-
+    def test_platform_defaults_always_included(self):
         pt = PlatformTools(api_base_url="https://api.test")
-        ctx = _make_tool_context()
-        result = pt.get_model_options(tool_context=ctx)
+        result = pt.get_model_options()
 
         platform_defaults = [o for o in result["options"] if o["is_platform_default"]]
         assert len(platform_defaults) > 0
 
-    def test_user_secrets_add_provider_options(self, mocker):
-        mock_resp = _make_response(200, [{"name": "anthropic-keys"}])
-        mocker.patch("tools.platform_tools.requests.request", return_value=mock_resp)
-
+    def test_recommended_option_has_recommended_true(self):
         pt = PlatformTools(api_base_url="https://api.test")
-        ctx = _make_tool_context()
-        result = pt.get_model_options(tool_context=ctx)
-
-        user_options = [o for o in result["options"] if not o["is_platform_default"]]
-        assert len(user_options) > 0
-        assert any("anthropic" in o["provider"] for o in user_options)
-
-    def test_secret_named_default_skipped(self, mocker):
-        mock_resp = _make_response(200, [{"name": "default"}])
-        mocker.patch("tools.platform_tools.requests.request", return_value=mock_resp)
-
-        pt = PlatformTools(api_base_url="https://api.test")
-        ctx = _make_tool_context()
-        result = pt.get_model_options(tool_context=ctx)
-
-        user_options = [o for o in result["options"] if not o["is_platform_default"]]
-        # "default" secret should be skipped — no user option added for it
-        assert all(o["secret"] != "default" for o in user_options)
-
-    def test_secrets_api_failure_gracefully_handled(self, mocker):
-        mocker.patch(
-            "tools.platform_tools.requests.request",
-            side_effect=requests.exceptions.ConnectionError("down"),
-        )
-
-        pt = PlatformTools(api_base_url="https://api.test")
-        ctx = _make_tool_context()
-        # Should not raise — secrets fetch failure is caught
-        result = pt.get_model_options(tool_context=ctx)
-        assert "options" in result
-
-    def test_recommended_option_has_recommended_true(self, mocker):
-        mock_resp = _make_response(200, [])
-        mocker.patch("tools.platform_tools.requests.request", return_value=mock_resp)
-
-        pt = PlatformTools(api_base_url="https://api.test")
-        ctx = _make_tool_context()
-        result = pt.get_model_options(tool_context=ctx, use_case="code review")
+        result = pt.get_model_options(use_case="code review")
 
         recommended_options = [o for o in result["options"] if o["recommended"]]
         assert len(recommended_options) == 1
         assert recommended_options[0]["id"] == result["recommended_id"]
 
-    def test_use_case_influences_recommendation(self, mocker):
-        mock_resp = _make_response(200, [])
-        mocker.patch("tools.platform_tools.requests.request", return_value=mock_resp)
-
+    def test_use_case_influences_recommendation(self):
         pt = PlatformTools(api_base_url="https://api.test")
-        ctx = _make_tool_context()
-        result = pt.get_model_options(tool_context=ctx, use_case="coding & software development")
+        result = pt.get_model_options(use_case="coding & software development")
 
-        # Should produce a valid recommendation
         assert result["recommended_id"] in [o["id"] for o in result["options"]]
 
-    def test_no_score_key_in_returned_options(self, mocker):
-        mock_resp = _make_response(200, [])
-        mocker.patch("tools.platform_tools.requests.request", return_value=mock_resp)
-
+    def test_no_score_key_in_returned_options(self):
         pt = PlatformTools(api_base_url="https://api.test")
-        ctx = _make_tool_context()
-        result = pt.get_model_options(tool_context=ctx)
+        result = pt.get_model_options()
 
         for opt in result["options"]:
             assert "_score" not in opt
-
-    def test_secrets_envelope_format_handled(self, mocker):
-        """API returns {"secrets": [...]} envelope instead of bare list."""
-        mock_resp = _make_response(200, {"secrets": [{"name": "openai-keys"}]})
-        mocker.patch("tools.platform_tools.requests.request", return_value=mock_resp)
-
-        pt = PlatformTools(api_base_url="https://api.test")
-        ctx = _make_tool_context()
-        result = pt.get_model_options(tool_context=ctx)
-
-        user_options = [o for o in result["options"] if not o["is_platform_default"]]
-        assert len(user_options) > 0

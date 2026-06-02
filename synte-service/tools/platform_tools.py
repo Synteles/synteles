@@ -305,48 +305,6 @@ class PlatformTools:
         except PlatformAPIError as e:
             return {"error": str(e)}
 
-    @tool(context=True)
-    def create_model_preset(
-        self,
-        name: str,
-        provider: str,
-        model_id: str,
-        tool_context: ToolContext,
-        description: str = "",
-        secret_name: str = "",  # nosec B107
-    ) -> dict[str, Any]:
-        """Create a new model configuration preset for the current user.
-
-        Use this when the user wants to save a provider + model_id combination
-        for reuse across agentlets. The preset can optionally reference one of
-        the user's existing secrets by name.
-
-        Args:
-            name: Preset identifier — alphanumeric and underscores, starts with letter or underscore
-            provider: LLM provider key (e.g. 'bedrock', 'azure_ai', 'openai', 'anthropic')
-            model_id: Model identifier or ARN (e.g. 'gpt-4.1' or full Bedrock inference profile ARN)
-            description: Optional short tagline describing this preset
-            secret_name: Optional name of an existing user secret holding the provider credentials
-
-        Returns:
-            Created preset data or {"error": "..."} on failure.
-        """
-        token = tool_context.invocation_state.get("access_token", "")
-        payload: dict[str, Any] = {
-            "name": name,
-            "provider": provider,
-            "model_id": model_id,
-        }
-        if description:
-            payload["description"] = description
-        if secret_name:
-            payload["secret_name"] = secret_name
-        try:
-            response = self._make_request("POST", "/api/models", token, json_data=payload)
-            return cast(dict[str, Any], response.json())
-        except PlatformAPIError as e:
-            return {"error": str(e)}
-
     # ── MCP Presets ───────────────────────────────────────────────────────────
 
     @tool(context=True)
@@ -570,21 +528,16 @@ class PlatformTools:
 
     # ── Model selection ───────────────────────────────────────────────────────
 
-    @tool(context=True)
+    @tool
     def get_model_options(
         self,
-        tool_context: ToolContext,
         use_case: str | None = None,
     ) -> dict[str, Any]:
-        """Return a curated short list of models available for agentlet creation.
+        """Return platform default models available for agentlet creation.
 
-        Combines the 3 Synteles platform default models (no credentials needed)
-        with options inferred from the user's configured secrets. Marks the best
-        fit for the stated use case as recommended.
-
-        Always call this when the user is creating or updating an agentlet and
-        has not specified a model. Present the result as a numbered list and let
-        the user choose. Never use get_model_catalog / resolve_model_selection in chat.
+        Always call this in parallel with list_model_presets() when the user is
+        creating or updating an agentlet and has not specified a model. Present
+        platform defaults and user presets as a unified numbered list.
 
         Args:
             use_case: Short description of what the agentlet will do, e.g.
@@ -598,12 +551,11 @@ class PlatformTools:
                   "id": str,                 # stable key for selection
                   "label": str,              # display name shown to user
                   "provider": str,           # LiteLLM provider
-                  "model_id": str | None,    # None when user must supply deployment name
-                  "secret": str | None,      # "default" | user secret name | None
+                  "model_id": str,
+                  "secret": "default",       # always "default" for platform models
                   "default_temperature": float,
                   "description": str,
-                  "is_platform_default": bool,
-                  "requires_input": bool,    # True when model_id must be confirmed by user
+                  "is_platform_default": True,
                   "recommended": bool,
                 }
               ],
@@ -611,12 +563,10 @@ class PlatformTools:
               "recommendation_reason": str,
             }
         """
-        from .model_catalog import _SECRET_PROVIDER_HINTS, PLATFORM_DEFAULT_MODELS
+        from .model_catalog import PLATFORM_DEFAULT_MODELS
 
-        token = tool_context.invocation_state.get("access_token", "")
         use_case_lower = (use_case or "").lower()
 
-        # ── Platform defaults (always first in the list) ──────────────────────
         options: list[dict[str, Any]] = []
         for model in PLATFORM_DEFAULT_MODELS:
             score = sum(1 for kw in model.get("best_for", []) if kw in use_case_lower)
@@ -630,50 +580,12 @@ class PlatformTools:
                     "default_temperature": model["default_temperature"],
                     "description": model.get("description", ""),
                     "is_platform_default": True,
-                    "requires_input": False,
                     "recommended": False,
                     "_score": score,
                 }
             )
 
-        # ── User secrets → infer available custom providers ───────────────────
-        try:
-            response = self._make_request("GET", "/api/secrets", token)
-            data = response.json()
-            user_secrets: list[dict[str, Any]] = (
-                data if isinstance(data, list) else data.get("secrets", [])
-            )
-        except Exception:
-            user_secrets = []
-
-        seen_providers: set[str] = set()
-        for secret in user_secrets:
-            name = (secret.get("name") or "").lower()
-            if name == "default":  # reserved — skip
-                continue
-            for hint in _SECRET_PROVIDER_HINTS:
-                if hint["keyword"] in name and hint["provider"] not in seen_providers:
-                    seen_providers.add(hint["provider"])
-                    options.append(
-                        {
-                            "id": f"user_{hint['provider']}",
-                            "label": f"{hint['label']} (your key: {secret['name']})",
-                            "provider": hint["provider"],
-                            "model_id": hint["model_id"],
-                            "secret": secret["name"],
-                            "default_temperature": hint["default_temperature"],
-                            "description": f"Uses your '{secret['name']}' secret.",
-                            "is_platform_default": False,
-                            "requires_input": hint["model_id"] is None,
-                            "recommended": False,
-                            "_score": 0,
-                        }
-                    )
-                    break
-
-        # ── Pick recommendation ───────────────────────────────────────────────
-        # Prefer highest use-case score; break ties by preferring platform defaults
-        best = max(options, key=lambda o: (o["_score"], int(o["is_platform_default"])))
+        best = max(options, key=lambda o: (o["_score"], 1))
         best["recommended"] = True
 
         for o in options:
