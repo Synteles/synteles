@@ -19,25 +19,16 @@ Synteles is a platform for AI workers (agentlets) that execute workflows. Busine
 
 ## Screenshots
 
-<p align="center">
-  <img src="docs/images/Screenshot4.png" alt="Synte chat assistant helping design a new agentlet" width="720"/>
-  <br/><em>Synte chat assistant — describe a task in plain language to create a new agentlet</em>
-</p>
-
-<p align="center">
-  <img src="docs/images/Screenshot1.png" alt="Agentlets dashboard" width="720"/>
-  <br/><em>Agentlets dashboard — browse, search, and manage all your AI workers</em>
-</p>
-
-<p align="center">
-  <img src="docs/images/Screenshot3.png" alt="Edit agentlet — orchestrator structure view" width="720"/>
-  <br/><em>Edit agentlet — inspect and modify the orchestrator and its sub-agents</em>
-</p>
-
-<p align="center">
-  <img src="docs/images/Screenshot2.png" alt="Agentlet execution running" width="720"/>
-  <br/><em>Execution panel — live status, logs, and output for a running agentlet</em>
-</p>
+<table>
+  <tr>
+    <td><img src="docs/images/Screenshot4.png" width="360"/></td>
+    <td><img src="docs/images/Screenshot1.png" width="360"/></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/Screenshot3.png" width="360"/></td>
+    <td><img src="docs/images/Screenshot2.png" width="360"/></td>
+  </tr>
+</table>
 
 ## Quick Start
 
