@@ -19,18 +19,18 @@ Synteles is a platform for AI workers (agentlets) that execute workflows. Busine
 
 ## Screenshots
 
-<table border="0" cellspacing="0" cellpadding="2">
+<table style="border:none;border-collapse:collapse;cellspacing:0">
   <tr>
-    <td><img src="docs/images/Screenshot1.png" width="360"/></td>
-    <td><img src="docs/images/Screenshot2.png" width="360"/></td>
+    <td style="border:none;padding:2px"><img src="docs/images/Screenshot1.png" width="360"/></td>
+    <td style="border:none;padding:2px"><img src="docs/images/Screenshot2.png" width="360"/></td>
   </tr>
   <tr>
-    <td><img src="docs/images/Screenshot3.png" width="360"/></td>
-    <td><img src="docs/images/Screenshot4.png" width="360"/></td>
+    <td style="border:none;padding:2px"><img src="docs/images/Screenshot3.png" width="360"/></td>
+    <td style="border:none;padding:2px"><img src="docs/images/Screenshot4.png" width="360"/></td>
   </tr>
   <tr>
-    <td><img src="docs/images/Screenshot5.png" width="360"/></td>
-    <td><img src="docs/images/Screenshot6.png" width="360"/></td>
+    <td style="border:none;padding:2px"><img src="docs/images/Screenshot5.png" width="360"/></td>
+    <td style="border:none;padding:2px"><img src="docs/images/Screenshot6.png" width="360"/></td>
   </tr>
 </table>
 
