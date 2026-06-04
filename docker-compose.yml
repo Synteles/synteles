@@ -263,6 +263,46 @@ services:
       keycloak-provisioner:
         condition: service_completed_successfully
 
+  # ── Temporal ──────────────────────────────────────────────────────────────────
+
+  temporal:
+    image: temporalio/auto-setup:1.27
+    ports:
+      - "7233:7233"
+      - "8233:8233"
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_SEEDS: postgres
+      POSTGRES_USER: synteles
+      POSTGRES_PWD: synteles
+      DBNAME: temporal
+      VISIBILITY_DBNAME: temporal_visibility
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CLI_ADDRESS: temporal:7233
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "temporal operator cluster health --address temporal:7233 2>&1 | grep -q SERVING"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  activity-worker:
+    build:
+      context: activity-worker
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_TASK_QUEUE: synteles-activities
+    depends_on:
+      temporal:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   minio_data:
