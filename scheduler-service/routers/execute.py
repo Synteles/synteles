@@ -29,7 +29,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from synteles_db.crypto import decrypt
-from synteles_db.models import ExecStatus
+from synteles_db.models import DurableExecStatus, ExecStatus, ExecutionType, StandardExecStatus
 from synteles_db.repos.agentlets import AgentletRepo
 from synteles_db.repos.executions import ExecutionRepo
 from synteles_db.repos.secrets import SecretRepo
@@ -244,6 +244,28 @@ def _upload_execution_manifest(
         ) from exc
 
 
+def _resolve_execution_type(agentlet_yaml: str) -> ExecutionType:
+    """Return ExecutionType from agentlet YAML execution_mode field.
+
+    Phase 3: falls back to EXECUTION_BACKEND env var when the field is absent,
+    so existing agentlets (no execution_mode key) continue using standard execution
+    unless EXECUTION_BACKEND=durable is set globally.
+    Phase 5: execution_mode in the YAML will always be present and authoritative.
+    """
+    from config import EXECUTION_BACKEND
+
+    try:
+        config = yaml.safe_load(agentlet_yaml) or {}
+        mode = config.get("execution_mode")
+        if mode == "durable":
+            return ExecutionType.durable
+        if mode == "standard":
+            return ExecutionType.standard
+    except yaml.YAMLError:
+        pass
+    return ExecutionType.durable if EXECUTION_BACKEND == "durable" else ExecutionType.standard
+
+
 async def _run_execution(
     *,
     agentlet_name: str,
@@ -269,6 +291,14 @@ async def _run_execution(
     if not agentlet:
         raise HTTPException(status_code=404, detail="Agentlet not found")
 
+    # Determine execution type from agentlet YAML (Phase 3: also falls back to EXECUTION_BACKEND env).
+    agentlet_yaml_raw = agentlet.yaml_definition or ""
+    execution_type = _resolve_execution_type(agentlet_yaml_raw)
+    init_status: StandardExecStatus | DurableExecStatus = (
+        DurableExecStatus.deploying if execution_type == ExecutionType.durable
+        else StandardExecStatus.deploying
+    )
+
     now = datetime.now(UTC)
     timeout_at = now + timedelta(seconds=timeout_seconds)
 
@@ -277,9 +307,10 @@ async def _run_execution(
         user_id=UUID(user_id),
         agentlet_id=agentlet.id,
         agentlet_name=agentlet.name,
-        status=ExecStatus.deploying,
+        status=init_status,
         timeout_at=timeout_at,
         prompt=prompt or "",
+        execution_type=execution_type,
     )
     await db.commit()
 
@@ -367,21 +398,31 @@ async def _run_execution(
     from backends.base import ExecutionConfig
     from config import AGENTLET_IMAGE
 
-    backend = get_backend()
+    backend = get_backend(execution_type)
     config = ExecutionConfig(
         execution_id=execution_id,
         image=AGENTLET_IMAGE,
         env=env_vars,
         timeout_seconds=timeout_seconds,
     )
+    fail_status: StandardExecStatus | DurableExecStatus = (
+        DurableExecStatus.failed if execution_type == ExecutionType.durable
+        else StandardExecStatus.failed
+    )
+    run_status: StandardExecStatus | DurableExecStatus = (
+        DurableExecStatus.running if execution_type == ExecutionType.durable
+        else StandardExecStatus.running
+    )
     try:
-        task_arn = await backend.submit(config)
+        job_ref = await backend.submit(config)
     except Exception as exc:
-        await ExecutionRepo(db).update_status(execution, ExecStatus.failed, error=str(exc))
+        await ExecutionRepo(db).update_status(execution, fail_status, error=str(exc))
         await db.commit()
-        raise HTTPException(status_code=500, detail=f"Container deployment failed: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"Execution deployment failed: {exc}") from exc
 
-    await ExecutionRepo(db).update_job_ref(execution, task_arn, ExecStatus.running)
+    await ExecutionRepo(db).update_job_ref(execution, job_ref, run_status)
+    if execution_type == ExecutionType.durable:
+        await ExecutionRepo(db).update_workflow_id(execution, job_ref)
     await db.commit()
 
     return {

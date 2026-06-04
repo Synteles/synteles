@@ -27,7 +27,7 @@ from backends.docker_backend import DockerBackend
 
 @pytest.fixture
 def mock_client() -> MagicMock:  # type: ignore[misc]
-    with patch("backends.docker_backend.docker.from_env") as mock_from_env:
+    with patch("backends.docker_runtime.docker.from_env") as mock_from_env:
         client = MagicMock()
         mock_from_env.return_value = client
         yield client
@@ -145,7 +145,7 @@ async def test_submit_returns_container_id(backend: DockerBackend, mock_client: 
 
 
 async def test_submit_with_network(backend: DockerBackend, mock_client: MagicMock) -> None:
-    backend._network = "platform-infra_default"
+    backend._runtime._network = "platform-infra_default"
     container = MagicMock()
     container.id = "cafebabe"
     mock_client.containers.run.return_value = container

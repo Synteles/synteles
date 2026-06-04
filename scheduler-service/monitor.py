@@ -21,7 +21,7 @@ import logging
 from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from synteles_db.models import ExecStatus, Execution
+from synteles_db.models import DurableExecStatus, ExecutionType, StandardExecStatus, Execution
 from synteles_db.repos.executions import ExecutionRepo
 
 from backends import get_backend
@@ -58,17 +58,14 @@ def _upload_logs_to_s3(execution_id: str, logs: str) -> str | None:
 
 async def _finalize(
     execution: Execution,
-    db_status: ExecStatus,
+    db_status: StandardExecStatus | DurableExecStatus,
     backend: ExecutionBackend,
     db: AsyncSession,
 ) -> None:
-    """Retrieve logs, upload to S3, update DB status, then stop the container.
+    """Retrieve logs, upload to S3, update DB status, then stop the job.
 
-    Args:
-        execution: The ``Execution`` ORM object to finalise.
-        db_status: The terminal ``ExecStatus`` to persist (e.g. ``completed``, ``failed``).
-        backend: The active ``ExecutionBackend`` used to fetch logs and stop the job.
-        db: An open async SQLAlchemy session; this function commits the transaction.
+    For standard executions: stops the Docker container.
+    For durable executions: cancels the Temporal workflow and stops the agent-worker container.
     """
     logs_s3_uri: str | None = None
     if execution.job_ref:
@@ -88,7 +85,6 @@ async def _finalize(
 
 async def _poll() -> None:
     """Check all active executions once and finalise any that have finished."""
-    backend = get_backend()
     now = datetime.now(UTC)
     # Fetch the list of active executions in one short-lived session
     async with AsyncSessionLocal() as db:
@@ -99,23 +95,37 @@ async def _poll() -> None:
         if not execution.job_ref:
             continue
         try:
+            exec_type = ExecutionType(execution.execution_type)
+            backend = get_backend(exec_type)
+            stopped = (
+                DurableExecStatus.stopped if exec_type == ExecutionType.durable
+                else StandardExecStatus.stopped
+            )
+            completed = (
+                DurableExecStatus.completed if exec_type == ExecutionType.durable
+                else StandardExecStatus.completed
+            )
+            failed = (
+                DurableExecStatus.failed if exec_type == ExecutionType.durable
+                else StandardExecStatus.failed
+            )
             if execution.timeout_at and execution.timeout_at < now:
                 async with AsyncSessionLocal() as db:
                     fresh = await ExecutionRepo(db).get_by_id(execution.id)
                     if fresh:
-                        await _finalize(fresh, ExecStatus.stopped, backend, db)
+                        await _finalize(fresh, stopped, backend, db)
                 continue
             status = await backend.status(execution.job_ref)
             if status == ExecutionStatus.COMPLETED:
                 async with AsyncSessionLocal() as db:
                     fresh = await ExecutionRepo(db).get_by_id(execution.id)
                     if fresh:
-                        await _finalize(fresh, ExecStatus.completed, backend, db)
+                        await _finalize(fresh, completed, backend, db)
             elif status == ExecutionStatus.FAILED:
                 async with AsyncSessionLocal() as db:
                     fresh = await ExecutionRepo(db).get_by_id(execution.id)
                     if fresh:
-                        await _finalize(fresh, ExecStatus.failed, backend, db)
+                        await _finalize(fresh, failed, backend, db)
         except Exception as exc:
             logger.error("Failed to finalize execution %s: %s", execution.id, exc)
 

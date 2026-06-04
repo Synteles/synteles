@@ -18,14 +18,22 @@
 from __future__ import annotations
 
 from backends.base import ExecutionBackend
+from synteles_db.models import ExecutionType
 
 
-def get_backend() -> ExecutionBackend:
-    """Return the configured execution backend."""
-    from config import EXECUTION_BACKEND
+def get_backend(execution_type: ExecutionType = ExecutionType.standard) -> ExecutionBackend:
+    """Return the backend for the given execution type.
 
-    if EXECUTION_BACKEND == "docker":
-        from backends.docker_backend import DockerBackend
+    EXECUTION_RUNTIME selects the infrastructure provider (docker | k8s).
+    execution_type selects the execution model (standard | durable).
+    """
+    from config import EXECUTION_RUNTIME
 
-        return DockerBackend()
-    raise ValueError(f"Unknown EXECUTION_BACKEND: {EXECUTION_BACKEND!r}")
+    if EXECUTION_RUNTIME == "docker":
+        if execution_type == ExecutionType.durable:
+            from backends.docker_durable import DockerDurableBackend
+            return DockerDurableBackend()
+        from backends.docker_standard import DockerStandardBackend
+        return DockerStandardBackend()
+
+    raise ValueError(f"Unknown EXECUTION_RUNTIME: {EXECUTION_RUNTIME!r}")
