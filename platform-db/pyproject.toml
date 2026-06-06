@@ -82,6 +82,7 @@ disallow_untyped_decorators = false
 exclude_dirs = ["tests", ".venv"]
 skips = [
     "B101",  # assert — fine in tests (excluded anyway) and internal guards
+    "B608",  # hardcoded SQL — migrations use only module-level constants, not user input
 ]
 
 # ---------------------------------------------------------------------------

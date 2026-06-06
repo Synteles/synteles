@@ -97,7 +97,8 @@ class DockerDurableBackend(ExecutionBackend):
             client = await get_temporal_client()
             handle = client.get_workflow_handle(_workflow_id(job_ref))
             description = await handle.describe()
-            return _TEMPORAL_STATUS_MAP.get(description.status, ExecutionStatus.RUNNING)
+            status = description.status
+            return _TEMPORAL_STATUS_MAP.get(status, ExecutionStatus.RUNNING) if status is not None else ExecutionStatus.RUNNING
         except RPCError as exc:
             logger.warning("Could not query Temporal workflow for %s: %s", job_ref, exc)
             return ExecutionStatus.FAILED
@@ -109,7 +110,7 @@ class DockerDurableBackend(ExecutionBackend):
         try:
             client = await get_temporal_client()
             handle = client.get_workflow_handle(_workflow_id(job_ref))
-            return await handle.query("is_input_needed")
+            return bool(await handle.query("is_input_needed"))
         except RPCError as exc:
             logger.warning("Could not query is_input_needed for %s: %s", job_ref, exc)
             return None

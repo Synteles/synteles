@@ -332,6 +332,7 @@ async def signal_execution(
     claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
+    assert claims.org_id  # guaranteed by trusted_claims_with_org
     await _deliver_signal(execution_id, claims.org_id, body.input, db)
     return {"execution_id": execution_id, "status": "running"}
 
