@@ -17,9 +17,8 @@ with workflow.unsafe.imports_passed_through():
     # first workflow task — avoids "Module X imported after initial workflow
     # load" warnings when the Agents SDK constructs pydantic models.
     import annotated_types  # noqa: F401
-    import pydantic_core  # noqa: F401
+    import pydantic_core
     import pydantic_core.core_schema  # noqa: F401
-
     from agents import Agent, Runner, function_tool
 
     import agent_config
@@ -77,7 +76,7 @@ class AgentWorkflow:
         )
 
         result = await Runner.run(agent, input=agent_config.effective_prompt)
-        return result.final_output
+        return str(result.final_output)
 
     @workflow.signal
     def provide_user_input(self, user_input: str) -> None:

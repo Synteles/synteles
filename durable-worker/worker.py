@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from datetime import timedelta
 
 from agents.mcp import MCPServerStdio
@@ -49,17 +50,19 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def _make_stdio_factory(tool: MCPToolSpec):
+def _make_stdio_factory(tool: MCPToolSpec) -> Callable[[], MCPServerStdio]:
     """Return a factory closure for a single stdio MCP server.
 
     The closure captures `tool` by value so each provider gets its own config.
     """
+
     def factory() -> MCPServerStdio:
         return MCPServerStdio(
             name=tool.name,
             params={"command": tool.command, "args": tool.args},
             cache_tools_list=True,
         )
+
     return factory
 
 
