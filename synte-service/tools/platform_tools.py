@@ -146,6 +146,7 @@ class PlatformTools:
         tool_context: ToolContext,
         description: str | None = None,
         yaml_definition: str | None = None,
+        execution_backend: str = "standard",
     ) -> dict[str, Any]:
         """Create a new agentlet in the organization.
 
@@ -155,9 +156,11 @@ class PlatformTools:
                          contain only alphanumeric characters and underscores
             description: Optional human-readable description
             yaml_definition: Optional YAML configuration string
+            execution_backend: Execution backend — 'standard' (default) or 'durable'.
+                               'durable' enables checkpointing, retries, and HITL signals via Temporal.
         """
         token = tool_context.invocation_state.get("access_token", "")
-        body: dict[str, Any] = {"id": agentlet_id}
+        body: dict[str, Any] = {"id": agentlet_id, "execution_backend": execution_backend}
         if description is not None:
             body["description"] = description
         if yaml_definition is not None:
@@ -215,8 +218,9 @@ class PlatformTools:
         tool_context: ToolContext,
         description: str | None = None,
         yaml_definition: str | None = None,
+        execution_backend: str | None = None,
     ) -> dict[str, Any]:
-        """Update an existing agentlet's description and/or YAML configuration.
+        """Update an existing agentlet's description, YAML configuration, and/or execution backend.
 
         Only the provided fields are updated; omitted fields are left unchanged.
 
@@ -225,6 +229,7 @@ class PlatformTools:
             agentlet_id: Agentlet identifier
             description: Updated description (optional)
             yaml_definition: Updated YAML configuration string (optional)
+            execution_backend: Updated execution backend — 'standard' or 'durable' (optional)
         """
         token = tool_context.invocation_state.get("access_token", "")
         body: dict[str, str] = {}
@@ -232,6 +237,8 @@ class PlatformTools:
             body["description"] = description
         if yaml_definition is not None:
             body["YAML"] = yaml_definition
+        if execution_backend is not None:
+            body["execution_backend"] = execution_backend
         response = self._make_request(
             "PATCH",
             f"/api/agentlets/{agentlet_id}",

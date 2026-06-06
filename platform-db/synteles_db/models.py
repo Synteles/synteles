@@ -118,6 +118,9 @@ class Agentlet(Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     yaml_definition: Mapped[str] = mapped_column(Text, nullable=False)
+    execution_backend: Mapped[ExecutionType] = mapped_column(
+        _execution_type_sa, nullable=False, server_default=ExecutionType.standard
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
 

@@ -244,26 +244,9 @@ def _upload_execution_manifest(
         ) from exc
 
 
-def _resolve_execution_type(agentlet_yaml: str) -> ExecutionType:
-    """Return ExecutionType from agentlet YAML execution_mode field.
-
-    Phase 3: falls back to EXECUTION_BACKEND env var when the field is absent,
-    so existing agentlets (no execution_mode key) continue using standard execution
-    unless EXECUTION_BACKEND=durable is set globally.
-    Phase 5: execution_mode in the YAML will always be present and authoritative.
-    """
-    from config import EXECUTION_BACKEND
-
-    try:
-        config = yaml.safe_load(agentlet_yaml) or {}
-        mode = config.get("execution_backend")
-        if mode == "durable":
-            return ExecutionType.durable
-        if mode == "standard":
-            return ExecutionType.standard
-    except yaml.YAMLError:
-        pass
-    return ExecutionType.durable if EXECUTION_BACKEND == "durable" else ExecutionType.standard
+def _resolve_execution_type(agentlet: Any) -> ExecutionType:
+    """Return ExecutionType from the agentlet's execution_backend DB column."""
+    return agentlet.execution_backend
 
 
 async def _run_execution(
@@ -291,9 +274,7 @@ async def _run_execution(
     if not agentlet:
         raise HTTPException(status_code=404, detail="Agentlet not found")
 
-    # Determine execution type from agentlet YAML (Phase 3: also falls back to EXECUTION_BACKEND env).
-    agentlet_yaml_raw = agentlet.yaml_definition or ""
-    execution_type = _resolve_execution_type(agentlet_yaml_raw)
+    execution_type = _resolve_execution_type(agentlet)
     init_status: StandardExecStatus | DurableExecStatus = (
         DurableExecStatus.deploying if execution_type == ExecutionType.durable
         else StandardExecStatus.deploying

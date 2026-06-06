@@ -20,7 +20,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from synteles_db.models import Agentlet
+from synteles_db.models import Agentlet, ExecutionType
 
 
 class AgentletRepo:
@@ -51,6 +51,7 @@ class AgentletRepo:
         name: str,
         description: str,
         yaml_definition: str,
+        execution_backend: ExecutionType = ExecutionType.standard,
     ) -> Agentlet:
         agentlet = Agentlet(
             id=uuid.uuid4(),
@@ -59,6 +60,7 @@ class AgentletRepo:
             name=name,
             description=description or None,
             yaml_definition=yaml_definition,
+            execution_backend=execution_backend,
         )
         self._db.add(agentlet)
         await self._db.flush()
@@ -70,11 +72,14 @@ class AgentletRepo:
         *,
         description: str | None = None,
         yaml_definition: str | None = None,
+        execution_backend: ExecutionType | None = None,
     ) -> None:
         if description is not None:
             agentlet.description = description or None
         if yaml_definition is not None:
             agentlet.yaml_definition = yaml_definition
+        if execution_backend is not None:
+            agentlet.execution_backend = execution_backend
         await self._db.flush()
 
     async def delete(self, agentlet: Agentlet) -> None:

@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from synteles_db.models import ExecutionType
 from synteles_db.repos.agentlets import AgentletRepo
 
 from auth import TokenClaims, trusted_claims_with_org
@@ -42,11 +43,13 @@ class CreateAgentletRequest(BaseModel):
     id: str
     YAML: str = ""
     description: str = ""
+    execution_backend: ExecutionType = ExecutionType.standard
 
 
 class UpdateAgentletRequest(BaseModel):
     YAML: str | None = None
     description: str | None = None
+    execution_backend: ExecutionType | None = None
 
 
 @router.get("/api/agentlets")
@@ -92,6 +95,7 @@ async def create_agentlet(
             name=body.id,
             description=body.description,
             yaml_definition=body.YAML,
+            execution_backend=body.execution_backend,
         )
         await db.commit()
     except IntegrityError:
@@ -102,6 +106,7 @@ async def create_agentlet(
         "id": body.id,
         "yaml": agentlet.yaml_definition,
         "description": agentlet.description,
+        "execution_backend": agentlet.execution_backend,
         "created_at": agentlet.created_at.isoformat(),
         "updated_at": agentlet.updated_at.isoformat(),
     }
@@ -123,6 +128,7 @@ async def get_agentlet(
     return {
         "description": agentlet.description,
         "YAML": agentlet.yaml_definition,
+        "execution_backend": agentlet.execution_backend,
         "created_at": agentlet.created_at.isoformat(),
         "updated_at": agentlet.updated_at.isoformat(),
     }
@@ -143,6 +149,7 @@ async def update_agentlet(
         agentlet,
         description=body.description,
         yaml_definition=body.YAML,
+        execution_backend=body.execution_backend,
     )
     await db.commit()
     return {"message": "Agentlet updated"}
