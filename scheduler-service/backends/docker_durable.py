@@ -18,14 +18,26 @@ from __future__ import annotations
 
 import logging
 
-from temporalio.client import Client, WorkflowExecutionStatus
+from temporalio.client import WorkflowExecutionStatus
 from temporalio.service import RPCError
 
 from backends.base import ExecutionBackend, ExecutionConfig, ExecutionStatus
 from backends.docker_runtime import DockerRuntime
 from config import AGENT_WORKER_IMAGE, TEMPORAL_ADDRESS
+from temporal_client import get_temporal_client
 
 logger = logging.getLogger(__name__)
+
+
+def _workflow_id(execution_id: str) -> str:
+    """Canonical Temporal workflow ID for a given execution."""
+    return f"synteles-{execution_id}"
+
+
+def _container_name(execution_id: str) -> str:
+    """Deterministic agent-worker container name for a given execution."""
+    return f"agent-{execution_id}"
+
 
 _TEMPORAL_STATUS_MAP: dict[WorkflowExecutionStatus, ExecutionStatus] = {
     WorkflowExecutionStatus.RUNNING: ExecutionStatus.RUNNING,
@@ -41,82 +53,75 @@ _TEMPORAL_STATUS_MAP: dict[WorkflowExecutionStatus, ExecutionStatus] = {
 class DockerDurableBackend(ExecutionBackend):
     """Runs durable Temporal workflows via a per-execution agent-worker container.
 
+    job_ref is the execution_id. Temporal workflow ID and container name are derived
+    from it via _workflow_id() and _container_name() — both forward-only computations
+    with no string parsing.
+
     submit() flow:
       1. Start the Temporal AgentWorkflow on a per-execution task queue.
       2. Launch the agent-worker container — registers AgentWorkflow + MCP servers,
          polls the per-execution task queue, picks up and runs the workflow.
-      3. Return the Temporal workflow ID as job_ref.
-
-    The agent-worker container name is deterministic (agent-{execution_id}) so
-    stop() can clean it up without storing a separate container ID in the DB.
+      3. Return execution_id as job_ref.
     """
 
     def __init__(self) -> None:
         self._runtime = DockerRuntime()
 
     async def submit(self, config: ExecutionConfig) -> str:
-        workflow_id = f"synteles-{config.execution_id}"
+        wf_id = _workflow_id(config.execution_id)
         task_queue = f"synteles-agent-{config.execution_id}"
 
-        client = await Client.connect(TEMPORAL_ADDRESS)
+        client = await get_temporal_client()
         await client.start_workflow(
             "AgentWorkflow",
             config.execution_id,
-            id=workflow_id,
+            id=wf_id,
             task_queue=task_queue,
         )
-        logger.info("Started Temporal workflow %s on queue %s", workflow_id, task_queue)
+        logger.info("Started Temporal workflow %s on queue %s", wf_id, task_queue)
 
-        # Phase 4: launch per-execution agent-worker container.
-        # Container receives execution secrets + MCP server config as env vars.
         container_env = {
             "TEMPORAL_ADDRESS": TEMPORAL_ADDRESS,
             "TEMPORAL_TASK_QUEUE": task_queue,
             "EXECUTION_ID": config.execution_id,
             **config.env,
         }
-        container_name = f"agent-{config.execution_id}"
-        self._runtime.run_container(AGENT_WORKER_IMAGE, container_name, container_env)
-        logger.info("Launched agent-worker container %s", container_name)
+        cname = _container_name(config.execution_id)
+        self._runtime.run_container(AGENT_WORKER_IMAGE, cname, container_env)
+        logger.info("Launched agent-worker container %s", cname)
 
-        return workflow_id
+        return config.execution_id
 
     async def status(self, job_ref: str) -> ExecutionStatus:
-        """Poll Temporal for workflow status. job_ref is the Temporal workflow ID."""
         try:
-            client = await Client.connect(TEMPORAL_ADDRESS)
-            handle = client.get_workflow_handle(job_ref)
+            client = await get_temporal_client()
+            handle = client.get_workflow_handle(_workflow_id(job_ref))
             description = await handle.describe()
             return _TEMPORAL_STATUS_MAP.get(description.status, ExecutionStatus.RUNNING)
         except RPCError as exc:
-            logger.warning("Could not query Temporal workflow %s: %s", job_ref, exc)
+            logger.warning("Could not query Temporal workflow for %s: %s", job_ref, exc)
             return ExecutionStatus.FAILED
 
     async def logs(self, job_ref: str) -> str:
-        """Fetch logs from the agent-worker container."""
-        execution_id = job_ref.removeprefix("synteles-")
-        return self._runtime.container_logs(f"agent-{execution_id}")
+        return self._runtime.container_logs(_container_name(job_ref))
 
     async def query_is_input_needed(self, job_ref: str) -> bool | None:
-        """Query the AgentWorkflow's is_input_needed Temporal query."""
         try:
-            client = await Client.connect(TEMPORAL_ADDRESS)
-            handle = client.get_workflow_handle(job_ref)
+            client = await get_temporal_client()
+            handle = client.get_workflow_handle(_workflow_id(job_ref))
             return await handle.query("is_input_needed")
         except RPCError as exc:
             logger.warning("Could not query is_input_needed for %s: %s", job_ref, exc)
             return None
 
     async def stop(self, job_ref: str) -> None:
-        """Cancel the Temporal workflow and stop the agent-worker container."""
         try:
-            client = await Client.connect(TEMPORAL_ADDRESS)
-            handle = client.get_workflow_handle(job_ref)
+            client = await get_temporal_client()
+            handle = client.get_workflow_handle(_workflow_id(job_ref))
             await handle.cancel()
         except RPCError as exc:
-            logger.warning("Could not cancel Temporal workflow %s: %s", job_ref, exc)
+            logger.warning("Could not cancel Temporal workflow for %s: %s", job_ref, exc)
 
-        execution_id = job_ref.removeprefix("synteles-")
-        container_name = f"agent-{execution_id}"
-        self._runtime.stop_container(container_name)
-        logger.info("Stopped agent-worker container %s", container_name)
+        cname = _container_name(job_ref)
+        self._runtime.stop_container(cname)
+        logger.info("Stopped agent-worker container %s", cname)

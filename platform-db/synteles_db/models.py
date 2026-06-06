@@ -170,7 +170,6 @@ class Execution(Base):
     status: Mapped[str] = mapped_column(Text, nullable=False)
     job_ref: Mapped[str | None] = mapped_column(Text)
     workflow_id: Mapped[str | None] = mapped_column(Text)
-    signal_name: Mapped[str | None] = mapped_column(Text)
     timeout_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     prompt: Mapped[str] = mapped_column(Text, nullable=False, server_default="''")
     logs_s3_uri: Mapped[str | None] = mapped_column(Text)

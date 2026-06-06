@@ -117,13 +117,22 @@ async def _poll() -> None:
     async with AsyncSessionLocal() as db:
         executions = await ExecutionRepo(db).list_active()
 
+    # Build one backend instance per execution type present in this tick's batch.
+    # get_backend() calls DockerRuntime() → docker.from_env(); doing it per-execution
+    # would open a Docker socket connection for every active execution on every poll.
+    backends = {
+        ExecutionType(e.execution_type): get_backend(ExecutionType(e.execution_type))
+        for e in executions
+        if e.job_ref
+    }
+
     # Finalise each execution in its own independent session
     for execution in executions:
         if not execution.job_ref:
             continue
         try:
             exec_type = ExecutionType(execution.execution_type)
-            backend = get_backend(exec_type)
+            backend = backends[exec_type]
             stopped = (
                 DurableExecStatus.stopped if exec_type == ExecutionType.durable
                 else StandardExecStatus.stopped

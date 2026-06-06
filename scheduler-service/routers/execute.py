@@ -29,7 +29,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from synteles_db.crypto import decrypt
-from synteles_db.models import DurableExecStatus, ExecStatus, ExecutionType, StandardExecStatus
+from synteles_db.models import DurableExecStatus, ExecutionType, StandardExecStatus
 from synteles_db.repos.agentlets import AgentletRepo
 from synteles_db.repos.executions import ExecutionRepo
 from synteles_db.repos.secrets import SecretRepo
@@ -279,6 +279,10 @@ async def _run_execution(
         DurableExecStatus.deploying if execution_type == ExecutionType.durable
         else StandardExecStatus.deploying
     )
+    fail_status: StandardExecStatus | DurableExecStatus = (
+        DurableExecStatus.failed if execution_type == ExecutionType.durable
+        else StandardExecStatus.failed
+    )
 
     now = datetime.now(UTC)
     timeout_at = now + timedelta(seconds=timeout_seconds)
@@ -304,7 +308,7 @@ async def _run_execution(
         except Exception as exc:
             logger.error("Input file copy failed for execution %s: %s", execution_id, exc)
             await ExecutionRepo(db).update_status(
-                execution, ExecStatus.failed, error=f"Input file copy failed: {exc}"
+                execution, fail_status, error=f"Input file copy failed: {exc}"
             )
             await db.commit()
             raise HTTPException(
@@ -386,10 +390,6 @@ async def _run_execution(
         env=env_vars,
         timeout_seconds=timeout_seconds,
     )
-    fail_status: StandardExecStatus | DurableExecStatus = (
-        DurableExecStatus.failed if execution_type == ExecutionType.durable
-        else StandardExecStatus.failed
-    )
     run_status: StandardExecStatus | DurableExecStatus = (
         DurableExecStatus.running if execution_type == ExecutionType.durable
         else StandardExecStatus.running
@@ -403,7 +403,8 @@ async def _run_execution(
 
     await ExecutionRepo(db).update_job_ref(execution, job_ref, run_status)
     if execution_type == ExecutionType.durable:
-        await ExecutionRepo(db).update_workflow_id(execution, job_ref)
+        from backends.docker_durable import _workflow_id
+        await ExecutionRepo(db).update_workflow_id(execution, _workflow_id(job_ref))
     await db.commit()
 
     return {

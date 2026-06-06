@@ -29,13 +29,12 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from synteles_db.models import DurableExecStatus, ExecStatus, ExecutionType
 from synteles_db.repos.executions import ExecutionRepo
-from temporalio.client import Client
 from temporalio.service import RPCError
 
 from auth import TokenClaims, trusted_claims, trusted_claims_with_org
 from backends import get_backend
-from config import TEMPORAL_ADDRESS
 from db import get_db, get_s3
+from temporal_client import get_temporal_client
 from monitor import _finalize
 
 router = APIRouter()
@@ -101,7 +100,7 @@ class SignalRequest(BaseModel):
 async def _query_pending_question(workflow_id: str) -> str | None:
     """Query the AgentWorkflow for the question it is waiting on. Returns None on any error."""
     try:
-        client = await Client.connect(TEMPORAL_ADDRESS)
+        client = await get_temporal_client()
         handle = client.get_workflow_handle(workflow_id)
         result: str = await handle.query("get_pending_question")
         return result or None
@@ -127,7 +126,7 @@ async def _deliver_signal(
     if not execution.workflow_id:
         raise HTTPException(status_code=409, detail="Execution has no associated workflow")
     try:
-        client = await Client.connect(TEMPORAL_ADDRESS)
+        client = await get_temporal_client()
         handle = client.get_workflow_handle(execution.workflow_id)
         await handle.signal("provide_user_input", args=[input_text])
     except RPCError as exc:
