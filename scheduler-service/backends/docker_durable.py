@@ -61,7 +61,7 @@ class DockerDurableBackend(ExecutionBackend):
         client = await Client.connect(TEMPORAL_ADDRESS)
         await client.start_workflow(
             "AgentWorkflow",
-            config.env,
+            config.execution_id,
             id=workflow_id,
             task_queue=task_queue,
         )
@@ -96,6 +96,16 @@ class DockerDurableBackend(ExecutionBackend):
         """Fetch logs from the agent-worker container."""
         execution_id = job_ref.removeprefix("synteles-")
         return self._runtime.container_logs(f"agent-{execution_id}")
+
+    async def query_is_input_needed(self, job_ref: str) -> bool | None:
+        """Query the AgentWorkflow's is_input_needed Temporal query."""
+        try:
+            client = await Client.connect(TEMPORAL_ADDRESS)
+            handle = client.get_workflow_handle(job_ref)
+            return await handle.query("is_input_needed")
+        except RPCError as exc:
+            logger.warning("Could not query is_input_needed for %s: %s", job_ref, exc)
+            return None
 
     async def stop(self, job_ref: str) -> None:
         """Cancel the Temporal workflow and stop the agent-worker container."""

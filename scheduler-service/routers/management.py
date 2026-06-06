@@ -25,12 +25,16 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from synteles_db.models import ExecStatus
+from synteles_db.models import DurableExecStatus, ExecStatus, ExecutionType
 from synteles_db.repos.executions import ExecutionRepo
+from temporalio.client import Client
+from temporalio.service import RPCError
 
 from auth import TokenClaims, trusted_claims, trusted_claims_with_org
 from backends import get_backend
+from config import TEMPORAL_ADDRESS
 from db import get_db, get_s3
 from monitor import _finalize
 
@@ -88,6 +92,47 @@ def _format_execution(e: Any) -> dict[str, Any]:
     if elapsed is not None:
         summary["elapsed_seconds"] = elapsed
     return summary
+
+
+class SignalRequest(BaseModel):
+    input: str
+
+
+async def _query_pending_question(workflow_id: str) -> str | None:
+    """Query the AgentWorkflow for the question it is waiting on. Returns None on any error."""
+    try:
+        client = await Client.connect(TEMPORAL_ADDRESS)
+        handle = client.get_workflow_handle(workflow_id)
+        result: str = await handle.query("get_pending_question")
+        return result or None
+    except Exception:
+        return None
+
+
+async def _deliver_signal(
+    execution_id: str, org_id: str, input_text: str, db: AsyncSession
+) -> None:
+    """Validate the execution and send provide_user_input signal to the Temporal workflow."""
+    execution = await ExecutionRepo(db).get_by_id(UUID(execution_id))
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    if str(execution.org_id) != org_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this execution")
+    if execution.execution_type != ExecutionType.durable:
+        raise HTTPException(
+            status_code=409, detail="Signal is only supported for durable executions"
+        )
+    if execution.status != DurableExecStatus.waiting_for_signal:
+        raise HTTPException(status_code=409, detail="Execution is not waiting for input")
+    if not execution.workflow_id:
+        raise HTTPException(status_code=409, detail="Execution has no associated workflow")
+    try:
+        client = await Client.connect(TEMPORAL_ADDRESS)
+        handle = client.get_workflow_handle(execution.workflow_id)
+        await handle.signal("provide_user_input", args=[input_text])
+    except RPCError as exc:
+        logger.error("Failed to deliver signal to workflow %s: %s", execution.workflow_id, exc)
+        raise HTTPException(status_code=500, detail="Failed to deliver signal to workflow") from exc
 
 
 @router.get("/api/executions")
@@ -239,6 +284,10 @@ async def get_execution_status(
     elapsed = _calc_elapsed(execution.created_at, execution.completed_at)
     if elapsed is not None:
         response_body["elapsed_seconds"] = elapsed
+    if execution.status == DurableExecStatus.waiting_for_signal and execution.workflow_id:
+        pending_question = await _query_pending_question(execution.workflow_id)
+        if pending_question is not None:
+            response_body["pending_question"] = pending_question
     return response_body
 
 
@@ -267,6 +316,31 @@ async def cancel_execution(
         "status": status_value,
         "stopped_at": completed_at,
     }
+
+
+@router.post("/api/executions/{execution_id}/signal", status_code=202)
+async def signal_execution(
+    execution_id: str,
+    body: SignalRequest,
+    claims: Annotated[TokenClaims, Depends(trusted_claims_with_org)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict[str, Any]:
+    await _deliver_signal(execution_id, claims.org_id, body.input, db)
+    return {"execution_id": execution_id, "status": "waiting_for_signal"}
+
+
+@router.post("/api/public/executions/{execution_id}/signal", status_code=202)
+async def signal_execution_public(
+    execution_id: str,
+    body: SignalRequest,
+    claims: Annotated[TokenClaims, Depends(trusted_claims)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict[str, Any]:
+    org_id = claims.org_id
+    if not org_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    await _deliver_signal(execution_id, org_id, body.input, db)
+    return {"execution_id": execution_id, "status": "waiting_for_signal"}
 
 
 @router.get("/api/public/executions/{execution_id}")
@@ -299,6 +373,10 @@ async def get_public_execution_status(
     elapsed = _calc_elapsed(execution.created_at, execution.completed_at)
     if elapsed is not None:
         response_body["elapsed_seconds"] = elapsed
+    if execution.status == DurableExecStatus.waiting_for_signal and execution.workflow_id:
+        pending_question = await _query_pending_question(execution.workflow_id)
+        if pending_question is not None:
+            response_body["pending_question"] = pending_question
     return response_body
 
 

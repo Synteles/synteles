@@ -292,6 +292,14 @@ services:
       retries: 15
       start_period: 30s
 
+  # Build-only: DockerDurableBackend launches per-execution containers from this image.
+  # Not started by `docker compose up` — build with: docker compose build durable-worker
+  durable-worker:
+    build:
+      context: durable-worker
+    profiles:
+      - build
+
 volumes:
   postgres_data:
   minio_data:

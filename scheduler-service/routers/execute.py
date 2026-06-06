@@ -256,7 +256,7 @@ def _resolve_execution_type(agentlet_yaml: str) -> ExecutionType:
 
     try:
         config = yaml.safe_load(agentlet_yaml) or {}
-        mode = config.get("execution_mode")
+        mode = config.get("execution_backend")
         if mode == "durable":
             return ExecutionType.durable
         if mode == "standard":

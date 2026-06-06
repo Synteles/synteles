@@ -83,6 +83,33 @@ async def _finalize(
         await backend.stop(execution.job_ref)
 
 
+async def _sync_durable_signal_status(execution: Execution, backend: ExecutionBackend) -> None:
+    """Sync DB status with the AgentWorkflow's is_input_needed query result.
+
+    running → waiting_for_signal when the workflow pauses for user input.
+    waiting_for_signal → running when the signal has been delivered and work resumes.
+    """
+    is_input_needed = await backend.query_is_input_needed(execution.job_ref)
+    if is_input_needed is None:
+        return
+
+    db_status = execution.status
+    if is_input_needed and db_status == DurableExecStatus.running:
+        async with AsyncSessionLocal() as db:
+            fresh = await ExecutionRepo(db).get_by_id(execution.id)
+            if fresh and fresh.status == DurableExecStatus.running:
+                await ExecutionRepo(db).update_status(fresh, DurableExecStatus.waiting_for_signal)
+                await db.commit()
+                logger.info("Execution %s is waiting for user input", execution.id)
+    elif not is_input_needed and db_status == DurableExecStatus.waiting_for_signal:
+        async with AsyncSessionLocal() as db:
+            fresh = await ExecutionRepo(db).get_by_id(execution.id)
+            if fresh and fresh.status == DurableExecStatus.waiting_for_signal:
+                await ExecutionRepo(db).update_status(fresh, DurableExecStatus.running)
+                await db.commit()
+                logger.info("Execution %s resumed after signal", execution.id)
+
+
 async def _poll() -> None:
     """Check all active executions once and finalise any that have finished."""
     now = datetime.now(UTC)
@@ -126,6 +153,8 @@ async def _poll() -> None:
                     fresh = await ExecutionRepo(db).get_by_id(execution.id)
                     if fresh:
                         await _finalize(fresh, failed, backend, db)
+            elif status == ExecutionStatus.RUNNING and exec_type == ExecutionType.durable:
+                await _sync_durable_signal_status(execution, backend)
         except Exception as exc:
             logger.error("Failed to finalize execution %s: %s", execution.id, exc)
 

@@ -65,3 +65,10 @@ class ExecutionBackend(ABC):
     async def stop(self, job_ref: str) -> None:
         """Request graceful termination of an active job."""
         ...
+
+    async def query_is_input_needed(self, job_ref: str) -> bool | None:
+        """Return whether the workflow is paused waiting for user input.
+
+        Returns None for backends that do not support this query.
+        """
+        return None

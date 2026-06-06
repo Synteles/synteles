@@ -497,6 +497,13 @@
       "description": "Platform-only. List of secret names owned by this agentlet's creator. The Synteles Platform resolves each name relative to the owner's UserId and injects the values into the process environment before startup. agentlet-core itself ignores this field."
     },
 
+    "execution_backend": {
+      "type": "string",
+      "enum": ["standard", "durable"],
+      "default": "standard",
+      "description": "Platform-only. Selects the execution backend for this agentlet. 'standard' (default) runs the agentlet as a short-lived container via the normal agentlet harness. 'durable' runs it as a Temporal AgentWorkflow via a per-execution durable-worker container — enables checkpointing, retries, and human-in-the-loop signals. agentlet-core itself ignores this field."
+    },
+
     "agentlet": {
       "$ref": "#/$defs/AgentletMetadata",
       "description": "Agentlet identity metadata (required)."
