@@ -35,24 +35,24 @@ class Base(DeclarativeBase):
 
 class ExecutionType(enum.StrEnum):
     standard = "standard"
-    durable  = "durable"
+    durable = "durable"
 
 
 class StandardExecStatus(enum.StrEnum):
     deploying = "deploying"
-    running   = "running"
+    running = "running"
     completed = "completed"
-    failed    = "failed"
-    stopped   = "stopped"
+    failed = "failed"
+    stopped = "stopped"
 
 
 class DurableExecStatus(enum.StrEnum):
-    deploying          = "deploying"
-    running            = "running"
+    deploying = "deploying"
+    running = "running"
     waiting_for_signal = "waiting_for_signal"
-    completed          = "completed"
-    failed             = "failed"
-    stopped            = "stopped"
+    completed = "completed"
+    failed = "failed"
+    stopped = "stopped"
 
 
 # Backward-compatible alias — scheduler-service imports ExecStatus until Phase 3.
@@ -67,7 +67,7 @@ _execution_type_sa = SAEnum(
 )
 
 _STANDARD_STATUSES = tuple(s.value for s in StandardExecStatus)
-_DURABLE_STATUSES  = tuple(s.value for s in DurableExecStatus)
+_DURABLE_STATUSES = tuple(s.value for s in DurableExecStatus)
 
 
 class Organization(Base):

@@ -41,9 +41,11 @@ def get_backend(execution_type: ExecutionType = ExecutionType.standard) -> Execu
     if EXECUTION_RUNTIME == "docker":
         if execution_type == ExecutionType.durable:
             from backends.docker_durable import DockerDurableBackend
+
             backend: ExecutionBackend = DockerDurableBackend()
         else:
             from backends.docker_standard import DockerStandardBackend
+
             backend = DockerStandardBackend()
         _cache[execution_type] = backend
         return backend

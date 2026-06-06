@@ -32,7 +32,7 @@ depends_on = None
 _SCHEMA = "synteles"
 
 _STANDARD_STATUSES = "('deploying','running','completed','failed','stopped')"
-_DURABLE_STATUSES  = "('deploying','running','waiting_for_signal','completed','failed','stopped')"
+_DURABLE_STATUSES = "('deploying','running','waiting_for_signal','completed','failed','stopped')"
 
 
 def upgrade() -> None:
@@ -56,10 +56,7 @@ def upgrade() -> None:
 
     # 2. Convert status column from exec_status enum to TEXT.
     #    All existing rows have standard-compatible values — no data loss.
-    op.execute(
-        f"ALTER TABLE {_SCHEMA}.executions "
-        f"ALTER COLUMN status TYPE TEXT USING status::text"
-    )
+    op.execute(f"ALTER TABLE {_SCHEMA}.executions ALTER COLUMN status TYPE TEXT USING status::text")
 
     # 3. Drop the old exec_status PostgreSQL enum type.
     op.execute(f"DROP TYPE {_SCHEMA}.exec_status")
@@ -78,8 +75,8 @@ def upgrade() -> None:
         ),
         schema=_SCHEMA,
     )
-    op.add_column("executions", sa.Column("workflow_id",  sa.Text, nullable=True), schema=_SCHEMA)
-    op.add_column("executions", sa.Column("signal_name",  sa.Text, nullable=True), schema=_SCHEMA)
+    op.add_column("executions", sa.Column("workflow_id", sa.Text, nullable=True), schema=_SCHEMA)
+    op.add_column("executions", sa.Column("signal_name", sa.Text, nullable=True), schema=_SCHEMA)
 
     # 6. Add check constraint enforcing valid status values per execution type.
     op.execute(f"""
@@ -117,14 +114,12 @@ def downgrade() -> None:
             END IF;
         END $$;
     """)
-    op.execute(
-        f"ALTER TABLE {_SCHEMA}.executions DROP CONSTRAINT IF EXISTS ck_execution_status"
-    )
+    op.execute(f"ALTER TABLE {_SCHEMA}.executions DROP CONSTRAINT IF EXISTS ck_execution_status")
 
     # 2. Drop new columns and the execution_type enum.
-    op.drop_column("executions", "signal_name",     schema=_SCHEMA)
-    op.drop_column("executions", "workflow_id",     schema=_SCHEMA)
-    op.drop_column("executions", "execution_type",  schema=_SCHEMA)
+    op.drop_column("executions", "signal_name", schema=_SCHEMA)
+    op.drop_column("executions", "workflow_id", schema=_SCHEMA)
+    op.drop_column("executions", "execution_type", schema=_SCHEMA)
     op.execute(f"DROP TYPE IF EXISTS {_SCHEMA}.execution_type")
 
     # 3. Recreate exec_status enum and restore the status column.

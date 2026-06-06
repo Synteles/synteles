@@ -134,15 +134,18 @@ async def _poll() -> None:
             exec_type = ExecutionType(execution.execution_type)
             backend = backends[exec_type]
             stopped = (
-                DurableExecStatus.stopped if exec_type == ExecutionType.durable
+                DurableExecStatus.stopped
+                if exec_type == ExecutionType.durable
                 else StandardExecStatus.stopped
             )
             completed = (
-                DurableExecStatus.completed if exec_type == ExecutionType.durable
+                DurableExecStatus.completed
+                if exec_type == ExecutionType.durable
                 else StandardExecStatus.completed
             )
             failed = (
-                DurableExecStatus.failed if exec_type == ExecutionType.durable
+                DurableExecStatus.failed
+                if exec_type == ExecutionType.durable
                 else StandardExecStatus.failed
             )
             if execution.timeout_at and execution.timeout_at < now:

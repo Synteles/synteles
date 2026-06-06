@@ -276,11 +276,13 @@ async def _run_execution(
 
     execution_type = _resolve_execution_type(agentlet)
     init_status: StandardExecStatus | DurableExecStatus = (
-        DurableExecStatus.deploying if execution_type == ExecutionType.durable
+        DurableExecStatus.deploying
+        if execution_type == ExecutionType.durable
         else StandardExecStatus.deploying
     )
     fail_status: StandardExecStatus | DurableExecStatus = (
-        DurableExecStatus.failed if execution_type == ExecutionType.durable
+        DurableExecStatus.failed
+        if execution_type == ExecutionType.durable
         else StandardExecStatus.failed
     )
 
@@ -391,7 +393,8 @@ async def _run_execution(
         timeout_seconds=timeout_seconds,
     )
     run_status: StandardExecStatus | DurableExecStatus = (
-        DurableExecStatus.running if execution_type == ExecutionType.durable
+        DurableExecStatus.running
+        if execution_type == ExecutionType.durable
         else StandardExecStatus.running
     )
     try:
@@ -404,8 +407,11 @@ async def _run_execution(
     durable_workflow_id: str | None = None
     if execution_type == ExecutionType.durable:
         from backends.docker_durable import _workflow_id
+
         durable_workflow_id = _workflow_id(job_ref)
-    await ExecutionRepo(db).update_job_ref(execution, job_ref, run_status, workflow_id=durable_workflow_id)
+    await ExecutionRepo(db).update_job_ref(
+        execution, job_ref, run_status, workflow_id=durable_workflow_id
+    )
     await db.commit()
 
     return {

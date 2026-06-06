@@ -159,11 +159,13 @@ class ExecutionRepo:
     async def list_waiting_for_signal(self, org_id: UUID) -> list[Execution]:
         """Return durable executions currently paused awaiting a human signal."""
         result = await self._db.execute(
-            select(Execution).where(
+            select(Execution)
+            .where(
                 Execution.org_id == org_id,
                 Execution.execution_type == ExecutionType.durable,
                 Execution.status == DurableExecStatus.waiting_for_signal,
-            ).order_by(Execution.updated_at.asc())
+            )
+            .order_by(Execution.updated_at.asc())
         )
         return list(result.scalars().all())
 
