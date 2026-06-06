@@ -98,7 +98,11 @@ class DockerDurableBackend(ExecutionBackend):
             handle = client.get_workflow_handle(_workflow_id(job_ref))
             description = await handle.describe()
             status = description.status
-            return _TEMPORAL_STATUS_MAP.get(status, ExecutionStatus.RUNNING) if status is not None else ExecutionStatus.RUNNING
+            return (
+                _TEMPORAL_STATUS_MAP.get(status, ExecutionStatus.RUNNING)
+                if status is not None
+                else ExecutionStatus.RUNNING
+            )
         except RPCError as exc:
             logger.warning("Could not query Temporal workflow for %s: %s", job_ref, exc)
             return ExecutionStatus.FAILED
