@@ -401,10 +401,11 @@ async def _run_execution(
         await db.commit()
         raise HTTPException(status_code=500, detail=f"Execution deployment failed: {exc}") from exc
 
-    await ExecutionRepo(db).update_job_ref(execution, job_ref, run_status)
+    durable_workflow_id: str | None = None
     if execution_type == ExecutionType.durable:
         from backends.docker_durable import _workflow_id
-        await ExecutionRepo(db).update_workflow_id(execution, _workflow_id(job_ref))
+        durable_workflow_id = _workflow_id(job_ref)
+    await ExecutionRepo(db).update_job_ref(execution, job_ref, run_status, workflow_id=durable_workflow_id)
     await db.commit()
 
     return {

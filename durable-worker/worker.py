@@ -31,7 +31,6 @@ from temporalio.contrib.openai_agents import (
 from temporalio.worker import Worker
 
 import agent_config
-from activities.notify import notify_resumed, notify_waiting_for_signal
 from config import (
     EXECUTION_ID,
     OPENAI_MODEL,
@@ -119,7 +118,7 @@ async def main() -> None:
         client,
         task_queue=TEMPORAL_TASK_QUEUE,
         workflows=[AgentWorkflow],
-        activities=[notify_waiting_for_signal, notify_resumed],
+        activities=[],
     )
 
     logger.info("Durable worker started on task queue '%s'", TEMPORAL_TASK_QUEUE)

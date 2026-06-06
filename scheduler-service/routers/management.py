@@ -104,14 +104,20 @@ async def _query_pending_question(workflow_id: str) -> str | None:
         handle = client.get_workflow_handle(workflow_id)
         result: str = await handle.query("get_pending_question")
         return result or None
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to query pending question for workflow %s: %s", workflow_id, exc)
         return None
 
 
 async def _deliver_signal(
     execution_id: str, org_id: str, input_text: str, db: AsyncSession
 ) -> None:
-    """Validate the execution and send provide_user_input signal to the Temporal workflow."""
+    """Validate the execution, send provide_user_input signal, and optimistically flip status.
+
+    The DB status is updated to running immediately after the Temporal signal is accepted.
+    The monitor will confirm on the next poll; no race risk because the guard above requires
+    waiting_for_signal and the monitor only flips back if is_input_needed returns True.
+    """
     execution = await ExecutionRepo(db).get_by_id(UUID(execution_id))
     if not execution:
         raise HTTPException(status_code=404, detail="Execution not found")
@@ -132,6 +138,8 @@ async def _deliver_signal(
     except RPCError as exc:
         logger.error("Failed to deliver signal to workflow %s: %s", execution.workflow_id, exc)
         raise HTTPException(status_code=500, detail="Failed to deliver signal to workflow") from exc
+    await ExecutionRepo(db).update_status(execution, DurableExecStatus.running)
+    await db.commit()
 
 
 @router.get("/api/executions")
@@ -325,7 +333,7 @@ async def signal_execution(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     await _deliver_signal(execution_id, claims.org_id, body.input, db)
-    return {"execution_id": execution_id, "status": "waiting_for_signal"}
+    return {"execution_id": execution_id, "status": "running"}
 
 
 @router.post("/api/public/executions/{execution_id}/signal", status_code=202)
@@ -339,7 +347,7 @@ async def signal_execution_public(
     if not org_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
     await _deliver_signal(execution_id, org_id, body.input, db)
-    return {"execution_id": execution_id, "status": "waiting_for_signal"}
+    return {"execution_id": execution_id, "status": "running"}
 
 
 @router.get("/api/public/executions/{execution_id}")

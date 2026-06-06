@@ -7,8 +7,6 @@ wires up the ask_user / provide_user_input signal pair for HITL pauses.
 
 from __future__ import annotations
 
-from datetime import timedelta
-
 from temporalio import workflow
 from temporalio.contrib.openai_agents.workflow import stateless_mcp_server
 
@@ -22,7 +20,6 @@ with workflow.unsafe.imports_passed_through():
     from agents import Agent, Runner, function_tool
 
     import agent_config
-    from activities.notify import notify_resumed, notify_waiting_for_signal
 
 
 @workflow.defn
@@ -41,22 +38,13 @@ class AgentWorkflow:
             Args:
                 question_text: The question or approval request to present to the user.
             """
-            await workflow.execute_activity(
-                notify_waiting_for_signal,
-                args=[execution_id, question_text],
-                start_to_close_timeout=timedelta(seconds=10),
-            )
             self._question = question_text
             self._input_needed = True
-            workflow.logger.info("Waiting for user input: %s", question_text)
+            workflow.logger.info("[%s] waiting for user input: %s", execution_id, question_text)
 
             await workflow.wait_condition(lambda: not self._input_needed)
 
-            await workflow.execute_activity(
-                notify_resumed,
-                args=[execution_id],
-                start_to_close_timeout=timedelta(seconds=10),
-            )
+            workflow.logger.info("[%s] resumed", execution_id)
             answer = self._user_input
             self._question = ""
             self._user_input = ""

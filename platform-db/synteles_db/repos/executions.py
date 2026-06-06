@@ -119,10 +119,14 @@ class ExecutionRepo:
         execution: Execution,
         job_ref: str,
         status: StandardExecStatus | DurableExecStatus,
+        *,
+        workflow_id: str | None = None,
     ) -> None:
         execution.job_ref = job_ref
         execution.status = status
         execution.updated_at = datetime.now(UTC)
+        if workflow_id is not None:
+            execution.workflow_id = workflow_id
         await self._db.flush()
 
     async def update_status(
