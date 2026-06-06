@@ -17,8 +17,9 @@
 
 from __future__ import annotations
 
-from backends.base import ExecutionBackend
 from synteles_db.models import ExecutionType
+
+from backends.base import ExecutionBackend
 
 _cache: dict[ExecutionType, ExecutionBackend] = {}
 

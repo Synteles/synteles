@@ -21,7 +21,7 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from synteles_db.models import ExecStatus, StandardExecStatus
+from synteles_db.models import ExecStatus
 
 from backends.base import ExecutionStatus
 

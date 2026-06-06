@@ -23,8 +23,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from synteles_db.models import (
     DurableExecStatus,
-    ExecutionType,
     Execution,
+    ExecutionType,
     StandardExecStatus,
 )
 

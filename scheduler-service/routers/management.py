@@ -34,8 +34,8 @@ from temporalio.service import RPCError
 from auth import TokenClaims, trusted_claims, trusted_claims_with_org
 from backends import get_backend
 from db import get_db, get_s3
-from temporal_client import get_temporal_client
 from monitor import _finalize
+from temporal_client import get_temporal_client
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

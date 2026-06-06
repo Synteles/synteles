@@ -21,7 +21,7 @@ import logging
 from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from synteles_db.models import DurableExecStatus, ExecutionType, StandardExecStatus, Execution
+from synteles_db.models import DurableExecStatus, Execution, ExecutionType, StandardExecStatus
 from synteles_db.repos.executions import ExecutionRepo
 
 from backends import get_backend
