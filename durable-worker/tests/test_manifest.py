@@ -30,6 +30,7 @@ _FULL_YAML = """\
 system_prompt: You are a contract reviewer.
 prompt: Review the attached contract.
 model:
+  provider: openai
   model_id: gpt-4o-mini
 mcp_tools:
   - name: doc_reader
@@ -59,6 +60,11 @@ def test_parse_agentlet_system_prompt() -> None:
 def test_parse_agentlet_yaml_default_prompt() -> None:
     spec = parse_agentlet(_MANIFEST_WITH_YAML)
     assert spec.prompt == "Review the attached contract."
+
+
+def test_parse_agentlet_provider() -> None:
+    spec = parse_agentlet(_MANIFEST_WITH_YAML)
+    assert spec.provider == "openai"
 
 
 def test_parse_agentlet_model_id() -> None:
@@ -120,6 +126,7 @@ def test_parse_agentlet_empty_yaml_returns_defaults() -> None:
     spec = parse_agentlet({"agentlet_yaml": ""})
     assert spec.system_prompt == ""
     assert spec.prompt is None
+    assert spec.provider == "openai"
     assert spec.model_id == "gpt-4o"
     assert spec.mcp_tools == []
 
@@ -133,6 +140,7 @@ def test_parse_agentlet_missing_agentlet_yaml_key() -> None:
 def test_parse_agentlet_no_model_section_defaults_to_gpt4o() -> None:
     yaml = "system_prompt: Hello"
     spec = parse_agentlet({"agentlet_yaml": yaml})
+    assert spec.provider == "openai"
     assert spec.model_id == "gpt-4o"
 
 
@@ -179,7 +187,7 @@ mcp_tools:
 
 
 def _make_spec(prompt: str | None = "YAML default") -> AgentletSpec:
-    return AgentletSpec(system_prompt="sys", prompt=prompt, model_id="gpt-4o")
+    return AgentletSpec(system_prompt="sys", prompt=prompt, provider="openai", model_id="gpt-4o")
 
 
 def test_resolve_prompt_runtime_overrides_yaml_default() -> None:

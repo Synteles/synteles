@@ -1,3 +1,17 @@
+# Copyright 2026 Emin Askerov
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Fetch the execution manifest and parse the mandatory agentlet fields."""
 
 from __future__ import annotations
@@ -22,7 +36,8 @@ class MCPToolSpec:
 class AgentletSpec:
     system_prompt: str
     prompt: str | None  # optional default from YAML; None if not set
-    model_id: str  # e.g. "gpt-4o"
+    provider: str  # e.g. "azure_ai", "openai", "anthropic"
+    model_id: str  # e.g. "gpt-5.3-chat", "gpt-4o"
     mcp_tools: list[MCPToolSpec] = field(default_factory=list)
 
 
@@ -42,6 +57,7 @@ def parse_agentlet(manifest: Mapping[str, Any]) -> AgentletSpec:
     prompt: str | None = config.get("prompt") or None
 
     model_cfg: dict[str, Any] = config.get("model") or {}
+    provider: str = model_cfg.get("provider", "openai")
     model_id: str = model_cfg.get("model_id", "gpt-4o")
 
     mcp_tools: list[MCPToolSpec] = []
@@ -59,17 +75,13 @@ def parse_agentlet(manifest: Mapping[str, Any]) -> AgentletSpec:
     return AgentletSpec(
         system_prompt=system_prompt,
         prompt=prompt,
+        provider=provider,
         model_id=model_id,
         mcp_tools=mcp_tools,
     )
 
 
 def resolve_prompt(manifest: Mapping[str, Any], spec: AgentletSpec) -> str:
-    """Runtime prompt overrides agentlet default; falls back to the YAML default.
-
-    Mirrors the logic in the standard agentlet entrypoint.sh + override_config():
-    if the caller supplied a non-empty prompt it takes precedence, otherwise the
-    agentlet's own default prompt is used.
-    """
+    """Runtime prompt overrides agentlet default; falls back to the YAML default."""
     runtime_prompt: str = manifest.get("prompt") or ""
     return runtime_prompt or spec.prompt or ""

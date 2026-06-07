@@ -40,10 +40,12 @@ export interface ExecutionApi {
 const REVALIDATE = '/dashboard/agentlets'
 
 const DEFAULT_YAML = `model:
-  provider: anthropic
-  model_id: claude-sonnet-4-6
+  provider: azure_ai
+  model_id: gpt-5.3-chat
 system_prompt: |
   You are a helpful assistant.
+secrets:
+  - default
 `
 
 export async function listExecutions(): Promise<ExecutionApi[]> {

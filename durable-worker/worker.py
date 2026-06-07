@@ -1,12 +1,25 @@
+# Copyright 2026 Emin Askerov
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Durable worker entrypoint.
 
 Startup sequence:
   1. Fetch the execution manifest from SYNTELES_MANIFEST_URL.
-  2. Parse mandatory agentlet fields: system_prompt, mcp_tools, default prompt.
+  2. Parse mandatory agentlet fields: system_prompt, provider/model_id, mcp_tools, prompt.
   3. Resolve the effective prompt (runtime override > YAML default).
-  4. Populate agent_config so AgentWorkflow can read it deterministically.
-  5. Build StatelessMCPServerProvider instances for each stdio MCP tool.
-  6. Connect to Temporal with OpenAIAgentsPlugin and start polling.
+  4. Query each MCP server for its tool schemas; populate agent_config.
+  5. Connect to Temporal and start polling — LiteLLM handles all model calls.
 
 The Temporal workflow is started by DockerDurableBackend.submit() before this
 container launches. Temporal queues the task until the worker registers, so
@@ -18,26 +31,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Callable
-from datetime import timedelta
 
-from agents.mcp import MCPServerStdio
 from temporalio.client import Client
-from temporalio.contrib.openai_agents import (
-    ModelActivityParameters,
-    OpenAIAgentsPlugin,
-    StatelessMCPServerProvider,
-)
 from temporalio.worker import Worker
 
 import agent_config
-from config import (
-    EXECUTION_ID,
-    OPENAI_MODEL,
-    SYNTELES_MANIFEST_URL,
-    TEMPORAL_ADDRESS,
-    TEMPORAL_TASK_QUEUE,
-)
+from activities import call_llm_step, call_mcp_tool
+from agent_config import MCPServerRef
+from config import EXECUTION_ID, SYNTELES_MANIFEST_URL, TEMPORAL_ADDRESS, TEMPORAL_TASK_QUEUE
 from manifest import MCPToolSpec, fetch_manifest, parse_agentlet, resolve_prompt
 from workflows.agent import AgentWorkflow
 
@@ -49,20 +50,51 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def _make_stdio_factory(tool: MCPToolSpec) -> Callable[[], MCPServerStdio]:
-    """Return a factory closure for a single stdio MCP server.
+async def _fetch_mcp_schemas(
+    mcp_tools: list[MCPToolSpec],
+) -> tuple[list[dict], dict[str, MCPServerRef]]:  # type: ignore[type-arg]
+    """Query each MCP stdio server for its tool list.
 
-    The closure captures `tool` by value so each provider gets its own config.
+    Returns (openai-format tool schemas, tool_name → MCPServerRef mapping).
+    Servers that fail to connect are skipped with a warning.
     """
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
 
-    def factory() -> MCPServerStdio:
-        return MCPServerStdio(
-            name=tool.name,
-            params={"command": tool.command, "args": tool.args},
-            cache_tools_list=True,
+    schemas: list[dict] = []  # type: ignore[type-arg]
+    tool_map: dict[str, MCPServerRef] = {}
+
+    for spec in mcp_tools:
+        server_params = StdioServerParameters(
+            command=spec.command,
+            args=spec.args,
+            env=spec.env or None,
         )
+        try:
+            async with stdio_client(server_params) as (read, write):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    tools_list = await session.list_tools()
+                    ref = MCPServerRef(command=spec.command, args=spec.args, env=spec.env)
+                    for tool in tools_list.tools:
+                        schemas.append(
+                            {
+                                "type": "function",
+                                "function": {
+                                    "name": tool.name,
+                                    "description": tool.description or "",
+                                    "parameters": tool.inputSchema,
+                                },
+                            }
+                        )
+                        tool_map[tool.name] = ref
+            logger.info(
+                "Fetched %d tools from MCP server '%s'", len(tools_list.tools), spec.name
+            )
+        except Exception as exc:
+            logger.warning("Failed to reach MCP server '%s': %s", spec.name, exc)
 
-    return factory
+    return schemas, tool_map
 
 
 async def main() -> None:
@@ -84,41 +116,26 @@ async def main() -> None:
             "prompt in the agentlet YAML."
         )
 
-    # Populate module-level config read by AgentWorkflow.
     agent_config.system_prompt = spec.system_prompt
     agent_config.effective_prompt = effective_prompt
-    agent_config.mcp_server_names = [t.name for t in spec.mcp_tools]
-    agent_config.model = OPENAI_MODEL or spec.model_id
+    agent_config.model = f"{spec.provider}/{spec.model_id}"
+
+    agent_config.tools_schema, agent_config.mcp_tool_map = await _fetch_mcp_schemas(spec.mcp_tools)
 
     logger.info(
         "Config loaded — model=%s mcp_tools=%d prompt=%s",
         agent_config.model,
-        len(spec.mcp_tools),
+        len(agent_config.tools_schema),
         effective_prompt[:80] + "..." if len(effective_prompt) > 80 else effective_prompt,
     )
 
-    mcp_providers = [
-        StatelessMCPServerProvider(
-            name=tool.name,
-            server_factory=_make_stdio_factory(tool),
-        )
-        for tool in spec.mcp_tools
-    ]
-
-    plugin = OpenAIAgentsPlugin(
-        model_params=ModelActivityParameters(
-            start_to_close_timeout=timedelta(seconds=120),
-        ),
-        mcp_server_providers=mcp_providers,
-    )
-
-    client = await Client.connect(TEMPORAL_ADDRESS, plugins=[plugin])
+    client = await Client.connect(TEMPORAL_ADDRESS)
 
     worker = Worker(
         client,
         task_queue=TEMPORAL_TASK_QUEUE,
         workflows=[AgentWorkflow],
-        activities=[],
+        activities=[call_llm_step, call_mcp_tool],
     )
 
     logger.info("Durable worker started on task queue '%s'", TEMPORAL_TASK_QUEUE)

@@ -1,25 +1,70 @@
-"""AgentWorkflow — durable ReAct loop with human-in-the-loop support.
+# Copyright 2026 Emin Askerov
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-The Agent is configured at worker startup (system_prompt, MCP servers, model)
-and stored in agent_config. This workflow just drives the Runner loop and
-wires up the ask_user / provide_user_input signal pair for HITL pauses.
+"""AgentWorkflow — durable LiteLLM ReAct loop with human-in-the-loop support.
+
+The Agent is configured at worker startup (system_prompt, model, MCP tools) and
+stored in agent_config. The workflow drives the ReAct loop: each LLM call is a
+Temporal activity (non-deterministic), tool dispatch is deterministic workflow
+logic.
+
+Tool routing:
+  ask_user  → HITL signal pause (workflow waits for provide_user_input signal)
+  MCP tools → call_mcp_tool activity, one per call
+  unknown   → logged and reported back to the LLM as an error string
 """
 
 from __future__ import annotations
 
+import json
+from datetime import timedelta
+
 from temporalio import workflow
-from temporalio.contrib.openai_agents.workflow import stateless_mcp_server
+from temporalio.common import RetryPolicy
 
 with workflow.unsafe.imports_passed_through():
-    # Pre-import pydantic internals so the sandbox snapshots them before the
-    # first workflow task — avoids "Module X imported after initial workflow
-    # load" warnings when the Agents SDK constructs pydantic models.
-    __import__("annotated_types")
-    import pydantic_core
-    import pydantic_core.core_schema  # noqa: F401
-    from agents import Agent, Runner, function_tool
-
+    from activities import call_llm_step, call_mcp_tool
     import agent_config
+
+_ASK_USER_TOOL: dict = {
+    "type": "function",
+    "function": {
+        "name": "ask_user",
+        "description": "Ask the human a question when clarification or approval is needed.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "question_text": {
+                    "type": "string",
+                    "description": "The question or approval request to present to the user.",
+                }
+            },
+            "required": ["question_text"],
+        },
+    },
+}
+
+_LLM_RETRY = RetryPolicy(
+    maximum_attempts=3,
+    initial_interval=timedelta(seconds=5),
+    backoff_coefficient=2.0,
+)
+_TOOL_RETRY = RetryPolicy(
+    maximum_attempts=3,
+    initial_interval=timedelta(seconds=2),
+    backoff_coefficient=2.0,
+)
 
 
 @workflow.defn
@@ -31,40 +76,63 @@ class AgentWorkflow:
 
     @workflow.run
     async def run(self, execution_id: str) -> str:
-        @function_tool
-        async def ask_user(question_text: str) -> str:
-            """Ask the human a question when clarification or approval is needed.
+        messages: list[dict] = []
+        if agent_config.system_prompt:
+            messages.append({"role": "system", "content": agent_config.system_prompt})
+        messages.append({"role": "user", "content": agent_config.effective_prompt})
 
-            Args:
-                question_text: The question or approval request to present to the user.
-            """
-            self._question = question_text
-            self._input_needed = True
-            workflow.logger.info("[%s] waiting for user input: %s", execution_id, question_text)
+        tools = [_ASK_USER_TOOL] + agent_config.tools_schema
 
-            await workflow.wait_condition(lambda: not self._input_needed)
+        while True:
+            assistant_msg = await workflow.execute_activity(
+                call_llm_step,
+                args=[messages, tools, agent_config.model],
+                start_to_close_timeout=timedelta(seconds=120),
+                retry_policy=_LLM_RETRY,
+            )
+            messages.append(assistant_msg)
 
-            workflow.logger.info("[%s] resumed", execution_id)
-            answer = self._user_input
-            self._question = ""
-            self._user_input = ""
-            return answer
+            tool_calls = assistant_msg.get("tool_calls")
+            if not tool_calls:
+                workflow.logger.info("[%s] final answer", execution_id)
+                return assistant_msg.get("content") or ""
 
-        mcp_servers = [
-            stateless_mcp_server(name=name, cache_tools_list=True)
-            for name in agent_config.mcp_server_names
-        ]
+            for tool_call in tool_calls:
+                tool_name: str = tool_call["function"]["name"]
+                tool_args: dict = json.loads(tool_call["function"]["arguments"])
+                tool_call_id: str = tool_call["id"]
+                workflow.logger.info("[%s] tool call: %s", execution_id, tool_name)
 
-        agent = Agent(
-            name="Agent",
-            instructions=agent_config.system_prompt,
-            model=agent_config.model,
-            mcp_servers=mcp_servers,
-            tools=[ask_user],
-        )
+                if tool_name == "ask_user":
+                    self._question = tool_args.get("question_text", "")
+                    self._input_needed = True
+                    workflow.logger.info(
+                        "[%s] waiting for user input: %s", execution_id, self._question
+                    )
+                    await workflow.wait_condition(lambda: not self._input_needed)
+                    workflow.logger.info("[%s] resumed", execution_id)
+                    tool_result: str = self._user_input
+                    self._user_input = ""
+                    self._question = ""
 
-        result = await Runner.run(agent, input=agent_config.effective_prompt)
-        return str(result.final_output)
+                else:
+                    mcp_ref = agent_config.mcp_tool_map.get(tool_name)
+                    if mcp_ref:
+                        tool_result = await workflow.execute_activity(
+                            call_mcp_tool,
+                            args=[mcp_ref.command, mcp_ref.args, mcp_ref.env, tool_name, tool_args],
+                            start_to_close_timeout=timedelta(seconds=60),
+                            retry_policy=_TOOL_RETRY,
+                        )
+                    else:
+                        tool_result = f"Error: unknown tool '{tool_name}'"
+                        workflow.logger.warning(
+                            "[%s] unknown tool '%s'", execution_id, tool_name
+                        )
+
+                messages.append(
+                    {"role": "tool", "tool_call_id": tool_call_id, "content": tool_result}
+                )
 
     @workflow.signal
     def provide_user_input(self, user_input: str) -> None:

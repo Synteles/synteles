@@ -3,7 +3,9 @@ name = "durable-worker"
 version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
-    "temporalio[openai-agents,opentelemetry]>=1.17.0",
+    "temporalio>=1.17.0",
+    "litellm>=1.74",
+    "mcp>=1.9",
     "httpx>=0.28",
     "pyyaml>=6.0",
 ]
@@ -63,7 +65,7 @@ module = ["yaml"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["agents.*", "temporalio.*", "annotated_types", "pydantic_core.*"]
+module = ["temporalio.*", "litellm.*", "mcp.*"]
 ignore_missing_imports = true
 
 # ---------------------------------------------------------------------------

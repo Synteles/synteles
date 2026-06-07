@@ -45,6 +45,8 @@ class ExecutionRepo:
         active_statuses = [
             StandardExecStatus.deploying,
             StandardExecStatus.running,
+            DurableExecStatus.deploying,
+            DurableExecStatus.running,
             DurableExecStatus.waiting_for_signal,
         ]
         result = await self._db.execute(
