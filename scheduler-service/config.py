@@ -34,7 +34,7 @@ MONITOR_INTERVAL_SECONDS: int = int(os.environ.get("MONITOR_INTERVAL_SECONDS", "
 EXECUTION_BACKEND: str = os.environ.get("EXECUTION_BACKEND", "standard")
 EXECUTION_RUNTIME: str = os.environ.get("EXECUTION_RUNTIME", "docker")
 TEMPORAL_ADDRESS: str = os.environ.get("TEMPORAL_ADDRESS", "localhost:7233")
-AGENT_WORKER_IMAGE: str = os.environ.get("AGENT_WORKER_IMAGE", "synteles/agent-worker:edge")
+AGENT_WORKER_IMAGE: str = os.environ.get("AGENT_WORKER_IMAGE", "synteles/durable-agentlet:edge")
 TAVILY_API_KEY: str = os.environ.get("TAVILY_API_KEY", "")
 
 _cors_env: str = os.environ.get("CORS_ALLOWED_ORIGINS", "")

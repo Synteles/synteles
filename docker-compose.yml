@@ -197,7 +197,7 @@ services:
       S3_LOGS_BUCKET: synteles-logs
       S3_UPLOAD_BUCKET: synteles-uploads
       EXECUTION_RUNTIME: docker
-      AGENT_WORKER_IMAGE: synteles/agent-worker:edge
+      AGENT_WORKER_IMAGE: synteles/durable-agentlet:edge
       TEMPORAL_ADDRESS: temporal:7233
       DOCKER_NETWORK: synteles_default
       OIDC_ISSUER_URL: http://localhost:8080/auth/realms/synteles
@@ -304,9 +304,9 @@ services:
         condition: service_healthy
 
   # Build-only: DockerDurableBackend launches per-execution containers from this image.
-  # Not started by `docker compose up` — build with: docker compose build durable-worker
-  durable-worker:
-    image: synteles/agent-worker:edge
+  # Not started by `docker compose up` — build with: docker compose build durable-agentlet
+  durable-agentlet:
+    image: synteles/durable-agentlet:edge
     build:
       context: durable-worker
     profiles:
