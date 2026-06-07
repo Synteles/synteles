@@ -77,7 +77,7 @@ def _format_execution(e: Any) -> dict[str, Any]:
     created_at = e.created_at.isoformat() if e.created_at else ""
     completed_at = e.completed_at.isoformat() if e.completed_at else None
     # "stopped" is the DB value for user-initiated termination; expose as "terminated"
-    status_value = "terminated" if e.status == ExecStatus.stopped else e.status.value
+    status_value = "terminated" if e.status == ExecStatus.stopped else e.status
     summary: dict[str, Any] = {
         "execution_id": str(e.id),
         "agentlet_id": e.agentlet_name,
@@ -206,7 +206,7 @@ async def get_execution_logs(
         raise HTTPException(status_code=403, detail="Not authorized to access this execution")
 
     logs_s3_uri = execution.logs_s3_uri
-    exec_status = "terminated" if execution.status == ExecStatus.stopped else execution.status.value
+    exec_status = "terminated" if execution.status == ExecStatus.stopped else execution.status
 
     if not logs_s3_uri:
         if execution.status in (ExecStatus.running, ExecStatus.deploying):
@@ -277,7 +277,7 @@ async def get_execution_status(
     if str(execution.org_id) != org_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this execution")
 
-    exec_status = "terminated" if execution.status == ExecStatus.stopped else execution.status.value
+    exec_status = "terminated" if execution.status == ExecStatus.stopped else execution.status
     completed_at = execution.completed_at.isoformat() if execution.completed_at else None
     response_body: dict[str, Any] = {
         "execution_id": execution_id,
@@ -316,7 +316,7 @@ async def cancel_execution(
 
     completed_at = execution.completed_at.isoformat() if execution.completed_at else None
     status_value = (
-        "terminated" if execution.status == ExecStatus.stopped else execution.status.value
+        "terminated" if execution.status == ExecStatus.stopped else execution.status
     )
     return {
         "execution_id": execution_id,
@@ -367,7 +367,7 @@ async def get_public_execution_status(
     if str(execution.org_id) != org_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this execution")
 
-    exec_status = "terminated" if execution.status == ExecStatus.stopped else execution.status.value
+    exec_status = "terminated" if execution.status == ExecStatus.stopped else execution.status
     completed_at = execution.completed_at.isoformat() if execution.completed_at else None
     response_body: dict[str, Any] = {
         "execution_id": execution_id,
