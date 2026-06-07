@@ -463,7 +463,7 @@ function AgentletDrawer({
   useEffect(() => {
     setName(initial?.name ?? '')
     setDesc(initial?.description ?? '')
-    setExecutionBackend('standard')
+    setExecutionBackend(initial?.executionBackend ?? 'standard')
     setYamlMode(false)
     setDrawerTab('properties')
   }, [initial, open])
@@ -565,8 +565,7 @@ function AgentletDrawer({
                   />
                 </div>
 
-                {!isEdit && (
-                  <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2">
                     <label className="text-xs font-medium text-foreground-2">Execution backend</label>
                     <ToggleGroup
                       type="single"
@@ -595,7 +594,6 @@ function AgentletDrawer({
                       )}
                     </div>
                   </div>
-                )}
 
                 {isEdit && initial?.id && (
                   <AgentSchemaView agentletId={initial.id} />
@@ -768,9 +766,9 @@ export function AgentletsPage({ initialData, initialRuns, apiBaseUrl = DEFAULT_A
   function handleSave(name: string, description: string, executionBackend: 'standard' | 'durable' = 'standard') {
     setSaveError(null)
     if (editTarget) {
-      setAgentlets(prev => prev.map(a => a.id === editTarget.id ? { ...a, description } : a))
+      setAgentlets(prev => prev.map(a => a.id === editTarget.id ? { ...a, description, executionBackend } : a))
       startSave(async () => {
-        const result = await updateAgentlet(editTarget.id, description)
+        const result = await updateAgentlet(editTarget.id, description, executionBackend)
         if (result.error) {
           setSaveError(result.error)
           setAgentlets(prev => prev.map(a => a.id === editTarget.id ? editTarget : a))

@@ -132,13 +132,17 @@ export async function saveAgentletYaml(
 export async function updateAgentlet(
   id: string,
   description: string,
+  executionBackend?: 'standard' | 'durable',
 ): Promise<{ error?: string }> {
   const token = await getServerToken()
   if (!token) return { error: 'Not authenticated' }
   try {
     await apiFetch(`/api/agentlets/${encodeURIComponent(id)}`, {
       method: 'PATCH',
-      body: JSON.stringify({ description }),
+      body: JSON.stringify({
+        description,
+        ...(executionBackend !== undefined && { execution_backend: executionBackend }),
+      }),
     }, token)
     revalidatePath(REVALIDATE)
     return {}
