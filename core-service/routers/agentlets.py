@@ -66,6 +66,7 @@ async def list_agentlets(
         {
             "id": a.name,
             "description": a.description,
+            "execution_backend": str(a.execution_backend),
             "created_at": a.created_at.isoformat(),
             "updated_at": a.updated_at.isoformat(),
         }
