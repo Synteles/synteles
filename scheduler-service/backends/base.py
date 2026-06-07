@@ -72,3 +72,12 @@ class ExecutionBackend(ABC):
         Returns None for backends that do not support this query.
         """
         return None
+
+    def container_alive(self, job_ref: str) -> bool:
+        """Return True if the underlying compute unit is currently running.
+
+        Backends that do not have a separate long-lived process (e.g. ECS tasks
+        managed entirely by the orchestrator) should leave this as the default True.
+        DockerDurableBackend overrides it to check the agent-worker container.
+        """
+        return True

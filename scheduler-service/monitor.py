@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from synteles_db.models import DurableExecStatus, Execution, ExecutionType, StandardExecStatus
@@ -26,7 +26,7 @@ from synteles_db.repos.executions import ExecutionRepo
 
 from backends import get_backend
 from backends.base import ExecutionBackend, ExecutionStatus
-from config import MONITOR_INTERVAL_SECONDS, S3_LOGS_BUCKET
+from config import MONITOR_INTERVAL_SECONDS, S3_LOGS_BUCKET, SIGNAL_WAIT_TIMEOUT_SECONDS
 from db import AsyncSessionLocal, get_s3
 
 logger = logging.getLogger(__name__)
@@ -98,9 +98,14 @@ async def _sync_durable_signal_status(execution: Execution, backend: ExecutionBa
         async with AsyncSessionLocal() as db:
             fresh = await ExecutionRepo(db).get_by_id(execution.id)
             if fresh and fresh.status == DurableExecStatus.running:
-                await ExecutionRepo(db).update_status(fresh, DurableExecStatus.waiting_for_signal)
+                signal_timeout_at = datetime.now(UTC) + timedelta(seconds=SIGNAL_WAIT_TIMEOUT_SECONDS)
+                await ExecutionRepo(db).update_status(
+                    fresh,
+                    DurableExecStatus.waiting_for_signal,
+                    timeout_at=signal_timeout_at,
+                )
                 await db.commit()
-                logger.info("Execution %s is waiting for user input", execution.id)
+                logger.info("Execution %s is waiting for user input (signal timeout at %s)", execution.id, signal_timeout_at)
     elif not is_input_needed and db_status == DurableExecStatus.waiting_for_signal:
         async with AsyncSessionLocal() as db:
             fresh = await ExecutionRepo(db).get_by_id(execution.id)
@@ -167,6 +172,12 @@ async def _poll() -> None:
                         await _finalize(fresh, failed, backend, db)
             elif status == ExecutionStatus.RUNNING and exec_type == ExecutionType.durable:
                 await _sync_durable_signal_status(execution, backend)
+                if not backend.container_alive(execution.job_ref):
+                    async with AsyncSessionLocal() as db:
+                        fresh = await ExecutionRepo(db).get_by_id(execution.id)
+                        if fresh:
+                            from worker_restart import ensure_worker_running
+                            await ensure_worker_running(fresh, db)
         except Exception as exc:
             logger.error("Failed to finalize execution %s: %s", execution.id, exc)
 

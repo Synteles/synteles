@@ -55,15 +55,21 @@ _ASK_USER_TOOL: dict = {
     },
 }
 
+# Retry policies are intentionally generous to survive worker container restarts.
+# A dead container causes activity failures; the monitor detects this and can
+# restart the container (Option 2). Until then, Temporal keeps retrying.
+# Budget: 30s → 60s → 120s → 120s … capped, giving ~10+ minutes before giving up.
 _LLM_RETRY = RetryPolicy(
-    maximum_attempts=3,
-    initial_interval=timedelta(seconds=5),
+    maximum_attempts=10,
+    initial_interval=timedelta(seconds=30),
     backoff_coefficient=2.0,
+    maximum_interval=timedelta(seconds=120),
 )
 _TOOL_RETRY = RetryPolicy(
-    maximum_attempts=3,
-    initial_interval=timedelta(seconds=2),
+    maximum_attempts=5,
+    initial_interval=timedelta(seconds=30),
     backoff_coefficient=2.0,
+    maximum_interval=timedelta(seconds=120),
 )
 
 

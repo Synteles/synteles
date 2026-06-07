@@ -142,6 +142,11 @@ async def _deliver_signal(
     await ExecutionRepo(db).update_status(execution, DurableExecStatus.running)
     await db.commit()
 
+    # Ensure a worker container is alive to pick up the resumed workflow.
+    # The container may have exited during the waiting_for_signal pause.
+    from worker_restart import ensure_worker_running
+    await ensure_worker_running(execution, db)
+
 
 @router.get("/api/executions")
 async def list_executions(

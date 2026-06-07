@@ -112,6 +112,9 @@ class DockerDurableBackend(ExecutionBackend):
     async def logs(self, job_ref: str) -> str:
         return self._runtime.container_logs(_container_name(job_ref))
 
+    def container_alive(self, job_ref: str) -> bool:
+        return self._runtime.container_status(_container_name(job_ref)) == ExecutionStatus.RUNNING
+
     async def query_is_input_needed(self, job_ref: str) -> bool | None:
         try:
             client = await get_temporal_client()

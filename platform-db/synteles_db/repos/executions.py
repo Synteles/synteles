@@ -140,6 +140,7 @@ class ExecutionRepo:
         error: str | None = None,
         logs_s3_uri: str | None = None,
         completed_at: datetime | None = None,
+        timeout_at: datetime | None = None,
     ) -> None:
         execution.status = status
         execution.updated_at = datetime.now(UTC)
@@ -151,6 +152,8 @@ class ExecutionRepo:
             execution.logs_s3_uri = logs_s3_uri
         if completed_at is not None:
             execution.completed_at = completed_at
+        if timeout_at is not None:
+            execution.timeout_at = timeout_at
         await self._db.flush()
 
     async def update_workflow_id(self, execution: Execution, workflow_id: str) -> None:
