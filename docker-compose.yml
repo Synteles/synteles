@@ -292,6 +292,17 @@ services:
       retries: 15
       start_period: 30s
 
+  temporal-ui:
+    image: temporalio/ui:2.34.0
+    ports:
+      - "8088:8080"
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:8088
+    depends_on:
+      temporal:
+        condition: service_healthy
+
   # Build-only: DockerDurableBackend launches per-execution containers from this image.
   # Not started by `docker compose up` — build with: docker compose build durable-worker
   durable-worker:
