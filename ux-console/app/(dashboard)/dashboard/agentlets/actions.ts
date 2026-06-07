@@ -22,6 +22,7 @@ export interface AgentletApi {
   id: string
   description?: string
   created_at?: string
+  execution_backend?: 'standard' | 'durable'
 }
 
 export interface ExecutionApi {

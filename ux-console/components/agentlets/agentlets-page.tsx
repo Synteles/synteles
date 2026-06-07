@@ -51,6 +51,7 @@ interface Agentlet {
   name: string
   description: string
   createdAt: Date
+  executionBackend: 'standard' | 'durable'
 }
 
 function fromApi(k: AgentletApi): Agentlet {
@@ -59,6 +60,7 @@ function fromApi(k: AgentletApi): Agentlet {
     name: k.id,
     description: k.description ?? '',
     createdAt: k.created_at ? new Date(k.created_at) : new Date(0),
+    executionBackend: k.execution_backend ?? 'standard',
   }
 }
 
@@ -122,6 +124,9 @@ function AgentletCard({
           <Zap size={15} className="text-accent" />
         </div>
         <p className="truncate font-mono text-sm font-semibold text-foreground">{agentlet.name}</p>
+        <div className="ml-auto flex-none">
+          <BackendBadge type={agentlet.executionBackend} />
+        </div>
       </div>
 
       {/* Description */}
@@ -775,7 +780,7 @@ export function AgentletsPage({ initialData, initialRuns, apiBaseUrl = DEFAULT_A
         router.refresh()
       })
     } else {
-      const optimistic: Agentlet = { id: name, name, description, createdAt: new Date() }
+      const optimistic: Agentlet = { id: name, name, description, createdAt: new Date(), executionBackend }
       setAgentlets(prev => [optimistic, ...prev])
       startSave(async () => {
         const result = await createAgentlet(name, description, executionBackend)
