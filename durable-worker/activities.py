@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Any
 
 import litellm
@@ -75,7 +76,7 @@ async def call_mcp_tool(
     server_params = StdioServerParameters(
         command=command,
         args=args,
-        env=env or None,
+        env={**os.environ, **env},  # static YAML env overrides; container secrets always present
     )
     logger.info("MCP tool call: server=%s tool=%s", command, tool_name)
     async with stdio_client(server_params) as (read, write):

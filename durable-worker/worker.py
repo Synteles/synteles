@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 
 from temporalio.client import Client
 from temporalio.worker import Worker
@@ -68,7 +69,7 @@ async def _fetch_mcp_schemas(
         server_params = StdioServerParameters(
             command=spec.command,
             args=spec.args,
-            env=spec.env or None,
+            env={**os.environ, **spec.env},  # static YAML env overrides; container secrets always present
         )
         try:
             async with stdio_client(server_params) as (read, write):
