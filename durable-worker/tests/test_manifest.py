@@ -44,7 +44,6 @@ mcp_tools:
 """
 
 _MANIFEST_WITH_YAML = {"agentlet_yaml": _FULL_YAML, "prompt": ""}
-_MANIFEST_WITH_RUNTIME_PROMPT = {"agentlet_yaml": _FULL_YAML, "prompt": "Custom runtime prompt"}
 
 
 # ---------------------------------------------------------------------------

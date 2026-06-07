@@ -14,7 +14,7 @@ with workflow.unsafe.imports_passed_through():
     # Pre-import pydantic internals so the sandbox snapshots them before the
     # first workflow task — avoids "Module X imported after initial workflow
     # load" warnings when the Agents SDK constructs pydantic models.
-    import annotated_types  # noqa: F401
+    __import__("annotated_types")
     import pydantic_core
     import pydantic_core.core_schema  # noqa: F401
     from agents import Agent, Runner, function_tool
