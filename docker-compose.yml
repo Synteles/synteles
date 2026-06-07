@@ -196,8 +196,8 @@ services:
       S3_SECRET_KEY: minioadmin
       S3_LOGS_BUCKET: synteles-logs
       S3_UPLOAD_BUCKET: synteles-uploads
-      EXECUTION_BACKEND: standard
       EXECUTION_RUNTIME: docker
+      AGENT_WORKER_IMAGE: synteles/agent-worker:edge
       TEMPORAL_ADDRESS: temporal:7233
       DOCKER_NETWORK: synteles_default
       OIDC_ISSUER_URL: http://localhost:8080/auth/realms/synteles
@@ -306,6 +306,7 @@ services:
   # Build-only: DockerDurableBackend launches per-execution containers from this image.
   # Not started by `docker compose up` — build with: docker compose build durable-worker
   durable-worker:
+    image: synteles/agent-worker:edge
     build:
       context: durable-worker
     profiles:
