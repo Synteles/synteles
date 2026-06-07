@@ -25,6 +25,7 @@ export interface Execution {
   execution_id: string
   agentlet_id: string
   status: ExecutionStatus
+  execution_type?: 'standard' | 'durable'
   created_at: string
   completed_at?: string | null
   elapsed_seconds?: number | null

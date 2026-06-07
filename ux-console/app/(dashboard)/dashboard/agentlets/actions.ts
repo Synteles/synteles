@@ -28,6 +28,7 @@ export interface ExecutionApi {
   execution_id: string
   agentlet_id: string
   status: 'running' | 'deploying' | 'completed' | 'failed' | 'terminated'
+  execution_type?: 'standard' | 'durable'
   created_at: string
   completed_at?: string | null
   elapsed_seconds?: number | null
@@ -88,13 +89,19 @@ export async function getAgentletYaml(
 export async function createAgentlet(
   id: string,
   description: string,
+  executionBackend: 'standard' | 'durable' = 'standard',
 ): Promise<{ error?: string }> {
   const token = await getServerToken()
   if (!token) return { error: 'Not authenticated' }
   try {
     await apiFetch('/api/agentlets', {
       method: 'POST',
-      body: JSON.stringify({ id, description: description || undefined, YAML: DEFAULT_YAML }),
+      body: JSON.stringify({
+        id,
+        description: description || undefined,
+        YAML: DEFAULT_YAML,
+        execution_backend: executionBackend,
+      }),
     }, token)
     revalidatePath(REVALIDATE)
     return {}

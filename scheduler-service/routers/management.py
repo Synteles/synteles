@@ -82,6 +82,7 @@ def _format_execution(e: Any) -> dict[str, Any]:
         "execution_id": str(e.id),
         "agentlet_id": e.agentlet_name,
         "status": status_value,
+        "execution_type": str(e.execution_type),
         "created_at": created_at,
         "completed_at": completed_at,
         "logs_s3_uri": e.logs_s3_uri,

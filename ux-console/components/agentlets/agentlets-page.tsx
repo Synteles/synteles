@@ -20,7 +20,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Plus, Search, Zap, Play, Pencil, X, ChevronRight, ChevronDown,
   Clock, CheckCircle2, XCircle, Loader2, Check, Copy,
-  ListFilter, ArrowUpDown,
+  ListFilter, ArrowUpDown, Cpu, Workflow,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -34,6 +34,7 @@ import { useWatchdog } from '@/components/executions/watchdog-provider'
 import { YamlEditor } from './yaml-editor'
 import { AgentSchemaView } from './agent-schema'
 import { ResizablePanel } from '@/components/ui/resizable-panel'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import {
@@ -72,6 +73,21 @@ function fmtElapsed(seconds: number | null | undefined): string | null {
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────
+function BackendBadge({ type }: { type?: 'standard' | 'durable' }) {
+  if (type === 'durable') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-accent-border bg-accent-light px-2 py-0.5 text-xs font-medium text-accent">
+        <Workflow size={10} /> Durable
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2 py-0.5 text-xs font-medium text-muted">
+      <Cpu size={10} /> Standard
+    </span>
+  )
+}
+
 function StatusBadge({ status }: { status: ExecutionApi['status'] }) {
   const map: Record<ExecutionApi['status'], { icon: typeof Loader2; label: string; cls: string; spin: boolean }> = {
     running:    { icon: Loader2,      label: 'Running',    cls: 'text-running bg-running-bg border-running-border', spin: true  },
@@ -241,6 +257,7 @@ function RunsTable({ runs, onSelect }: {
               <tr className="border-b border-border bg-surface">
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted">Agentlet</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted">Backend</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted">Created</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted">Completed</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted">Elapsed</th>
@@ -260,6 +277,7 @@ function RunsTable({ runs, onSelect }: {
                       <span className="font-mono text-xs font-medium text-foreground">{run.agentlet_id}</span>
                     </td>
                     <td className="px-4 py-3"><StatusBadge status={run.status} /></td>
+                    <td className="px-4 py-3"><BackendBadge type={run.execution_type} /></td>
                     <td className="px-4 py-3 text-xs text-muted">{fmtDate(run.created_at)}</td>
                     <td className="px-4 py-3 text-xs text-muted">{fmtDate(run.completed_at)}</td>
                     <td className="px-4 py-3 text-xs text-muted font-mono">
@@ -426,26 +444,28 @@ function AgentletDrawer({
   pending: boolean
   error: string | null
   onClose: () => void
-  onSave: (name: string, description: string) => void
+  onSave: (name: string, description: string, executionBackend: 'standard' | 'durable') => void
   onDeleteRequest: () => void
   apiBaseUrl: string
 }) {
   const isEdit = !!initial?.id
   const [name, setName]        = useState(initial?.name ?? '')
   const [description, setDesc] = useState(initial?.description ?? '')
+  const [executionBackend, setExecutionBackend] = useState<'standard' | 'durable'>('standard')
   const [yamlMode, setYamlMode] = useState(false)
   const [drawerTab, setDrawerTab] = useState<DrawerTab>('properties')
 
   useEffect(() => {
     setName(initial?.name ?? '')
     setDesc(initial?.description ?? '')
+    setExecutionBackend('standard')
     setYamlMode(false)
     setDrawerTab('properties')
   }, [initial, open])
 
   function handleSave() {
     if (!name.trim()) return
-    onSave(name.trim(), description.trim())
+    onSave(name.trim(), description.trim(), executionBackend)
   }
 
   function switchTab(t: DrawerTab) {
@@ -539,6 +559,38 @@ function AgentletDrawer({
                     className="w-full resize-none rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-faint outline-none focus:border-accent-focus transition-colors"
                   />
                 </div>
+
+                {!isEdit && (
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-medium text-foreground-2">Execution backend</label>
+                    <ToggleGroup
+                      type="single"
+                      value={executionBackend}
+                      onValueChange={v => { if (v) setExecutionBackend(v as 'standard' | 'durable') }}
+                      className="w-full"
+                    >
+                      <ToggleGroupItem value="standard" className="flex-1">
+                        <Cpu size={13} /> Standard
+                      </ToggleGroupItem>
+                      <ToggleGroupItem value="durable" className="flex-1">
+                        <Workflow size={13} /> Durable
+                      </ToggleGroupItem>
+                    </ToggleGroup>
+                    <div className="rounded-lg border border-border bg-surface px-3 py-2.5 text-[11px] text-muted leading-relaxed">
+                      {executionBackend === 'standard' ? (
+                        <>
+                          <span className="font-medium text-foreground-2">Standard</span> runs your agentlet in a container for the duration of the task.
+                          Best for short jobs (seconds to a few minutes) that run without interruption.
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-medium text-foreground-2">Durable</span> runs your agentlet as a Temporal workflow — every step is checkpointed,
+                          so the run can pause for human input, survive restarts, and safely handle long-running tasks (hours or days).
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {isEdit && initial?.id && (
                   <AgentSchemaView agentletId={initial.id} />
@@ -708,10 +760,9 @@ export function AgentletsPage({ initialData, initialRuns, apiBaseUrl = DEFAULT_A
   function openCreate() { setEdit(null); setSaveError(null); setDrawer(true) }
   function openEdit(a: Agentlet) { setEdit(a); setSaveError(null); setDrawer(true) }
 
-  function handleSave(name: string, description: string) {
+  function handleSave(name: string, description: string, executionBackend: 'standard' | 'durable' = 'standard') {
     setSaveError(null)
     if (editTarget) {
-      // Optimistic update
       setAgentlets(prev => prev.map(a => a.id === editTarget.id ? { ...a, description } : a))
       startSave(async () => {
         const result = await updateAgentlet(editTarget.id, description)
@@ -727,7 +778,7 @@ export function AgentletsPage({ initialData, initialRuns, apiBaseUrl = DEFAULT_A
       const optimistic: Agentlet = { id: name, name, description, createdAt: new Date() }
       setAgentlets(prev => [optimistic, ...prev])
       startSave(async () => {
-        const result = await createAgentlet(name, description)
+        const result = await createAgentlet(name, description, executionBackend)
         if (result.error) {
           setSaveError(result.error)
           setAgentlets(prev => prev.filter(a => a.id !== name))
