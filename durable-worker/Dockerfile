@@ -11,4 +11,6 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 COPY . .
 
+RUN mkdir -p /tmp/input /tmp/output
+
 CMD ["uv", "run", "python", "worker.py"]

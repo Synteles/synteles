@@ -17,6 +17,7 @@ import { apiFetch } from './client-fetch'
 export type ExecutionStatus =
   | 'deploying'
   | 'running'
+  | 'waiting_for_signal'
   | 'completed'
   | 'failed'
   | 'terminated'
@@ -31,6 +32,7 @@ export interface Execution {
   elapsed_seconds?: number | null
   prompt?: string | null
   logs_s3_uri?: string | null
+  pending_question?: string | null
 }
 
 export interface ExecutionFile {
@@ -60,7 +62,7 @@ export function agentletInitials(id: string): string {
 }
 
 export function isActive(status: ExecutionStatus): boolean {
-  return status === 'running' || status === 'deploying'
+  return status === 'running' || status === 'deploying' || status === 'waiting_for_signal'
 }
 
 export function isTerminal(status: ExecutionStatus): boolean {
@@ -105,6 +107,14 @@ export async function createFileUploadSession(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ files: fileNames.map(name => ({ name })) }),
+  })
+}
+
+export async function sendSignal(executionId: string, input: string): Promise<void> {
+  await apiFetch(`/api/executions/${encodeURIComponent(executionId)}/signal`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ input }),
   })
 }
 

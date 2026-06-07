@@ -61,6 +61,9 @@ const config: Config = {
         'error-bg':      'var(--error-bg)',
         'error-border':  'var(--error-border)',
         'error-focus':   'var(--error-focus)',
+        warning:         'var(--warning)',
+        'warning-bg':    'var(--warning-bg)',
+        'warning-border':'var(--warning-border)',
 
         /* ── shadcn standard tokens ── */
         background:              'var(--bg)',

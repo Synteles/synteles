@@ -104,8 +104,10 @@ class DockerDurableBackend(ExecutionBackend):
                 else ExecutionStatus.RUNNING
             )
         except RPCError as exc:
+            # Transient RPC errors should not permanently fail the execution.
+            # The monitor timeout mechanism handles truly stuck workflows.
             logger.warning("Could not query Temporal workflow for %s: %s", job_ref, exc)
-            return ExecutionStatus.FAILED
+            return ExecutionStatus.RUNNING
 
     async def logs(self, job_ref: str) -> str:
         return self._runtime.container_logs(_container_name(job_ref))

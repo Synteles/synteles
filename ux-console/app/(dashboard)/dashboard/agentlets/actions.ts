@@ -28,7 +28,7 @@ export interface AgentletApi {
 export interface ExecutionApi {
   execution_id: string
   agentlet_id: string
-  status: 'running' | 'deploying' | 'completed' | 'failed' | 'terminated'
+  status: 'running' | 'deploying' | 'waiting_for_signal' | 'completed' | 'failed' | 'terminated'
   execution_type?: 'standard' | 'durable'
   created_at: string
   completed_at?: string | null

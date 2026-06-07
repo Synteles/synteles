@@ -20,7 +20,7 @@ import CodeMirror from '@uiw/react-codemirror'
 import { EditorView } from '@codemirror/view'
 import { toast } from 'sonner'
 import {
-  X, Download, WrapText, Square, CheckCircle2, XCircle, Loader2, FileText, Package,
+  X, Download, WrapText, Square, CheckCircle2, XCircle, Loader2, FileText, Package, Bell,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useColorScheme } from '@/lib/use-color-scheme'
@@ -29,6 +29,7 @@ import {
   getExecutionLogs,
   getExecutionFiles,
   cancelExecution,
+  sendSignal,
   isActive,
   type Execution,
   type ExecutionStatus,
@@ -37,11 +38,12 @@ import { ResizablePanel } from '@/components/ui/resizable-panel'
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 const STATUS_MAP: Record<ExecutionStatus, { label: string; cls: string; spin: boolean; icon: typeof Loader2 }> = {
-  deploying:  { label: 'Deploying',  cls: 'text-running bg-running-bg border-running-border', spin: true,  icon: Loader2      },
-  running:    { label: 'Running',    cls: 'text-running bg-running-bg border-running-border', spin: true,  icon: Loader2      },
-  completed:  { label: 'Completed',  cls: 'text-success bg-success-bg border-success-border', spin: false, icon: CheckCircle2 },
-  failed:     { label: 'Failed',     cls: 'text-error   bg-error-bg   border-error-border',   spin: false, icon: XCircle      },
-  terminated: { label: 'Terminated', cls: 'text-error   bg-error-bg   border-error-border',   spin: false, icon: XCircle      },
+  deploying:          { label: 'Deploying',  cls: 'text-running bg-running-bg border-running-border',   spin: true,  icon: Loader2      },
+  running:            { label: 'Running',    cls: 'text-running bg-running-bg border-running-border',   spin: true,  icon: Loader2      },
+  waiting_for_signal: { label: 'Waiting',    cls: 'text-warning bg-warning-bg border-warning-border',   spin: false, icon: Bell         },
+  completed:          { label: 'Completed',  cls: 'text-success bg-success-bg border-success-border',   spin: false, icon: CheckCircle2 },
+  failed:             { label: 'Failed',     cls: 'text-error   bg-error-bg   border-error-border',     spin: false, icon: XCircle      },
+  terminated:         { label: 'Terminated', cls: 'text-error   bg-error-bg   border-error-border',     spin: false, icon: XCircle      },
 }
 
 function StatusBadge({ status }: { status: ExecutionStatus }) {
@@ -81,6 +83,63 @@ const editorTheme = EditorView.theme({
   '&.cm-focused': { outline: 'none' },
   '.cm-gutters': { display: 'none' },
 })
+
+// ── Signal panel ─────────────────────────────────────────────────────────────
+function SignalPanel({
+  execution,
+  onSignalSent,
+}: {
+  execution: Execution
+  onSignalSent: () => void
+}) {
+  const [value, setValue] = useState('')
+  const qc = useQueryClient()
+
+  const { mutate: submit, isPending } = useMutation({
+    mutationFn: () => sendSignal(execution.execution_id, value.trim()),
+    onSuccess: () => {
+      setValue('')
+      qc.invalidateQueries({ queryKey: ['execution', execution.execution_id] })
+      qc.invalidateQueries({ queryKey: ['executions', 'active'] })
+      onSignalSent()
+    },
+    onError: () => toast.error('Failed to send response'),
+  })
+
+  const canSubmit = value.trim().length > 0 && !isPending
+
+  return (
+    <div className="flex-none border-b border-warning-border bg-warning-bg px-6 py-4 flex flex-col gap-3">
+      <div className="flex items-start gap-2">
+        <Bell size={13} className="flex-none text-warning mt-0.5" />
+        <p className="text-xs text-warning font-medium leading-relaxed">
+          {execution.pending_question ?? 'The agent is waiting for your input.'}
+        </p>
+      </div>
+      <div className="flex gap-2">
+        <textarea
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && canSubmit) submit()
+          }}
+          placeholder="Type your response…"
+          rows={2}
+          className="flex-1 resize-none rounded-lg border border-warning-border bg-card px-3 py-2 text-xs text-foreground placeholder:text-faint focus:outline-none focus:ring-1 focus:ring-warning"
+        />
+        <button
+          onClick={() => submit()}
+          disabled={!canSubmit}
+          className="flex-none self-end flex items-center gap-1.5 rounded-lg bg-warning px-3 py-2 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {isPending ? <Loader2 size={11} className="animate-spin" /> : null}
+          Send
+        </button>
+      </div>
+      <p className="text-[10px] text-faint">⌘ Enter to send</p>
+    </div>
+  )
+}
 
 // ── Details tab ───────────────────────────────────────────────────────────────
 function DetailsTab({ execution }: { execution: Execution }) {
@@ -379,6 +438,14 @@ export function ExecutionDetailSheet({ executionId, onClose }: Props) {
           ))}
         </div>
       </div>
+
+      {/* Signal panel — shown when workflow is waiting for user input */}
+      {execution?.status === 'waiting_for_signal' && (
+        <SignalPanel
+          execution={execution}
+          onSignalSent={() => setTab('details')}
+        />
+      )}
 
       {/* Body */}
       {!execution ? (

@@ -244,6 +244,8 @@ services:
   ux-console:
     build:
       context: ux-console
+      args:
+        S3_PUBLIC_ENDPOINT_URL: ${S3_PUBLIC_ENDPOINT_URL:-http://localhost:9000}
     ports:
       - "3000:3000"
     env_file:
@@ -257,6 +259,7 @@ services:
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-synteles-dev-secret}
       API_BASE_URL: http://traefik:8080
       API_PUBLIC_BASE_URL: ${API_PUBLIC_BASE_URL:-http://localhost:8080}
+      S3_PUBLIC_ENDPOINT_URL: ${S3_PUBLIC_ENDPOINT_URL:-http://localhost:9000}
       CHAT_STREAM_URL: http://synte-service:8080/chat/stream
       REDIRECT_URI: http://localhost:3000/callback
     depends_on:

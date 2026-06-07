@@ -32,7 +32,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from typing import Any
+from urllib.parse import urlparse
 
+import httpx
 from temporalio.client import Client
 from temporalio.worker import Worker
 
@@ -98,6 +101,39 @@ async def _fetch_mcp_schemas(
     return schemas, tool_map
 
 
+async def _download_input_files(
+    input_files: list[dict[str, Any]],
+    trusted_netloc: str,
+    dest_dir: str = "/tmp/input",
+) -> None:
+    """Download each input file from its presigned GET URL into dest_dir.
+
+    Only fetches URLs whose host:port matches trusted_netloc (derived from
+    SYNTELES_MANIFEST_URL) to prevent SSRF if the manifest were tampered with.
+    Redirects are disabled — presigned S3/MinIO URLs never redirect.
+    """
+    os.makedirs(dest_dir, exist_ok=True)
+    async with httpx.AsyncClient(follow_redirects=False, timeout=120) as client:
+        for file_info in input_files:
+            name: str = file_info.get("name", "")
+            url: str = file_info.get("url", "")
+            if not name or not url:
+                continue
+            parsed = urlparse(url)
+            if parsed.netloc != trusted_netloc:
+                raise ValueError(
+                    f"Input file URL host {parsed.netloc!r} does not match "
+                    f"expected manifest origin {trusted_netloc!r}"
+                )
+            safe_name = os.path.basename(name)
+            dest_path = os.path.join(dest_dir, safe_name)
+            resp = await client.get(url)
+            resp.raise_for_status()
+            with open(dest_path, "wb") as f:
+                f.write(resp.content)
+            logger.info("Downloaded input file %r → %s", name, dest_path)
+
+
 async def main() -> None:
     if not SYNTELES_MANIFEST_URL:
         raise RuntimeError("SYNTELES_MANIFEST_URL is not set")
@@ -108,6 +144,13 @@ async def main() -> None:
 
     logger.info("Fetching manifest for execution %s", EXECUTION_ID)
     manifest = await fetch_manifest(SYNTELES_MANIFEST_URL)
+
+    input_files: list[dict[str, Any]] = manifest.get("input_files") or []
+    if input_files:
+        trusted_netloc = urlparse(SYNTELES_MANIFEST_URL).netloc
+        logger.info("Downloading %d input file(s) to /tmp/input/", len(input_files))
+        await _download_input_files(input_files, trusted_netloc)
+
     spec = parse_agentlet(manifest)
 
     effective_prompt = resolve_prompt(manifest, spec)

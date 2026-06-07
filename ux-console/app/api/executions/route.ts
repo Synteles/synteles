@@ -50,9 +50,8 @@ export async function POST(req: NextRequest) {
     console.error(`[POST /api/executions] backend ${res.status}:`, text)
     let detail: string
     try {
-      detail = (JSON.parse(text) as { message?: string; error?: string }).message
-        ?? (JSON.parse(text) as { message?: string; error?: string }).error
-        ?? text
+      const parsed = JSON.parse(text) as { message?: string; error?: string; detail?: string }
+      detail = parsed.message ?? parsed.error ?? parsed.detail ?? text
     } catch {
       detail = text || `Backend error ${res.status}`
     }

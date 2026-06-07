@@ -25,6 +25,8 @@ RUN corepack enable
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+ARG S3_PUBLIC_ENDPOINT_URL
+ENV S3_PUBLIC_ENDPOINT_URL=$S3_PUBLIC_ENDPOINT_URL
 RUN pnpm build
 
 FROM node:22-alpine AS runner

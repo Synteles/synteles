@@ -20,7 +20,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Plus, Search, Zap, Play, Pencil, X, ChevronRight, ChevronDown,
   Clock, CheckCircle2, XCircle, Loader2, Check, Copy,
-  ListFilter, ArrowUpDown, Cpu, Workflow,
+  ListFilter, ArrowUpDown, Cpu, Workflow, Bell,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -92,11 +92,12 @@ function BackendBadge({ type }: { type?: 'standard' | 'durable' }) {
 
 function StatusBadge({ status }: { status: ExecutionApi['status'] }) {
   const map: Record<ExecutionApi['status'], { icon: typeof Loader2; label: string; cls: string; spin: boolean }> = {
-    running:    { icon: Loader2,      label: 'Running',    cls: 'text-running bg-running-bg border-running-border', spin: true  },
-    deploying:  { icon: Loader2,      label: 'Deploying',  cls: 'text-running bg-running-bg border-running-border', spin: true  },
-    completed:  { icon: CheckCircle2, label: 'Completed',  cls: 'text-success bg-success-bg border-success-border', spin: false },
-    failed:     { icon: XCircle,      label: 'Failed',     cls: 'text-error   bg-error-bg   border-error-border',   spin: false },
-    terminated: { icon: XCircle,      label: 'Terminated', cls: 'text-error   bg-error-bg   border-error-border',   spin: false },
+    running:            { icon: Loader2,      label: 'Running',    cls: 'text-running bg-running-bg border-running-border', spin: true  },
+    deploying:          { icon: Loader2,      label: 'Deploying',  cls: 'text-running bg-running-bg border-running-border', spin: true  },
+    waiting_for_signal: { icon: Bell,         label: 'Waiting',    cls: 'text-warning bg-warning-bg border-warning-border', spin: false },
+    completed:          { icon: CheckCircle2, label: 'Completed',  cls: 'text-success bg-success-bg border-success-border', spin: false },
+    failed:             { icon: XCircle,      label: 'Failed',     cls: 'text-error   bg-error-bg   border-error-border',   spin: false },
+    terminated:         { icon: XCircle,      label: 'Terminated', cls: 'text-error   bg-error-bg   border-error-border',   spin: false },
   }
   const { icon: Icon, label, cls, spin } = map[status] ?? map.failed
   return (
@@ -166,10 +167,10 @@ const SORT_LABELS: Record<SortField, string> = {
   elapsed_seconds: 'Elapsed',
 }
 
-const STATUS_OPTIONS = ['all', 'running', 'deploying', 'completed', 'failed', 'terminated'] as const
+const STATUS_OPTIONS = ['all', 'running', 'deploying', 'waiting_for_signal', 'completed', 'failed', 'terminated'] as const
 const STATUS_LABELS: Record<string, string> = {
   all: 'All statuses', running: 'Running', deploying: 'Deploying',
-  completed: 'Completed', failed: 'Failed', terminated: 'Terminated',
+  waiting_for_signal: 'Waiting', completed: 'Completed', failed: 'Failed', terminated: 'Terminated',
 }
 
 function RunsTable({ runs, onSelect }: {
@@ -271,7 +272,7 @@ function RunsTable({ runs, onSelect }: {
             <tbody className="divide-y divide-border bg-card">
               {displayed.map(run => {
                 const elapsed = fmtElapsed(run.elapsed_seconds)
-                const active  = run.status === 'running' || run.status === 'deploying'
+                const active  = run.status === 'running' || run.status === 'deploying' || run.status === 'waiting_for_signal'
                 return (
                   <tr
                     key={run.execution_id}
