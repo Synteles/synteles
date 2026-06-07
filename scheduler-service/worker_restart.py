@@ -49,13 +49,11 @@ async def _assemble_env(execution: Execution, db: AsyncSession) -> dict[str, str
     """
     env_vars: dict[str, str] = {}
 
-    agentlet = await AgentletRepo(db).get_by_org_and_name(
-        execution.org_id, execution.agentlet_name
-    )
+    agentlet = await AgentletRepo(db).get_by_org_and_name(execution.org_id, execution.agentlet_name)
     if agentlet and agentlet.yaml_definition:
         try:
             agentlet_config = yaml.safe_load(agentlet.yaml_definition) or {}
-            yaml_secrets: list = agentlet_config.get("secrets") or []
+            yaml_secrets: list[str] = [str(s) for s in (agentlet_config.get("secrets") or [])]
 
             if "default" in yaml_secrets:
                 model_cfg = agentlet_config.get("model") or {}

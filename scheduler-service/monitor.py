@@ -98,14 +98,20 @@ async def _sync_durable_signal_status(execution: Execution, backend: ExecutionBa
         async with AsyncSessionLocal() as db:
             fresh = await ExecutionRepo(db).get_by_id(execution.id)
             if fresh and fresh.status == DurableExecStatus.running:
-                signal_timeout_at = datetime.now(UTC) + timedelta(seconds=SIGNAL_WAIT_TIMEOUT_SECONDS)
+                signal_timeout_at = datetime.now(UTC) + timedelta(
+                    seconds=SIGNAL_WAIT_TIMEOUT_SECONDS
+                )
                 await ExecutionRepo(db).update_status(
                     fresh,
                     DurableExecStatus.waiting_for_signal,
                     timeout_at=signal_timeout_at,
                 )
                 await db.commit()
-                logger.info("Execution %s is waiting for user input (signal timeout at %s)", execution.id, signal_timeout_at)
+                logger.info(
+                    "Execution %s is waiting for user input (signal timeout at %s)",
+                    execution.id,
+                    signal_timeout_at,
+                )
     elif not is_input_needed and db_status == DurableExecStatus.waiting_for_signal:
         async with AsyncSessionLocal() as db:
             fresh = await ExecutionRepo(db).get_by_id(execution.id)
@@ -177,6 +183,7 @@ async def _poll() -> None:
                         fresh = await ExecutionRepo(db).get_by_id(execution.id)
                         if fresh:
                             from worker_restart import ensure_worker_running
+
                             await ensure_worker_running(fresh, db)
         except Exception as exc:
             logger.error("Failed to finalize execution %s: %s", execution.id, exc)

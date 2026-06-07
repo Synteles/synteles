@@ -145,6 +145,7 @@ async def _deliver_signal(
     # Ensure a worker container is alive to pick up the resumed workflow.
     # The container may have exited during the waiting_for_signal pause.
     from worker_restart import ensure_worker_running
+
     await ensure_worker_running(execution, db)
 
 
@@ -321,9 +322,7 @@ async def cancel_execution(
         await _finalize(execution, ExecStatus.stopped, get_backend(), db)
 
     completed_at = execution.completed_at.isoformat() if execution.completed_at else None
-    status_value = (
-        "terminated" if execution.status == ExecStatus.stopped else execution.status
-    )
+    status_value = "terminated" if execution.status == ExecStatus.stopped else execution.status
     return {
         "execution_id": execution_id,
         "status": status_value,
