@@ -1,16 +1,13 @@
 /** @type {import('next').NextConfig} */
 
 // Allow direct browser uploads to the S3/MinIO endpoint (presigned POST URLs).
-// In production this is an amazonaws.com URL covered by the wildcard below.
-// For local dev, set S3_PUBLIC_ENDPOINT_URL=http://localhost:9000 via docker-compose.
-const s3PublicOrigin = process.env.S3_PUBLIC_ENDPOINT_URL
+// Defaults to the AWS S3 wildcard. Set S3_PUBLIC_ENDPOINT_URL to override
+// (e.g. http://localhost:9000 for local MinIO).
+const s3Origin = process.env.S3_PUBLIC_ENDPOINT_URL
   ? new URL(process.env.S3_PUBLIC_ENDPOINT_URL).origin
-  : null
+  : 'https://*.amazonaws.com'
 
-const connectSrc = [
-  "'self'",
-  ...(s3PublicOrigin ? [s3PublicOrigin] : []),
-].join(' ')
+const connectSrc = ["'self'", s3Origin].join(' ')
 
 const nextConfig = {
   output: 'standalone',

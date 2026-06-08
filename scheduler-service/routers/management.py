@@ -162,7 +162,7 @@ async def list_executions(
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     next_token: Annotated[str | None, Query()] = None,
 ) -> dict[str, Any]:
-    valid_statuses = {s.value for s in ExecStatus}
+    valid_statuses = {s.value for s in ExecStatus} | {s.value for s in DurableExecStatus}
     if status and status not in valid_statuses:
         raise HTTPException(
             status_code=400,
@@ -318,8 +318,9 @@ async def cancel_execution(
     if str(execution.org_id) != org_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this execution")
 
-    if execution.status in (ExecStatus.deploying, ExecStatus.running):
-        await _finalize(execution, ExecStatus.stopped, get_backend(), db)
+    active_statuses = (ExecStatus.deploying, ExecStatus.running, DurableExecStatus.waiting_for_signal)
+    if execution.status in active_statuses:
+        await _finalize(execution, ExecStatus.stopped, get_backend(ExecutionType(execution.execution_type)), db)
 
     completed_at = execution.completed_at.isoformat() if execution.completed_at else None
     status_value = "terminated" if execution.status == ExecStatus.stopped else execution.status
@@ -406,5 +407,6 @@ async def delete_execution(
     if str(execution.org_id) != org_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this execution")
 
-    if execution.status in (ExecStatus.deploying, ExecStatus.running):
-        await _finalize(execution, ExecStatus.stopped, get_backend(), db)
+    active_statuses = (ExecStatus.deploying, ExecStatus.running, DurableExecStatus.waiting_for_signal)
+    if execution.status in active_statuses:
+        await _finalize(execution, ExecStatus.stopped, get_backend(ExecutionType(execution.execution_type)), db)

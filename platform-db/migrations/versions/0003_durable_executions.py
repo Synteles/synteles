@@ -123,6 +123,13 @@ def downgrade() -> None:
     op.execute(f"DROP TYPE IF EXISTS {_SCHEMA}.execution_type")
 
     # 3. Recreate exec_status enum and restore the status column.
+    #
+    # WARNING: this downgrade is only safe if no durable execution has ever
+    # been paused at a HITL prompt. Any row with status='waiting_for_signal'
+    # will cause the USING cast below to fail with:
+    #   invalid input value for enum exec_status: "waiting_for_signal"
+    # Before running this downgrade, ensure no such rows exist:
+    #   SELECT id FROM synteles.executions WHERE status = 'waiting_for_signal';
     op.execute(f"""
         CREATE TYPE {_SCHEMA}.exec_status AS ENUM (
             'deploying', 'running', 'completed', 'failed', 'stopped'
