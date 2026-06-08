@@ -92,15 +92,15 @@ class AgentWorkflow:
 
     @workflow.run
     async def run(self, execution_id: str) -> str:
-        _should_upload = True
+        messages: list[dict] = []
+        if agent_config.system_prompt:
+            messages.append({"role": "system", "content": agent_config.system_prompt})
+        messages.append({"role": "user", "content": agent_config.effective_prompt})
+
+        tools = [_ASK_USER_TOOL] + agent_config.tools_schema
+        result: str = ""
+
         try:
-            messages: list[dict] = []
-            if agent_config.system_prompt:
-                messages.append({"role": "system", "content": agent_config.system_prompt})
-            messages.append({"role": "user", "content": agent_config.effective_prompt})
-
-            tools = [_ASK_USER_TOOL] + agent_config.tools_schema
-
             while True:
                 assistant_msg = await workflow.execute_activity(
                     call_llm_step,
@@ -115,7 +115,8 @@ class AgentWorkflow:
                 tool_calls = assistant_msg.get("tool_calls")
                 if not tool_calls:
                     workflow.logger.info("[%s] final answer", execution_id)
-                    return assistant_msg.get("content") or ""
+                    result = assistant_msg.get("content") or ""
+                    break
 
                 for tool_call in tool_calls:
                     tool_name: str = tool_call["function"]["name"]
@@ -154,11 +155,8 @@ class AgentWorkflow:
                         {"role": "tool", "tool_call_id": tool_call_id, "content": tool_result}
                     )
         except BaseException as exc:
-            if isinstance(exc, asyncio.CancelledError) or is_cancelled_exception(exc):
-                _should_upload = False
-            raise
-        finally:
-            if _should_upload:
+            # Upload on failure (e.g. activity exhausted retries) but not on cancellation
+            if not (isinstance(exc, asyncio.CancelledError) or is_cancelled_exception(exc)):
                 try:
                     await workflow.execute_activity(
                         upload_output,
@@ -170,6 +168,20 @@ class AgentWorkflow:
                     workflow.logger.warning(
                         "[%s] output upload failed: %s", execution_id, upload_exc
                     )
+            raise
+
+        # Normal completion — upload before returning so Temporal records it in history
+        try:
+            await workflow.execute_activity(
+                upload_output,
+                args=[self._output_url],
+                start_to_close_timeout=timedelta(seconds=300),
+                retry_policy=_UPLOAD_RETRY,
+            )
+        except Exception as upload_exc:
+            workflow.logger.warning("[%s] output upload failed: %s", execution_id, upload_exc)
+
+        return result
 
     @workflow.signal
     def provide_user_input(self, user_input: str) -> None:

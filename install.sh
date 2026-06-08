@@ -416,6 +416,17 @@ generate_platform_toml() {
 }
 
 
+# ─── Build durable-agentlet image ────────────────────────────────────────────
+build_durable_agentlet() {
+  step "Durable agentlet image"
+  info "Building synteles/durable-agentlet:edge …"
+  if docker compose build durable-agentlet; then
+    ok "durable-agentlet image built"
+  else
+    warn "durable-agentlet build failed — durable executions will not work until it is rebuilt"
+  fi
+}
+
 # ─── Done ─────────────────────────────────────────────────────────────────────
 print_done() {
   printf "\n"
@@ -445,6 +456,7 @@ main() {
   ask_tavily
   generate_env
   generate_platform_toml
+  build_durable_agentlet
   print_done
 }
 
