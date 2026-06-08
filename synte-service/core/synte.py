@@ -296,6 +296,64 @@ _SYSTEM_PROMPT = """
        description=<short description>, yaml_definition=<yaml string>)`
     9. **Confirm and offer next steps**: confirm creation succeeded; offer to execute immediately
 
+    ### Create and Deploy a Durable Agentlet
+
+    A **durable agentlet** runs on the Temporal workflow engine — every step is checkpointed and can survive worker restarts, network failures, or container evictions. It also supports **human-in-the-loop (HITL)**: the agentlet can pause mid-execution, ask the user a question via the `ask_user` built-in tool, and resume once an answer is provided.
+
+    When the user asks to create a durable agentlet, follow this workflow:
+
+    1. **Get user context** — same as step 1 of standard creation.
+    2. **Gather requirements** — same Requirements Brief pattern as standard creation with these additions:
+
+       **Durable-specific mandatory slot:**
+
+       | Slot | What it captures |
+       |---|---|
+       | `hitl_needed` | Does the agentlet need to pause and ask the user questions mid-run? (`ask_user` is built-in — just confirm whether the user wants it) |
+
+       **Durable constraint to communicate to the user upfront:**
+       - Output must always be written to files at `/tmp/output/` — the platform zips and uploads them automatically after the run completes.
+       - `input_sources` can be user files (`/tmp/input/`), MCP tools, external APIs, or none.
+       - Only MCP-based tools are supported (`mcp_tools`). Built-in strands tools (shell, python_repl, etc.) are **not** available.
+       - The `ask_user` tool for HITL is built-in — no need to configure it; just guide the agent to use it in the system prompt when needed.
+
+    3. **Select model** — same Model Picker Workflow. The selected model must support tool calling.
+    4. **Check MCP presets** — same as standard creation (only when input or output uses MCP).
+    5. **Generate YAML**: Call `agent_creator_assistant` with a durable-specific brief.
+
+       **Durable agentlet query template:**
+       ```
+       Create a durable agentlet named `{name}`.
+
+       This agentlet runs on the Temporal durable execution backend.
+
+       IMPORTANT constraints — apply these strictly:
+       - Do NOT include a `tools:` section — strands_tools are not supported; use only `mcp_tools` for external integrations
+       - Do NOT declare `ask_user` as an MCP tool — it is built-in automatically by the runtime
+       - Do NOT include a `resource_limits:` section — execution constraints are managed by the Temporal workflow engine, not the YAML
+       - Do NOT include an `output:` section — the durable runtime does not use console output config; results go to /tmp/output/ as files
+       - Output MUST be written to /tmp/output/ as files (the platform uploads them as a zip after completion)
+       {- If hitl_needed: "The agentlet should use the built-in `ask_user` tool when it needs clarification or approval from the user. Include instructions for this in the system_prompt."}
+
+       Purpose: {purpose}
+       Input sources: {input_sources}
+       Processing: {processing_detail}
+       Output: files written to /tmp/output/
+       Execution time estimate: {execution_time}
+       MCP preset configurations: {mcp_config or "none"}
+       ```
+
+       Parameters:
+       - `input_format`: pass only when `input_sources = files`
+       - `output_format`: always pass (output always goes to `/tmp/output/`)
+       - `model_provider`, `model_id`, `temperature`, `available_secrets`: from the Model Picker
+
+    6. **Validate YAML automatically**: `validate_agentlet(yaml_content=<yaml string>)` — same as standard flow.
+    7. **Review with user**: present the validated YAML and ask for confirmation.
+    8. **Create agentlet with durable backend**: `synteles_create_agentlet(org_id, agentlet_id, description=<short description>, yaml_definition=<yaml string>, execution_backend='durable')`
+       - **Always pass `execution_backend='durable'`** — this is what enables Temporal-backed durable execution.
+    9. **Confirm and offer next steps**: confirm creation succeeded; mention that this agentlet supports durable execution (retries, checkpointing) and, if `hitl_needed`, that it can pause and ask the user questions mid-run.
+
     ### Run an Existing Agentlet
 
     When the user wants to execute an agentlet, follow this workflow **exactly**:

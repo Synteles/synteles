@@ -17,7 +17,7 @@
 import { useReducer, useRef, useEffect, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import Image from 'next/image'
-import { List, PlusCircle, Network, Rocket, History } from 'lucide-react'
+import { List, PlusCircle, Network, Rocket, History, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
@@ -249,11 +249,12 @@ function pickGreeting(name: string): string {
 // ── Suggestions ───────────────────────────────────────────────────────────────
 
 const SUGGESTIONS: { label: string; prompt: string; icon: React.ElementType }[] = [
-  { label: 'Show my agentlets',           prompt: 'List all my agentlets',                                               icon: List       },
-  { label: 'Create a new agentlet',       prompt: 'Help me create a new agentlet from scratch',                          icon: PlusCircle },
-  { label: 'Create a multi-agent system', prompt: 'I want to build a system with multiple AI agents working together',   icon: Network    },
-  { label: 'Run an agentlet',             prompt: 'I want to execute one of my agentlets',                               icon: Rocket     },
-  { label: 'Show my recent runs',         prompt: 'Show my most recent agentlet executions',                             icon: History    },
+  { label: 'Show my agentlets',             prompt: 'List all my agentlets',                                                                     icon: List       },
+  { label: 'Create a new agentlet',         prompt: 'Help me create a new agentlet from scratch',                                              icon: PlusCircle },
+  { label: 'Create durable agentlet',       prompt: 'Help me create a new durable agentlet with checkpointing and human-in-the-loop support', icon: Zap        },
+  { label: 'Create a multi-agent system',   prompt: 'I want to build a system with multiple AI agents working together',                       icon: Network    },
+  { label: 'Run an agentlet',               prompt: 'I want to execute one of my agentlets',                                                  icon: Rocket     },
+  { label: 'Show my recent runs',           prompt: 'Show my most recent agentlet executions',                                                 icon: History    },
 ]
 
 // ── Component ─────────────────────────────────────────────────────────────────
