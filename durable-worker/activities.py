@@ -12,15 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Temporal activities: LiteLLM completion and MCP stdio tool calls."""
+"""Temporal activities: LiteLLM completion, MCP stdio tool calls, and output upload."""
 
 from __future__ import annotations
 
 import json
 import logging
 import os
+import zipfile as _zipfile
 from typing import Any
 
+import httpx
 import litellm
 from temporalio import activity
 
@@ -91,3 +93,55 @@ async def call_mcp_tool(
         else:
             parts.append(str(content))
     return "\n".join(parts)
+
+
+@activity.defn
+async def upload_output(output_url: str) -> None:
+    """Zip /tmp/output and PUT to the presigned S3 URL.
+
+    No-op when output_url is empty or /tmp/output has no files.
+    Raises on upload failure so Temporal can retry.
+    """
+    output_dir = "/tmp/output"
+    zip_path = "/tmp/output.zip"
+
+    if not output_url:
+        logger.info("No output URL — skipping output upload")
+        return
+
+    if not os.path.isdir(output_dir):
+        logger.info("/tmp/output does not exist — skipping output upload")
+        return
+
+    files: list[tuple[str, str]] = []
+    for dirpath, _dirs, filenames in os.walk(output_dir):
+        for filename in filenames:
+            abs_path = os.path.join(dirpath, filename)
+            arc_name = os.path.relpath(abs_path, output_dir)
+            files.append((abs_path, arc_name))
+
+    if not files:
+        logger.info("Output directory is empty — skipping output upload")
+        return
+
+    logger.info("Zipping %d output file(s) to %s", len(files), zip_path)
+    with _zipfile.ZipFile(zip_path, "w", _zipfile.ZIP_DEFLATED) as zf:
+        for abs_path, arc_name in files:
+            zf.write(abs_path, arc_name)
+
+    zip_size = os.path.getsize(zip_path)
+    logger.info("Uploading output.zip (%d bytes) to presigned URL", zip_size)
+
+    async with httpx.AsyncClient(follow_redirects=False, timeout=120) as client:
+        with open(zip_path, "rb") as f:
+            resp = await client.put(
+                output_url,
+                content=f.read(),
+                headers={"Content-Type": "application/zip"},
+            )
+
+    if resp.status_code not in (200, 204):
+        raise RuntimeError(
+            f"Output upload failed with HTTP {resp.status_code}: {resp.text[:200]}"
+        )
+    logger.info("Output uploaded successfully (HTTP %d)", resp.status_code)

@@ -33,6 +33,7 @@ from temporalio.service import RPCError
 
 from auth import TokenClaims, trusted_claims, trusted_claims_with_org
 from backends import get_backend
+from config import OUTPUT_URL_MAX_EXPIRY_SECONDS, S3_LOGS_BUCKET
 from db import get_db, get_s3
 from monitor import _finalize
 from temporal_client import get_temporal_client
@@ -135,6 +136,21 @@ async def _deliver_signal(
     try:
         client = await get_temporal_client()
         handle = client.get_workflow_handle(execution.workflow_id)
+        # Refresh the output presigned URL before resuming — prevents expiry during long pauses
+        try:
+            fresh_output_url: str = get_s3().generate_presigned_url(
+                "put_object",
+                Params={
+                    "Bucket": S3_LOGS_BUCKET,
+                    "Key": f"executions/{execution_id}/output/output.zip",
+                },
+                ExpiresIn=OUTPUT_URL_MAX_EXPIRY_SECONDS,
+            )
+            await handle.signal("update_output_url", args=[fresh_output_url])
+        except Exception as url_exc:
+            logger.warning(
+                "Failed to refresh output URL for execution %s: %s", execution_id, url_exc
+            )
         await handle.signal("provide_user_input", args=[input_text])
     except RPCError as exc:
         logger.error("Failed to deliver signal to workflow %s: %s", execution.workflow_id, exc)

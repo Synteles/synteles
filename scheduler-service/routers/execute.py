@@ -35,6 +35,7 @@ from synteles_db.repos.executions import ExecutionRepo
 from synteles_db.repos.secrets import SecretRepo
 
 from auth import TokenClaims, trusted_claims, trusted_claims_with_org
+from config import OUTPUT_URL_MAX_EXPIRY_SECONDS
 from db import get_db, get_s3
 
 router = APIRouter()
@@ -46,7 +47,6 @@ _UUID_RE = re.compile(
 )
 _MAX_INPUT_FILES = 20
 _INPUT_URL_EXPIRY_SECONDS = 3600
-_OUTPUT_URL_MAX_EXPIRY_SECONDS = 43200
 _IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 
 _PLATFORM_SECRET_SENTINEL = "default"  # nosec B105 — sentinel string, not a password
@@ -186,7 +186,7 @@ def _copy_input_files(
 def _generate_output_presigned_url(s3_client: Any, execution_id: str, timeout: int) -> str:
     from config import S3_LOGS_BUCKET
 
-    expiry = min(timeout, _OUTPUT_URL_MAX_EXPIRY_SECONDS)
+    expiry = min(timeout, OUTPUT_URL_MAX_EXPIRY_SECONDS)
     output_key = f"executions/{execution_id}/output/output.zip"
     try:
         return str(
@@ -229,7 +229,7 @@ def _upload_execution_manifest(
     except Exception as exc:
         raise RuntimeError(f"Failed to upload execution manifest to S3: {exc}") from exc
 
-    expiry = min(timeout, _OUTPUT_URL_MAX_EXPIRY_SECONDS)
+    expiry = min(timeout, OUTPUT_URL_MAX_EXPIRY_SECONDS)
     try:
         return str(
             s3_client.generate_presigned_url(
@@ -380,6 +380,8 @@ async def _run_execution(
 
     env_vars["SYNTELES_EXEC_ID"] = execution_id
     env_vars["SYNTELES_MANIFEST_URL"] = manifest_url
+    if execution_type == ExecutionType.durable:
+        env_vars["SYNTELES_OUTPUT_URL"] = output_presigned_url
 
     from backends import get_backend
     from backends.base import ExecutionConfig

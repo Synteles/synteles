@@ -88,6 +88,17 @@ async def _assemble_env(execution: Execution, db: AsyncSession) -> dict[str, str
     env_vars["SYNTELES_EXEC_ID"] = execution_id
     env_vars["SYNTELES_MANIFEST_URL"] = manifest_url
 
+    output_key = f"executions/{execution_id}/output/output.zip"
+    try:
+        output_url: str = get_s3().generate_presigned_url(
+            "put_object",
+            Params={"Bucket": S3_LOGS_BUCKET, "Key": output_key},
+            ExpiresIn=_MANIFEST_PRESIGN_TTL,
+        )
+        env_vars["SYNTELES_OUTPUT_URL"] = output_url
+    except Exception as exc:
+        logger.warning("Failed to generate output presigned URL on worker restart: %s", exc)
+
     return env_vars
 
 

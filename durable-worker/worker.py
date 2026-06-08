@@ -40,9 +40,9 @@ from temporalio.client import Client
 from temporalio.worker import Worker
 
 import agent_config
-from activities import call_llm_step, call_mcp_tool
+from activities import call_llm_step, call_mcp_tool, upload_output
 from agent_config import MCPServerRef
-from config import EXECUTION_ID, SYNTELES_MANIFEST_URL, TEMPORAL_ADDRESS, TEMPORAL_TASK_QUEUE
+from config import EXECUTION_ID, SYNTELES_MANIFEST_URL, SYNTELES_OUTPUT_URL, TEMPORAL_ADDRESS, TEMPORAL_TASK_QUEUE
 from manifest import MCPToolSpec, fetch_manifest, parse_agentlet, resolve_prompt
 from workflows.agent import AgentWorkflow
 
@@ -166,6 +166,9 @@ async def main() -> None:
 
     agent_config.tools_schema, agent_config.mcp_tool_map = await _fetch_mcp_schemas(spec.mcp_tools)
 
+    # Env var takes priority — worker_restart.py regenerates it on each container restart
+    agent_config.output_url = SYNTELES_OUTPUT_URL or manifest.get("output_url", "")
+
     logger.info(
         "Config loaded — model=%s mcp_tools=%d prompt=%s",
         agent_config.model,
@@ -179,7 +182,7 @@ async def main() -> None:
         client,
         task_queue=TEMPORAL_TASK_QUEUE,
         workflows=[AgentWorkflow],
-        activities=[call_llm_step, call_mcp_tool],
+        activities=[call_llm_step, call_mcp_tool, upload_output],
     )
 
     logger.info("Durable worker started on task queue '%s'", TEMPORAL_TASK_QUEUE)

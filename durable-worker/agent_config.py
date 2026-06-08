@@ -40,3 +40,6 @@ tools_schema: list[dict] = []  # type: ignore[type-arg]
 
 # Maps each MCP tool name to the server that provides it
 mcp_tool_map: dict[str, MCPServerRef] = {}
+
+# Presigned S3 PUT URL for output.zip — set from SYNTELES_OUTPUT_URL env var or manifest
+output_url: str = ""
