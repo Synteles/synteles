@@ -33,6 +33,8 @@ export interface Execution {
   prompt?: string | null
   logs_s3_uri?: string | null
   pending_question?: string | null
+  last_message?: string | null
+  workflow_id?: string | null
 }
 
 export interface ExecutionFile {

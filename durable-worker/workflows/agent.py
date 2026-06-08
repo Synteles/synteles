@@ -88,6 +88,7 @@ class AgentWorkflow:
         self._question: str = ""
         self._user_input: str = ""
         self._output_url: str = agent_config.output_url
+        self._last_message: str = ""
 
     @workflow.run
     async def run(self, execution_id: str) -> str:
@@ -108,6 +109,8 @@ class AgentWorkflow:
                     retry_policy=_LLM_RETRY,
                 )
                 messages.append(assistant_msg)
+                if assistant_msg.get("content"):
+                    self._last_message = assistant_msg["content"]
 
                 tool_calls = assistant_msg.get("tool_calls")
                 if not tool_calls:
@@ -186,3 +189,7 @@ class AgentWorkflow:
     @workflow.query
     def get_pending_question(self) -> str:
         return self._question
+
+    @workflow.query
+    def get_last_message(self) -> str:
+        return self._last_message

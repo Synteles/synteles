@@ -24,6 +24,7 @@ import { useExecutionSheet } from './execution-sheet-provider'
 function GradientRing({ execution }: { execution: Execution }) {
   const { openExecution } = useExecutionSheet()
   const initials = agentletInitials(execution.agentlet_id)
+  const waiting = execution.status === 'waiting_for_signal'
 
   return (
     <Tooltip>
@@ -35,21 +36,24 @@ function GradientRing({ execution }: { execution: Execution }) {
           />
         }
       >
-        {/* Spinning gradient layer — rotates freely, never contains text */}
-        <div
-          className="absolute inset-0 rounded-full animate-gradient-ring-spin"
-          style={{
-            background:
-              'conic-gradient(from 0deg, var(--running) 0%, var(--accent) 45%, transparent 65%, transparent 100%)',
-          }}
-        />
-        {/* Inner fill — sibling to the spinner, stays upright */}
+        {/* Ring layer — solid yellow border when waiting, spinning gradient when running */}
+        {waiting ? (
+          <div className="absolute inset-0 rounded-full border-2 border-[var(--warning)]" />
+        ) : (
+          <div
+            className="absolute inset-0 rounded-full animate-gradient-ring-spin"
+            style={{
+              background: 'conic-gradient(from 0deg, var(--running) 0%, var(--accent) 45%, transparent 65%, transparent 100%)',
+            }}
+          />
+        )}
+        {/* Inner fill — sibling to the ring, stays upright */}
         <div className="absolute inset-[2px] rounded-full bg-[var(--sidebar-bg)] flex items-center justify-center text-[10px] font-bold text-[var(--text)] z-10">
           {initials}
         </div>
       </TooltipTrigger>
       <TooltipContent side="right" className="text-xs">
-        {execution.agentlet_id}
+        {execution.agentlet_id}{waiting ? ' · waiting for input' : ''}
       </TooltipContent>
     </Tooltip>
   )

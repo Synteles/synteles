@@ -18,9 +18,10 @@ import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import CodeMirror from '@uiw/react-codemirror'
 import { EditorView } from '@codemirror/view'
+import { json as jsonLang } from '@codemirror/lang-json'
 import { toast } from 'sonner'
 import {
-  X, Download, WrapText, Square, CheckCircle2, XCircle, Loader2, FileText, Package, Bell,
+  X, Download, WrapText, Square, CheckCircle2, XCircle, Loader2, FileText, Package, Bell, Copy, Check,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useColorScheme } from '@/lib/use-color-scheme'
@@ -35,12 +36,23 @@ import {
   type ExecutionStatus,
 } from '@/lib/executions'
 import { ResizablePanel } from '@/components/ui/resizable-panel'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 const STATUS_MAP: Record<ExecutionStatus, { label: string; cls: string; spin: boolean; icon: typeof Loader2 }> = {
   deploying:          { label: 'Deploying',  cls: 'text-running bg-running-bg border-running-border',   spin: true,  icon: Loader2      },
   running:            { label: 'Running',    cls: 'text-running bg-running-bg border-running-border',   spin: true,  icon: Loader2      },
-  waiting_for_signal: { label: 'Waiting',    cls: 'text-warning bg-warning-bg border-warning-border',   spin: false, icon: Bell         },
+  waiting_for_signal: { label: 'Waiting', cls: 'text-warning bg-warning-bg border-warning-border', spin: false, icon: Bell },
   completed:          { label: 'Completed',  cls: 'text-success bg-success-bg border-success-border',   spin: false, icon: CheckCircle2 },
   failed:             { label: 'Failed',     cls: 'text-error   bg-error-bg   border-error-border',     spin: false, icon: XCircle      },
   terminated:         { label: 'Terminated', cls: 'text-error   bg-error-bg   border-error-border',     spin: false, icon: XCircle      },
@@ -141,6 +153,58 @@ function SignalPanel({
   )
 }
 
+const outputEditorTheme = EditorView.theme({
+  '&': { fontSize: '12px' },
+  '.cm-scroller': { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', overflow: 'auto' },
+  '.cm-content': { padding: '8px 0' },
+  '.cm-line': { padding: '0 12px' },
+  '&.cm-focused': { outline: 'none' },
+  '.cm-gutters': { display: 'none' },
+})
+
+function OutputBlock({ text }: { text: string }) {
+  const scheme = useColorScheme()
+  const [copied, setCopied] = useState(false)
+
+  let pretty: string | null = null
+  try { pretty = JSON.stringify(JSON.parse(text), null, 2) } catch { /* not json */ }
+
+  const displayText = pretty ?? text
+
+  function handleCopy() {
+    navigator.clipboard.writeText(displayText)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    <div className="group relative rounded-xl border border-border overflow-hidden">
+      <button
+        onClick={handleCopy}
+        title="Copy"
+        className="absolute top-2 right-2 z-10 flex items-center justify-center rounded-md p-1.5 text-muted bg-surface border border-border opacity-0 group-hover:opacity-100 transition-opacity hover:text-foreground"
+      >
+        {copied ? <Check size={12} className="text-success" /> : <Copy size={12} />}
+      </button>
+
+      {pretty ? (
+        <CodeMirror
+          value={pretty}
+          theme={scheme === 'dark' ? 'dark' : 'light'}
+          extensions={[outputEditorTheme, jsonLang(), EditorView.lineWrapping]}
+          editable={false}
+          readOnly
+          basicSetup={{ lineNumbers: false, foldGutter: false, highlightActiveLine: false }}
+        />
+      ) : (
+        <pre className="bg-surface px-4 py-3 text-xs text-foreground leading-relaxed whitespace-pre-wrap">
+          {text}
+        </pre>
+      )}
+    </div>
+  )
+}
+
 // ── Details tab ───────────────────────────────────────────────────────────────
 function DetailsTab({ execution }: { execution: Execution }) {
   const rows = [
@@ -149,6 +213,7 @@ function DetailsTab({ execution }: { execution: Execution }) {
     { label: 'Started',      value: fmtDate(execution.created_at) },
     { label: 'Completed',    value: fmtDate(execution.completed_at) },
     { label: 'Duration',     value: fmtDuration(execution.elapsed_seconds) },
+    ...(execution.workflow_id ? [{ label: 'Workflow ID', value: execution.workflow_id, mono: true }] : []),
   ]
 
   return (
@@ -170,6 +235,13 @@ function DetailsTab({ execution }: { execution: Execution }) {
           <p className="rounded-xl border border-border bg-surface px-4 py-3 text-xs text-foreground leading-relaxed whitespace-pre-wrap">
             {execution.prompt}
           </p>
+        </div>
+      )}
+
+      {execution.last_message && (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-xs font-medium text-foreground-2">Output</p>
+          <OutputBlock text={execution.last_message} />
         </div>
       )}
     </div>
@@ -402,14 +474,29 @@ export function ExecutionDetailSheet({ executionId, onClose }: Props) {
           </div>
           <div className="flex items-center gap-1.5 flex-none">
             {active && execution && (
-              <button
-                onClick={() => cancel()}
-                disabled={cancelling}
-                className="flex items-center gap-1 rounded-md border border-error-border px-2.5 py-1 text-xs text-error hover:bg-error-bg transition-colors disabled:opacity-50"
-              >
-                <Square size={10} fill="currentColor" />
-                {cancelling ? 'Stopping…' : 'Stop'}
-              </button>
+              <AlertDialog>
+                <AlertDialogTrigger
+                  disabled={cancelling}
+                  className="flex items-center gap-1 rounded-md border border-error-border px-2.5 py-1 text-xs text-error hover:bg-error-bg transition-colors disabled:opacity-50"
+                >
+                  <Square size={10} fill="currentColor" />
+                  {cancelling ? 'Terminating…' : 'Terminate'}
+                </AlertDialogTrigger>
+                <AlertDialogContent size="sm">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Terminate execution?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will immediately terminate the running agentlet. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction variant="destructive" onClick={() => cancel()}>
+                      Terminate
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             )}
             <button
               onClick={onClose}

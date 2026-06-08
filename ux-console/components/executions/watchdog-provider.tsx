@@ -45,8 +45,10 @@ function fireToast(ex: Execution, finalStatus: ExecutionStatus) {
     toast.success(`${ex.agentlet_id} completed`, { description: label, id: ex.execution_id })
   } else if (finalStatus === 'failed') {
     toast.error(`${ex.agentlet_id} failed`, { description: label, id: ex.execution_id })
+  } else if (finalStatus === 'waiting_for_signal') {
+    toast.warning(`${ex.agentlet_id} waiting for input`, { description: label, id: ex.execution_id })
   } else {
-    toast.warning(`${ex.agentlet_id} terminated`, { description: label, id: ex.execution_id })
+    toast.error(`${ex.agentlet_id} terminated`, { description: label, id: ex.execution_id })
   }
 }
 
@@ -69,19 +71,24 @@ export function WatchdogProvider({ children }: { children: React.ReactNode }) {
     if (prev.size > 0) {
       for (const [id, ex] of prev) {
         if (!current.has(id)) {
-          // Fetch real terminal status before toasting
+          // Execution left active list — fetch real terminal status before toasting
           getExecution(id).then(final => {
             fireToast(ex, final.status)
             setRecentCompleted(r => [final, ...r].slice(0, MAX_RECENT))
             queryClient.invalidateQueries({ queryKey: ['executions', 'recent'] })
           }).catch(() => {
-            // Fallback if the fetch fails
             fireToast(ex, 'completed')
             setRecentCompleted(r =>
               [{ ...ex, status: 'completed' as const }, ...r].slice(0, MAX_RECENT),
             )
             queryClient.invalidateQueries({ queryKey: ['executions', 'recent'] })
           })
+        } else if (
+          ex.status !== 'waiting_for_signal' &&
+          current.get(id)!.status === 'waiting_for_signal'
+        ) {
+          // Execution transitioned into waiting_for_signal while still active
+          fireToast(current.get(id)!, 'waiting_for_signal')
         }
       }
     }

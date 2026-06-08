@@ -99,6 +99,25 @@ class SignalRequest(BaseModel):
     input: str
 
 
+async def _fetch_last_message(workflow_id: str, *, completed: bool) -> str | None:
+    """Fetch last LLM message from a durable workflow.
+
+    Active workflows: query get_last_message.
+    Completed workflows: fetch the run() return value, which IS the final answer.
+    """
+    try:
+        client = await get_temporal_client()
+        handle = client.get_workflow_handle(workflow_id)
+        if completed:
+            result: str = await handle.result(follow_runs=False)
+        else:
+            result = await handle.query("get_last_message")
+        return result or None
+    except Exception as exc:
+        logger.warning("Failed to fetch last message for workflow %s: %s", workflow_id, exc)
+        return None
+
+
 async def _query_pending_question(workflow_id: str) -> str | None:
     """Query the AgentWorkflow for the question it is waiting on. Returns None on any error."""
     try:
@@ -314,10 +333,20 @@ async def get_execution_status(
     elapsed = _calc_elapsed(execution.created_at, execution.completed_at)
     if elapsed is not None:
         response_body["elapsed_seconds"] = elapsed
+    if execution.execution_type == ExecutionType.durable and execution.workflow_id:
+        response_body["workflow_id"] = execution.workflow_id
     if execution.status == DurableExecStatus.waiting_for_signal and execution.workflow_id:
         pending_question = await _query_pending_question(execution.workflow_id)
         if pending_question is not None:
             response_body["pending_question"] = pending_question
+    _active_durable = (ExecStatus.running, ExecStatus.deploying, DurableExecStatus.waiting_for_signal)
+    if execution.execution_type == ExecutionType.durable and execution.workflow_id:
+        if execution.status in _active_durable or execution.status == ExecStatus.completed:
+            last_message = await _fetch_last_message(
+                execution.workflow_id, completed=(execution.status == ExecStatus.completed)
+            )
+            if last_message is not None:
+                response_body["last_message"] = last_message
     return response_body
 
 
@@ -403,10 +432,20 @@ async def get_public_execution_status(
     elapsed = _calc_elapsed(execution.created_at, execution.completed_at)
     if elapsed is not None:
         response_body["elapsed_seconds"] = elapsed
+    if execution.execution_type == ExecutionType.durable and execution.workflow_id:
+        response_body["workflow_id"] = execution.workflow_id
     if execution.status == DurableExecStatus.waiting_for_signal and execution.workflow_id:
         pending_question = await _query_pending_question(execution.workflow_id)
         if pending_question is not None:
             response_body["pending_question"] = pending_question
+    _active_durable = (ExecStatus.running, ExecStatus.deploying, DurableExecStatus.waiting_for_signal)
+    if execution.execution_type == ExecutionType.durable and execution.workflow_id:
+        if execution.status in _active_durable or execution.status == ExecStatus.completed:
+            last_message = await _fetch_last_message(
+                execution.workflow_id, completed=(execution.status == ExecStatus.completed)
+            )
+            if last_message is not None:
+                response_body["last_message"] = last_message
     return response_body
 
 
