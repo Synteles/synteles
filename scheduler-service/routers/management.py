@@ -339,7 +339,11 @@ async def get_execution_status(
         pending_question = await _query_pending_question(execution.workflow_id)
         if pending_question is not None:
             response_body["pending_question"] = pending_question
-    _active_durable = (ExecStatus.running, ExecStatus.deploying, DurableExecStatus.waiting_for_signal)
+    _active_durable = (
+        ExecStatus.running,
+        ExecStatus.deploying,
+        DurableExecStatus.waiting_for_signal,
+    )
     if execution.execution_type == ExecutionType.durable and execution.workflow_id:
         if execution.status in _active_durable or execution.status == ExecStatus.completed:
             last_message = await _fetch_last_message(
@@ -363,9 +367,15 @@ async def cancel_execution(
     if str(execution.org_id) != org_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this execution")
 
-    active_statuses = (ExecStatus.deploying, ExecStatus.running, DurableExecStatus.waiting_for_signal)
+    active_statuses = (
+        ExecStatus.deploying,
+        ExecStatus.running,
+        DurableExecStatus.waiting_for_signal,
+    )
     if execution.status in active_statuses:
-        await _finalize(execution, ExecStatus.stopped, get_backend(ExecutionType(execution.execution_type)), db)
+        await _finalize(
+            execution, ExecStatus.stopped, get_backend(ExecutionType(execution.execution_type)), db
+        )
 
     completed_at = execution.completed_at.isoformat() if execution.completed_at else None
     status_value = "terminated" if execution.status == ExecStatus.stopped else execution.status
@@ -438,7 +448,11 @@ async def get_public_execution_status(
         pending_question = await _query_pending_question(execution.workflow_id)
         if pending_question is not None:
             response_body["pending_question"] = pending_question
-    _active_durable = (ExecStatus.running, ExecStatus.deploying, DurableExecStatus.waiting_for_signal)
+    _active_durable = (
+        ExecStatus.running,
+        ExecStatus.deploying,
+        DurableExecStatus.waiting_for_signal,
+    )
     if execution.execution_type == ExecutionType.durable and execution.workflow_id:
         if execution.status in _active_durable or execution.status == ExecStatus.completed:
             last_message = await _fetch_last_message(
@@ -462,6 +476,12 @@ async def delete_execution(
     if str(execution.org_id) != org_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this execution")
 
-    active_statuses = (ExecStatus.deploying, ExecStatus.running, DurableExecStatus.waiting_for_signal)
+    active_statuses = (
+        ExecStatus.deploying,
+        ExecStatus.running,
+        DurableExecStatus.waiting_for_signal,
+    )
     if execution.status in active_statuses:
-        await _finalize(execution, ExecStatus.stopped, get_backend(ExecutionType(execution.execution_type)), db)
+        await _finalize(
+            execution, ExecStatus.stopped, get_backend(ExecutionType(execution.execution_type)), db
+        )
