@@ -14,14 +14,15 @@
 
 """AgentWorkflow — durable LiteLLM ReAct loop with human-in-the-loop support.
 
-The Agent is configured at worker startup (system_prompt, model, MCP tools) and
-stored in agent_config. The workflow drives the ReAct loop: each LLM call is a
-Temporal activity (non-deterministic), tool dispatch is deterministic workflow
-logic.
+Configuration is loaded via the load_agent_config activity as the very first
+workflow step, ensuring replay determinism (C1). The upload_output call is
+guarded by try/finally + asyncio.shield so it always runs and cannot be
+interrupted by cancellation (C2). All execute_activity calls include
+heartbeat_timeout so Temporal can detect dead workers (C3).
 
 Tool routing:
   ask_user  → HITL signal pause (workflow waits for provide_user_input signal)
-  MCP tools → call_mcp_tool activity, one per call
+  MCP tools → call_mcp_tool / call_http_mcp_tool activity, one per call
   unknown   → logged and reported back to the LLM as an error string
 """
 
@@ -33,12 +34,10 @@ from datetime import timedelta
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
-from temporalio.exceptions import is_cancelled_exception
 
 with workflow.unsafe.imports_passed_through():
-    import agent_config
-    from activities import call_http_mcp_tool, call_llm_step, call_mcp_tool, upload_output
-    from agent_config import StdioServerRef
+    from activities import call_http_mcp_tool, load_agent_config, call_llm_step, call_mcp_tool, upload_output
+    from workflow_config import AgentWorkflowConfig, HttpServerConfig, StdioServerConfig
 
 _ASK_USER_TOOL: dict = {
     "type": "function",
@@ -88,25 +87,40 @@ class AgentWorkflow:
         self._input_needed: bool = False
         self._question: str = ""
         self._user_input: str = ""
-        self._output_url: str = agent_config.output_url
         self._last_message: str = ""
+        self._config: AgentWorkflowConfig | None = None
+        self._output_url: str = ""
 
     @workflow.run
     async def run(self, execution_id: str) -> str:
-        messages: list[dict] = []
-        if agent_config.system_prompt:
-            messages.append({"role": "system", "content": agent_config.system_prompt})
-        messages.append({"role": "user", "content": agent_config.effective_prompt})
+        # C1: Load all config via activity so the result is in event history,
+        # making replay fully deterministic.
+        self._config = await workflow.execute_activity(
+            load_agent_config,
+            start_to_close_timeout=timedelta(seconds=300),
+            heartbeat_timeout=timedelta(seconds=30),
+            retry_policy=_LLM_RETRY,
+        )
+        self._output_url = self._config.output_url
 
-        tools = [_ASK_USER_TOOL] + agent_config.tools_schema
+        messages: list[dict] = []
+        if self._config.system_prompt:
+            messages.append({"role": "system", "content": self._config.system_prompt})
+        messages.append({"role": "user", "content": self._config.effective_prompt})
+
+        tools = [_ASK_USER_TOOL] + self._config.tools_schema
         result: str = ""
 
+        # C2: try/finally ensures upload_output always runs (normal completion,
+        # failure, and cancellation). asyncio.shield prevents the upload activity
+        # itself from being cancelled if the workflow is being cancelled.
         try:
             while True:
                 assistant_msg = await workflow.execute_activity(
                     call_llm_step,
-                    args=[messages, tools, agent_config.model],
+                    args=[messages, tools, self._config.model],
                     start_to_close_timeout=timedelta(seconds=120),
+                    heartbeat_timeout=timedelta(seconds=30),  # C3
                     retry_policy=_LLM_RETRY,
                 )
                 messages.append(assistant_msg)
@@ -138,34 +152,36 @@ class AgentWorkflow:
                         self._question = ""
 
                     else:
-                        mcp_ref = agent_config.mcp_tool_map.get(tool_name)
-                        if mcp_ref:
-                            if isinstance(mcp_ref, StdioServerRef):
-                                tool_result = await workflow.execute_activity(
-                                    call_mcp_tool,
-                                    args=[
-                                        mcp_ref.command,
-                                        mcp_ref.args,
-                                        mcp_ref.env,
-                                        tool_name,
-                                        tool_args,
-                                    ],
-                                    start_to_close_timeout=timedelta(seconds=60),
-                                    retry_policy=_TOOL_RETRY,
-                                )
-                            else:  # HttpServerRef
-                                tool_result = await workflow.execute_activity(
-                                    call_http_mcp_tool,
-                                    args=[
-                                        mcp_ref.url,
-                                        mcp_ref.transport,
-                                        mcp_ref.headers,
-                                        tool_name,
-                                        tool_args,
-                                    ],
-                                    start_to_close_timeout=timedelta(seconds=60),
-                                    retry_policy=_TOOL_RETRY,
-                                )
+                        stdio_ref = self._config.stdio_tool_map.get(tool_name)
+                        http_ref = self._config.http_tool_map.get(tool_name)
+                        if stdio_ref:
+                            tool_result = await workflow.execute_activity(
+                                call_mcp_tool,
+                                args=[
+                                    stdio_ref.command,
+                                    stdio_ref.args,
+                                    stdio_ref.env,
+                                    tool_name,
+                                    tool_args,
+                                ],
+                                start_to_close_timeout=timedelta(seconds=60),
+                                heartbeat_timeout=timedelta(seconds=30),  # C3
+                                retry_policy=_TOOL_RETRY,
+                            )
+                        elif http_ref:
+                            tool_result = await workflow.execute_activity(
+                                call_http_mcp_tool,
+                                args=[
+                                    http_ref.url,
+                                    http_ref.transport,
+                                    http_ref.headers,
+                                    tool_name,
+                                    tool_args,
+                                ],
+                                start_to_close_timeout=timedelta(seconds=60),
+                                heartbeat_timeout=timedelta(seconds=30),  # C3
+                                retry_policy=_TOOL_RETRY,
+                            )
                         else:
                             tool_result = f"Error: unknown tool '{tool_name}'"
                             workflow.logger.warning(
@@ -175,32 +191,21 @@ class AgentWorkflow:
                     messages.append(
                         {"role": "tool", "tool_call_id": tool_call_id, "content": tool_result}
                     )
-        except BaseException as exc:
-            # Upload on failure (e.g. activity exhausted retries) but not on cancellation
-            if not (isinstance(exc, asyncio.CancelledError) or is_cancelled_exception(exc)):
-                try:
-                    await workflow.execute_activity(
+        finally:
+            try:
+                await asyncio.shield(
+                    workflow.execute_activity(
                         upload_output,
                         args=[self._output_url],
                         start_to_close_timeout=timedelta(seconds=300),
+                        heartbeat_timeout=timedelta(seconds=30),  # C3
                         retry_policy=_UPLOAD_RETRY,
                     )
-                except Exception as upload_exc:
-                    workflow.logger.warning(
-                        "[%s] output upload failed: %s", execution_id, upload_exc
-                    )
-            raise
-
-        # Normal completion — upload before returning so Temporal records it in history
-        try:
-            await workflow.execute_activity(
-                upload_output,
-                args=[self._output_url],
-                start_to_close_timeout=timedelta(seconds=300),
-                retry_policy=_UPLOAD_RETRY,
-            )
-        except Exception as upload_exc:
-            workflow.logger.warning("[%s] output upload failed: %s", execution_id, upload_exc)
+                )
+            except Exception as upload_exc:
+                workflow.logger.warning(
+                    "[%s] output upload failed: %s", execution_id, upload_exc
+                )
 
         return result
 
