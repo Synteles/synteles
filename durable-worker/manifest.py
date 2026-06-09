@@ -16,11 +16,10 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal
-
-import logging
 
 import httpx
 import yaml
@@ -103,7 +102,10 @@ def parse_agentlet(manifest: Mapping[str, Any]) -> AgentletSpec:
                 )
             )
         else:
-            _log.warning("mcp_tools entry '%s' skipped: unrecognised server type or missing required field", name)
+            _log.warning(
+                "mcp_tools entry '%s' skipped: unrecognised server type or missing required field",
+                name,
+            )
 
     return AgentletSpec(
         system_prompt=system_prompt,

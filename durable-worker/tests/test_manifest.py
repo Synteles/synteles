@@ -20,7 +20,15 @@ import httpx
 import pytest
 import respx
 
-from manifest import AgentletSpec, HttpMCPToolSpec, MCPToolSpec, StdioMCPToolSpec, fetch_manifest, parse_agentlet, resolve_prompt
+from manifest import (
+    AgentletSpec,
+    HttpMCPToolSpec,
+    MCPToolSpec,
+    StdioMCPToolSpec,
+    fetch_manifest,
+    parse_agentlet,
+    resolve_prompt,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers

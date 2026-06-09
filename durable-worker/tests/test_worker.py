@@ -16,13 +16,12 @@
 
 from __future__ import annotations
 
-import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from agent_config import HttpServerRef, StdioServerRef
-from manifest import HttpMCPToolSpec, StdioMCPToolSpec
+from agent_config import HttpServerRef
+from manifest import HttpMCPToolSpec
 from worker import _fetch_mcp_schemas, _resolve_headers
 
 
@@ -85,7 +84,9 @@ def test_resolve_headers_api_key_env_adds_authorization(monkeypatch: pytest.Monk
     assert result == {"Authorization": "Bearer secret"}
 
 
-def test_resolve_headers_api_key_env_skipped_when_authorization_present(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_headers_api_key_env_skipped_when_authorization_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("OTHER_KEY", "other")
     result = _resolve_headers({"Authorization": "Bearer existing"}, api_key_env="OTHER_KEY")
     assert result == {"Authorization": "Bearer existing"}
@@ -110,7 +111,9 @@ def _make_tool(name: str, description: str = "", schema: dict | None = None):
     return tool
 
 
-async def test_fetch_mcp_schemas_http_returns_http_server_ref(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_fetch_mcp_schemas_http_returns_http_server_ref(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     spec = HttpMCPToolSpec(name="search", url="http://mcp:8000/mcp", transport="http")
 
     session_mock = AsyncMock()
@@ -139,7 +142,9 @@ async def test_fetch_mcp_schemas_http_returns_http_server_ref(monkeypatch: pytes
     assert ref.transport == "http"
 
 
-async def test_fetch_mcp_schemas_sse_returns_http_server_ref(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_fetch_mcp_schemas_sse_returns_http_server_ref(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     spec = HttpMCPToolSpec(name="crm", url="http://crm:9000/sse", transport="sse")
 
     session_mock = AsyncMock()
@@ -157,7 +162,7 @@ async def test_fetch_mcp_schemas_sse_returns_http_server_ref(monkeypatch: pytest
         patch("worker.sse_client", return_value=inner_cm),
         patch("worker.ClientSession", return_value=cm_session),
     ):
-        schemas, tool_map = await _fetch_mcp_schemas([spec])
+        _schemas, tool_map = await _fetch_mcp_schemas([spec])
 
     assert "get_contact" in tool_map
     ref = tool_map["get_contact"]
@@ -165,7 +170,9 @@ async def test_fetch_mcp_schemas_sse_returns_http_server_ref(monkeypatch: pytest
     assert ref.transport == "sse"
 
 
-async def test_fetch_mcp_schemas_http_connection_failure_skips(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_fetch_mcp_schemas_http_connection_failure_skips(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     spec = HttpMCPToolSpec(name="failing", url="http://dead:9999/mcp", transport="http")
 
     inner_cm = AsyncMock()
@@ -179,7 +186,9 @@ async def test_fetch_mcp_schemas_http_connection_failure_skips(monkeypatch: pyte
     assert tool_map == {}
 
 
-async def test_fetch_mcp_schemas_resolves_headers_before_connecting(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_fetch_mcp_schemas_resolves_headers_before_connecting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("API_TOKEN", "tok123")
     spec = HttpMCPToolSpec(
         name="search",

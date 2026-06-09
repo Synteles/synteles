@@ -36,8 +36,9 @@ from temporalio.common import RetryPolicy
 from temporalio.exceptions import is_cancelled_exception
 
 with workflow.unsafe.imports_passed_through():
-    from activities import call_llm_step, call_mcp_tool, upload_output
     import agent_config
+    from activities import call_http_mcp_tool, call_llm_step, call_mcp_tool, upload_output
+    from agent_config import StdioServerRef
 
 _ASK_USER_TOOL: dict = {
     "type": "function",
@@ -139,12 +140,32 @@ class AgentWorkflow:
                     else:
                         mcp_ref = agent_config.mcp_tool_map.get(tool_name)
                         if mcp_ref:
-                            tool_result = await workflow.execute_activity(
-                                call_mcp_tool,
-                                args=[mcp_ref.command, mcp_ref.args, mcp_ref.env, tool_name, tool_args],
-                                start_to_close_timeout=timedelta(seconds=60),
-                                retry_policy=_TOOL_RETRY,
-                            )
+                            if isinstance(mcp_ref, StdioServerRef):
+                                tool_result = await workflow.execute_activity(
+                                    call_mcp_tool,
+                                    args=[
+                                        mcp_ref.command,
+                                        mcp_ref.args,
+                                        mcp_ref.env,
+                                        tool_name,
+                                        tool_args,
+                                    ],
+                                    start_to_close_timeout=timedelta(seconds=60),
+                                    retry_policy=_TOOL_RETRY,
+                                )
+                            else:  # HttpServerRef
+                                tool_result = await workflow.execute_activity(
+                                    call_http_mcp_tool,
+                                    args=[
+                                        mcp_ref.url,
+                                        mcp_ref.transport,
+                                        mcp_ref.headers,
+                                        tool_name,
+                                        tool_args,
+                                    ],
+                                    start_to_close_timeout=timedelta(seconds=60),
+                                    retry_policy=_TOOL_RETRY,
+                                )
                         else:
                             tool_result = f"Error: unknown tool '{tool_name}'"
                             workflow.logger.warning(

@@ -45,10 +45,22 @@ from temporalio.client import Client
 from temporalio.worker import Worker
 
 import agent_config
-from activities import call_llm_step, call_mcp_tool, upload_output
+from activities import call_http_mcp_tool, call_llm_step, call_mcp_tool, upload_output
 from agent_config import HttpServerRef, StdioServerRef
-from config import EXECUTION_ID, SYNTELES_MANIFEST_URL, SYNTELES_OUTPUT_URL, TEMPORAL_ADDRESS, TEMPORAL_TASK_QUEUE
-from manifest import HttpMCPToolSpec, StdioMCPToolSpec, fetch_manifest, parse_agentlet, resolve_prompt
+from config import (
+    EXECUTION_ID,
+    SYNTELES_MANIFEST_URL,
+    SYNTELES_OUTPUT_URL,
+    TEMPORAL_ADDRESS,
+    TEMPORAL_TASK_QUEUE,
+)
+from manifest import (
+    HttpMCPToolSpec,
+    StdioMCPToolSpec,
+    fetch_manifest,
+    parse_agentlet,
+    resolve_prompt,
+)
 from workflows.agent import AgentWorkflow
 
 logging.basicConfig(
@@ -63,11 +75,13 @@ def _resolve_headers(raw: dict[str, str], api_key_env: str | None) -> dict[str, 
     """Resolve ${VAR} placeholders in header values and apply api_key_env if present."""
     resolved: dict[str, str] = {}
     for key, value in raw.items():
+
         def _replace(m: re.Match) -> str:  # type: ignore[type-arg]
             env_val = os.environ.get(m.group(1), "")
             if not env_val:
                 logger.warning("Header placeholder ${%s} has no matching env var", m.group(1))
             return env_val
+
         resolved[key] = re.sub(r"\$\{([^}]+)\}", _replace, value)
 
     if api_key_env and "Authorization" not in resolved:
@@ -103,7 +117,9 @@ async def _fetch_mcp_schemas(
                     async with ClientSession(read, write) as session:
                         await session.initialize()
                         tools_list = await session.list_tools()
-                        ref: StdioServerRef | HttpServerRef = StdioServerRef(command=spec.command, args=spec.args, env=spec.env)
+                        ref: StdioServerRef | HttpServerRef = StdioServerRef(
+                            command=spec.command, args=spec.args, env=spec.env
+                        )
                         for tool in tools_list.tools:
                             schemas.append(
                                 {
@@ -124,7 +140,9 @@ async def _fetch_mcp_schemas(
                         async with ClientSession(read, write) as session:
                             await session.initialize()
                             tools_list = await session.list_tools()
-                            ref = HttpServerRef(url=spec.url, transport=spec.transport, headers=resolved_headers)
+                            ref = HttpServerRef(
+                                url=spec.url, transport=spec.transport, headers=resolved_headers
+                            )
                             for tool in tools_list.tools:
                                 schemas.append(
                                     {
@@ -142,7 +160,9 @@ async def _fetch_mcp_schemas(
                         async with ClientSession(read, write) as session:
                             await session.initialize()
                             tools_list = await session.list_tools()
-                            ref = HttpServerRef(url=spec.url, transport=spec.transport, headers=resolved_headers)
+                            ref = HttpServerRef(
+                                url=spec.url, transport=spec.transport, headers=resolved_headers
+                            )
                             for tool in tools_list.tools:
                                 schemas.append(
                                     {
@@ -155,9 +175,7 @@ async def _fetch_mcp_schemas(
                                     }
                                 )
                                 tool_map[tool.name] = ref
-            logger.info(
-                "Fetched %d tools from MCP server '%s'", len(tools_list.tools), spec.name
-            )
+            logger.info("Fetched %d tools from MCP server '%s'", len(tools_list.tools), spec.name)
         except Exception as exc:
             logger.warning("Failed to reach MCP server '%s': %s", spec.name, exc)
 
@@ -245,7 +263,7 @@ async def main() -> None:
         client,
         task_queue=TEMPORAL_TASK_QUEUE,
         workflows=[AgentWorkflow],
-        activities=[call_llm_step, call_mcp_tool, upload_output],
+        activities=[call_llm_step, call_mcp_tool, call_http_mcp_tool, upload_output],
     )
 
     logger.info("Durable worker started on task queue '%s'", TEMPORAL_TASK_QUEUE)

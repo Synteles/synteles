@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import zipfile as _zipfile
@@ -175,7 +174,5 @@ async def upload_output(output_url: str) -> None:
             )
 
     if resp.status_code not in (200, 204):
-        raise RuntimeError(
-            f"Output upload failed with HTTP {resp.status_code}: {resp.text[:200]}"
-        )
+        raise RuntimeError(f"Output upload failed with HTTP {resp.status_code}: {resp.text[:200]}")
     logger.info("Output uploaded successfully (HTTP %d)", resp.status_code)
