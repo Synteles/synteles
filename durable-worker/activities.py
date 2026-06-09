@@ -64,7 +64,9 @@ def _resolve_headers(raw: dict[str, str], api_key_env: str | None) -> dict[str, 
         if key_value:
             resolved["Authorization"] = f"Bearer {key_value}"
         else:
-            logger.warning("api_key_env '%s' is set but env var is missing", api_key_env)
+            logger.warning(
+                "api_key_env '%s' is set but env var is missing", api_key_env
+            )  # lgtm[py/clear-text-logging-sensitive-data]
 
     return resolved
 
