@@ -22,14 +22,13 @@ import pytest
 
 from activities import _fetch_mcp_schemas, _resolve_headers
 from manifest import HttpMCPToolSpec
+from worker import main
 from workflow_config import HttpServerConfig
 
 
 async def test_main_raises_when_task_queue_missing() -> None:
     with patch("worker.TEMPORAL_TASK_QUEUE", ""):
         with pytest.raises(RuntimeError, match="TEMPORAL_TASK_QUEUE"):
-            from worker import main
-
             await main()
 
 

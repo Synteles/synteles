@@ -93,9 +93,7 @@ async def _fetch_mcp_schemas(
                     async with ClientSession(read, write) as session:
                         await session.initialize()
                         tools_list = await session.list_tools()
-                        ref = StdioServerConfig(
-                            command=spec.command, args=spec.args, env=spec.env
-                        )
+                        ref = StdioServerConfig(command=spec.command, args=spec.args, env=spec.env)
                         for tool in tools_list.tools:
                             schemas.append(
                                 {
@@ -186,7 +184,7 @@ async def _download_input_files(
             dest_path = os.path.join(dest_dir, safe_name)
             resp = await client.get(url)
             resp.raise_for_status()
-            with open(dest_path, "wb") as f:
+            with open(dest_path, "wb") as f:  # noqa: ASYNC230
                 f.write(resp.content)
             logger.info("Downloaded input file %r → %s", name, dest_path)
 
@@ -403,7 +401,7 @@ async def upload_output(output_url: str) -> None:
         logger.info("No output URL — skipping output upload")
         return
 
-    if not os.path.isdir(output_dir):
+    if not os.path.isdir(output_dir):  # noqa: ASYNC240
         logger.info("/tmp/output does not exist — skipping output upload")
         return
 
@@ -411,7 +409,7 @@ async def upload_output(output_url: str) -> None:
     for dirpath, _dirs, filenames in os.walk(output_dir):
         for filename in filenames:
             abs_path = os.path.join(dirpath, filename)
-            arc_name = os.path.relpath(abs_path, output_dir)
+            arc_name = os.path.relpath(abs_path, output_dir)  # noqa: ASYNC240
             files.append((abs_path, arc_name))
 
     if not files:
@@ -424,12 +422,12 @@ async def upload_output(output_url: str) -> None:
         for abs_path, arc_name in files:
             zf.write(abs_path, arc_name)
 
-    zip_size = os.path.getsize(zip_path)
+    zip_size = os.path.getsize(zip_path)  # noqa: ASYNC240
     logger.info("Uploading output.zip (%d bytes) to presigned URL", zip_size)
     activity.heartbeat("uploading")
 
     async with httpx.AsyncClient(follow_redirects=False, timeout=120) as client:
-        with open(zip_path, "rb") as f:
+        with open(zip_path, "rb") as f:  # noqa: ASYNC230
             resp = await client.put(
                 output_url,
                 content=f.read(),

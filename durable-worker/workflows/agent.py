@@ -36,8 +36,14 @@ from temporalio import workflow
 from temporalio.common import RetryPolicy
 
 with workflow.unsafe.imports_passed_through():
-    from activities import call_http_mcp_tool, load_agent_config, call_llm_step, call_mcp_tool, upload_output
-    from workflow_config import AgentWorkflowConfig, HttpServerConfig, StdioServerConfig
+    from activities import (
+        call_http_mcp_tool,
+        call_llm_step,
+        call_mcp_tool,
+        load_agent_config,
+        upload_output,
+    )
+    from workflow_config import AgentWorkflowConfig
 
 _ASK_USER_TOOL: dict = {
     "type": "function",
@@ -108,7 +114,7 @@ class AgentWorkflow:
             messages.append({"role": "system", "content": self._config.system_prompt})
         messages.append({"role": "user", "content": self._config.effective_prompt})
 
-        tools = [_ASK_USER_TOOL] + self._config.tools_schema
+        tools = [_ASK_USER_TOOL, *self._config.tools_schema]
         result: str = ""
 
         # C2: try/finally ensures upload_output always runs (normal completion,
