@@ -20,37 +20,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from agent_config import HttpServerRef
+from activities import _fetch_mcp_schemas, _resolve_headers
 from manifest import HttpMCPToolSpec
-from worker import _fetch_mcp_schemas, _resolve_headers
-
-
-async def test_main_raises_when_manifest_url_missing() -> None:
-    with patch("worker.SYNTELES_MANIFEST_URL", ""):
-        with pytest.raises(RuntimeError, match="SYNTELES_MANIFEST_URL"):
-            from worker import main
-
-            await main()
+from workflow_config import HttpServerConfig
 
 
 async def test_main_raises_when_task_queue_missing() -> None:
-    with (
-        patch("worker.SYNTELES_MANIFEST_URL", "http://example.com/manifest.json"),
-        patch("worker.TEMPORAL_TASK_QUEUE", ""),
-    ):
+    with patch("worker.TEMPORAL_TASK_QUEUE", ""):
         with pytest.raises(RuntimeError, match="TEMPORAL_TASK_QUEUE"):
-            from worker import main
-
-            await main()
-
-
-async def test_main_raises_when_execution_id_missing() -> None:
-    with (
-        patch("worker.SYNTELES_MANIFEST_URL", "http://example.com/manifest.json"),
-        patch("worker.TEMPORAL_TASK_QUEUE", "my-queue"),
-        patch("worker.EXECUTION_ID", ""),
-    ):
-        with pytest.raises(RuntimeError, match="EXECUTION_ID"):
             from worker import main
 
             await main()
@@ -111,7 +88,7 @@ def _make_tool(name: str, description: str = "", schema: dict | None = None):
     return tool
 
 
-async def test_fetch_mcp_schemas_http_returns_http_server_ref(
+async def test_fetch_mcp_schemas_http_returns_http_server_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     spec = HttpMCPToolSpec(name="search", url="http://mcp:8000/mcp", transport="http")
@@ -128,21 +105,21 @@ async def test_fetch_mcp_schemas_http_returns_http_server_ref(
     inner_cm.__aexit__ = AsyncMock(return_value=None)
 
     with (
-        patch("worker.streamablehttp_client", return_value=inner_cm),
-        patch("worker.ClientSession", return_value=cm_session),
+        patch("activities.streamablehttp_client", return_value=inner_cm),
+        patch("activities.ClientSession", return_value=cm_session),
     ):
-        schemas, tool_map = await _fetch_mcp_schemas([spec])
+        schemas, _stdio_tool_map, http_tool_map = await _fetch_mcp_schemas([spec])
 
     assert len(schemas) == 1
     assert schemas[0]["function"]["name"] == "search_web"
-    assert "search_web" in tool_map
-    ref = tool_map["search_web"]
-    assert isinstance(ref, HttpServerRef)
+    assert "search_web" in http_tool_map
+    ref = http_tool_map["search_web"]
+    assert isinstance(ref, HttpServerConfig)
     assert ref.url == "http://mcp:8000/mcp"
     assert ref.transport == "http"
 
 
-async def test_fetch_mcp_schemas_sse_returns_http_server_ref(
+async def test_fetch_mcp_schemas_sse_returns_http_server_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     spec = HttpMCPToolSpec(name="crm", url="http://crm:9000/sse", transport="sse")
@@ -159,14 +136,14 @@ async def test_fetch_mcp_schemas_sse_returns_http_server_ref(
     inner_cm.__aexit__ = AsyncMock(return_value=None)
 
     with (
-        patch("worker.sse_client", return_value=inner_cm),
-        patch("worker.ClientSession", return_value=cm_session),
+        patch("activities.sse_client", return_value=inner_cm),
+        patch("activities.ClientSession", return_value=cm_session),
     ):
-        _schemas, tool_map = await _fetch_mcp_schemas([spec])
+        _schemas, _stdio_tool_map, http_tool_map = await _fetch_mcp_schemas([spec])
 
-    assert "get_contact" in tool_map
-    ref = tool_map["get_contact"]
-    assert isinstance(ref, HttpServerRef)
+    assert "get_contact" in http_tool_map
+    ref = http_tool_map["get_contact"]
+    assert isinstance(ref, HttpServerConfig)
     assert ref.transport == "sse"
 
 
@@ -179,11 +156,12 @@ async def test_fetch_mcp_schemas_http_connection_failure_skips(
     inner_cm.__aenter__ = AsyncMock(side_effect=ConnectionRefusedError("refused"))
     inner_cm.__aexit__ = AsyncMock(return_value=None)
 
-    with patch("worker.streamablehttp_client", return_value=inner_cm):
-        schemas, tool_map = await _fetch_mcp_schemas([spec])
+    with patch("activities.streamablehttp_client", return_value=inner_cm):
+        schemas, _stdio_tool_map, http_tool_map = await _fetch_mcp_schemas([spec])
 
     assert schemas == []
-    assert tool_map == {}
+    assert _stdio_tool_map == {}
+    assert http_tool_map == {}
 
 
 async def test_fetch_mcp_schemas_resolves_headers_before_connecting(
@@ -213,8 +191,8 @@ async def test_fetch_mcp_schemas_resolves_headers_before_connecting(
     cm_session.__aexit__ = AsyncMock(return_value=None)
 
     with (
-        patch("worker.streamablehttp_client", side_effect=fake_streamablehttp_client),
-        patch("worker.ClientSession", return_value=cm_session),
+        patch("activities.streamablehttp_client", side_effect=fake_streamablehttp_client),
+        patch("activities.ClientSession", return_value=cm_session),
     ):
         await _fetch_mcp_schemas([spec])
 
