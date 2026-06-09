@@ -18,18 +18,30 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 import yaml
 
 
 @dataclass
-class MCPToolSpec:
+class StdioMCPToolSpec:
     name: str
     command: str
     args: list[str] = field(default_factory=list)
     env: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class HttpMCPToolSpec:
+    name: str
+    url: str
+    transport: Literal["http", "sse"]
+    headers: dict[str, str] = field(default_factory=dict)
+    api_key_env: str | None = None
+
+
+MCPToolSpec = StdioMCPToolSpec | HttpMCPToolSpec
 
 
 @dataclass
@@ -38,7 +50,7 @@ class AgentletSpec:
     prompt: str | None  # optional default from YAML; None if not set
     provider: str  # e.g. "azure_ai", "openai", "anthropic"
     model_id: str  # e.g. "gpt-5.3-chat", "gpt-4o"
-    mcp_tools: list[MCPToolSpec] = field(default_factory=list)
+    mcp_tools: list[StdioMCPToolSpec | HttpMCPToolSpec] = field(default_factory=list)
 
 
 async def fetch_manifest(url: str) -> dict[str, Any]:
@@ -60,11 +72,11 @@ def parse_agentlet(manifest: Mapping[str, Any]) -> AgentletSpec:
     provider: str = model_cfg.get("provider", "openai")
     model_id: str = model_cfg.get("model_id", "gpt-4o")
 
-    mcp_tools: list[MCPToolSpec] = []
+    mcp_tools: list[StdioMCPToolSpec | HttpMCPToolSpec] = []
     for tool in config.get("mcp_tools") or []:
         if tool.get("server") == "stdio" and tool.get("command"):
             mcp_tools.append(
-                MCPToolSpec(
+                StdioMCPToolSpec(
                     name=tool["name"],
                     command=tool["command"],
                     args=tool.get("args") or [],

@@ -18,15 +18,28 @@ Values are populated before the Temporal Worker starts polling — safe for work
 code to read because they never change after that point."""
 
 from dataclasses import dataclass, field
+from typing import Literal
 
 
 @dataclass
-class MCPServerRef:
+class StdioServerRef:
     """Minimal info needed to launch an MCP stdio server for a tool call."""
 
     command: str
     args: list[str] = field(default_factory=list)
     env: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class HttpServerRef:
+    """Connection info for an HTTP or SSE MCP server (headers already resolved)."""
+
+    url: str
+    transport: Literal["http", "sse"]
+    headers: dict[str, str] = field(default_factory=dict)
+
+
+MCPServerRef = StdioServerRef | HttpServerRef
 
 
 system_prompt: str = ""
@@ -39,7 +52,7 @@ model: str = "azure_ai/gpt-5.3-chat"
 tools_schema: list[dict] = []  # type: ignore[type-arg]
 
 # Maps each MCP tool name to the server that provides it
-mcp_tool_map: dict[str, MCPServerRef] = {}
+mcp_tool_map: dict[str, StdioServerRef | HttpServerRef] = {}
 
 # Presigned S3 PUT URL for output.zip — set from SYNTELES_OUTPUT_URL env var or manifest
 output_url: str = ""
