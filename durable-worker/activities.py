@@ -277,7 +277,10 @@ async def call_llm_step(
         try:
             await heartbeat_task
         except asyncio.CancelledError:
-            pass
+            # Re-raise if the outer activity task itself is being cancelled so
+            # Temporal receives the cancellation (Python 3.11+ Task.cancelling()).
+            if asyncio.current_task().cancelling():
+                raise
 
     msg = response.choices[0].message
     tool_calls = None
@@ -311,11 +314,25 @@ async def call_mcp_tool(
         env={**os.environ, **env},  # static YAML env overrides; container secrets always present
     )
     logger.info("MCP tool call: server=%s tool=%s", command, tool_name)
-    activity.heartbeat()
-    async with _stdio_client(server_params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            result = await session.call_tool(tool_name, arguments)
+
+    async def _hb() -> None:
+        while True:
+            await asyncio.sleep(15)
+            activity.heartbeat()
+
+    hb_task = asyncio.ensure_future(_hb())
+    try:
+        async with _stdio_client(server_params) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                result = await session.call_tool(tool_name, arguments)
+    finally:
+        hb_task.cancel()
+        try:
+            await hb_task
+        except asyncio.CancelledError:
+            if asyncio.current_task().cancelling():
+                raise
 
     parts: list[str] = []
     for content in result.content:
@@ -336,18 +353,32 @@ async def call_http_mcp_tool(
 ) -> str:
     """Call a named tool on an HTTP or SSE MCP server and return the text result."""
     logger.info("MCP HTTP tool call: url=%s transport=%s tool=%s", url, transport, tool_name)
-    activity.heartbeat()
-    if transport == "http":
-        ctx = streamablehttp_client(url, headers=headers)
-        async with ctx as (read, write, _):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                result = await session.call_tool(tool_name, arguments)
-    else:  # sse
-        async with sse_client(url) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                result = await session.call_tool(tool_name, arguments)
+
+    async def _hb() -> None:
+        while True:
+            await asyncio.sleep(15)
+            activity.heartbeat()
+
+    hb_task = asyncio.ensure_future(_hb())
+    try:
+        if transport == "http":
+            ctx = streamablehttp_client(url, headers=headers)
+            async with ctx as (read, write, _):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    result = await session.call_tool(tool_name, arguments)
+        else:  # sse
+            async with sse_client(url) as (read, write):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    result = await session.call_tool(tool_name, arguments)
+    finally:
+        hb_task.cancel()
+        try:
+            await hb_task
+        except asyncio.CancelledError:
+            if asyncio.current_task().cancelling():
+                raise
 
     parts: list[str] = []
     for content in result.content:
