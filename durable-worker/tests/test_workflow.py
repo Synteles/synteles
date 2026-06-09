@@ -139,3 +139,37 @@ def test_multiple_signal_cycles() -> None:
 
     assert wf.is_input_needed() is False
     assert wf._user_input == "Second answer"
+
+
+# ---------------------------------------------------------------------------
+# update_output_url signal
+# ---------------------------------------------------------------------------
+
+
+def test_update_output_url_stores_new_url() -> None:
+    wf = AgentWorkflow()
+    wf.update_output_url("https://bucket.example.com/output.zip?sig=abc")
+    assert wf._output_url == "https://bucket.example.com/output.zip?sig=abc"
+
+
+def test_update_output_url_overwrites_previous_url() -> None:
+    wf = AgentWorkflow()
+    wf.update_output_url("https://first.example.com/output.zip")
+    wf.update_output_url("https://second.example.com/output.zip")
+    assert wf._output_url == "https://second.example.com/output.zip"
+
+
+# ---------------------------------------------------------------------------
+# get_last_message query
+# ---------------------------------------------------------------------------
+
+
+def test_get_last_message_returns_stored_message() -> None:
+    wf = AgentWorkflow()
+    wf._last_message = "The analysis is complete."
+    assert wf.get_last_message() == "The analysis is complete."
+
+
+def test_get_last_message_empty_after_init() -> None:
+    wf = AgentWorkflow()
+    assert wf.get_last_message() == ""

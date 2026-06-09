@@ -67,6 +67,7 @@ async def main() -> None:
         ],
         graceful_shutdown_timeout=timedelta(seconds=300),
         max_concurrent_activities=5,
+        max_concurrent_workflow_tasks=2,
     )
 
     logger.info("Durable worker started on task queue '%s'", TEMPORAL_TASK_QUEUE)

@@ -273,6 +273,20 @@ mcp_tools:
     assert spec.mcp_tools == []
 
 
+def test_parse_agentlet_mcp_tool_entry_without_name_is_skipped() -> None:
+    yaml = """\
+mcp_tools:
+  - server: stdio
+    command: orphan-server
+  - name: valid_tool
+    server: stdio
+    command: good-server
+"""
+    spec = parse_agentlet({"agentlet_yaml": yaml})
+    assert len(spec.mcp_tools) == 1
+    assert spec.mcp_tools[0].name == "valid_tool"
+
+
 # ---------------------------------------------------------------------------
 # resolve_prompt
 # ---------------------------------------------------------------------------

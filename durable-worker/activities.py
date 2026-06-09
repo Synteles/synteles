@@ -27,6 +27,7 @@ from urllib.parse import urlparse
 import httpx
 import litellm
 from mcp import ClientSession, StdioServerParameters
+from temporalio.exceptions import ApplicationError
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import streamablehttp_client
@@ -130,7 +131,7 @@ async def _fetch_mcp_schemas(
                                 )
                                 http_tool_map[tool.name] = ref_http
                 else:  # sse
-                    async with sse_client(spec.url) as (read, write):
+                    async with sse_client(spec.url, headers=resolved_headers) as (read, write):
                         async with ClientSession(read, write) as session:
                             await session.initialize()
                             tools_list = await session.list_tools()
@@ -270,6 +271,12 @@ async def call_llm_step(
             tool_choice="auto" if tools else None,
             num_retries=0,
         )
+    except (
+        litellm.BadRequestError,
+        litellm.AuthenticationError,
+        litellm.PermissionDeniedError,
+    ) as exc:
+        raise ApplicationError(str(exc), non_retryable=True) from exc
     finally:
         heartbeat_task.cancel()
         try:
@@ -366,7 +373,7 @@ async def call_http_mcp_tool(
                     await session.initialize()
                     result = await session.call_tool(tool_name, arguments)
         else:  # sse
-            async with sse_client(url) as (read, write):
+            async with sse_client(url, headers=headers) as (read, write):
                 async with ClientSession(read, write) as session:
                     await session.initialize()
                     result = await session.call_tool(tool_name, arguments)
