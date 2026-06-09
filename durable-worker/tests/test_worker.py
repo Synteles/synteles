@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -34,13 +35,13 @@ async def test_main_raises_when_task_queue_missing() -> None:
 
 async def test_worker_configured_with_max_concurrent_workflow_tasks() -> None:
     """Worker must cap workflow tasks to prevent unbounded memory use during rolling deploys."""
-    captured: dict = {}
+    captured: dict[str, Any] = {}
 
     class _FakeWorker:
-        def __init__(self, _client, **kwargs):
+        def __init__(self, _client: Any, **kwargs: Any) -> None:
             captured.update(kwargs)
 
-        async def run(self):
+        async def run(self) -> None:
             pass
 
     with (
@@ -100,7 +101,7 @@ def test_resolve_headers_api_key_env_missing_skips_header(monkeypatch: pytest.Mo
 # ---------------------------------------------------------------------------
 
 
-def _make_tool(name: str, description: str = "", schema: dict | None = None):
+def _make_tool(name: str, description: str = "", schema: dict[str, Any] | None = None) -> MagicMock:
     tool = MagicMock()
     tool.name = name
     tool.description = description
@@ -227,9 +228,9 @@ async def test_fetch_mcp_schemas_resolves_headers_before_connecting(
         headers={"X-Key": "${API_TOKEN}"},
     )
 
-    captured_headers: dict = {}
+    captured_headers: dict[str, str] = {}
 
-    def fake_streamablehttp_client(url: str, headers: dict):
+    def fake_streamablehttp_client(url: str, headers: dict[str, str]) -> AsyncMock:
         captured_headers.update(headers)
         cm = AsyncMock()
         cm.__aenter__ = AsyncMock(return_value=(MagicMock(), MagicMock(), MagicMock()))

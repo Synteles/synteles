@@ -16,6 +16,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -27,7 +29,7 @@ from temporalio.exceptions import ApplicationError
 from activities import _download_input_files, call_http_mcp_tool, call_llm_step, call_mcp_tool
 
 
-def _make_content(text: str):
+def _make_content(text: str) -> MagicMock:
     c = MagicMock()
     c.text = text
     return c
@@ -94,9 +96,9 @@ async def test_call_http_mcp_tool_sse_transport() -> None:
 
 
 async def test_call_http_mcp_tool_http_passes_headers() -> None:
-    captured: dict = {}
+    captured: dict[str, Any] = {}
 
-    def fake_streamablehttp_client(url: str, headers: dict):
+    def fake_streamablehttp_client(url: str, headers: dict[str, str]) -> AsyncMock:
         captured["url"] = url
         captured["headers"] = headers
         cm = AsyncMock()
@@ -165,9 +167,9 @@ async def test_call_http_mcp_tool_multiple_content_parts_joined() -> None:
 
 async def test_call_http_mcp_tool_sse_passes_headers() -> None:
     """SSE transport must pass auth headers to sse_client — tokens must reach SSE servers."""
-    captured: dict = {}
+    captured: dict[str, Any] = {}
 
-    def fake_sse_client(url: str, headers: dict):
+    def fake_sse_client(url: str, headers: dict[str, str]) -> AsyncMock:
         captured["url"] = url
         captured["headers"] = headers
         cm = AsyncMock()
@@ -207,7 +209,7 @@ async def test_call_http_mcp_tool_sse_passes_headers() -> None:
 
 async def test_call_llm_step_bad_request_raises_non_retryable() -> None:
     """400 BadRequest from the LLM must become a non-retryable ApplicationError."""
-    err = litellm.BadRequestError(message="bad schema", model="gpt-4o", llm_provider="openai")
+    err = litellm.BadRequestError(message="bad schema", model="gpt-4o", llm_provider="openai")  # type: ignore[attr-defined]
 
     with patch("activities.litellm.acompletion", side_effect=err):
         with pytest.raises(ApplicationError) as exc_info:
@@ -220,7 +222,7 @@ async def test_call_llm_step_bad_request_raises_non_retryable() -> None:
 
 async def test_call_llm_step_auth_error_raises_non_retryable() -> None:
     """401 AuthenticationError from the LLM must become a non-retryable ApplicationError."""
-    err = litellm.AuthenticationError(message="invalid key", model="gpt-4o", llm_provider="openai")
+    err = litellm.AuthenticationError(message="invalid key", model="gpt-4o", llm_provider="openai")  # type: ignore[attr-defined]
 
     with patch("activities.litellm.acompletion", side_effect=err):
         with pytest.raises(ApplicationError) as exc_info:
@@ -234,7 +236,7 @@ async def test_call_llm_step_auth_error_raises_non_retryable() -> None:
 async def test_call_llm_step_permission_denied_raises_non_retryable() -> None:
     """403 PermissionDeniedError from the LLM must become a non-retryable ApplicationError."""
     mock_resp = httpx.Response(403, request=httpx.Request("POST", "http://test"))
-    err = litellm.PermissionDeniedError(
+    err = litellm.PermissionDeniedError(  # type: ignore[attr-defined]
         message="permission denied", model="gpt-4o", llm_provider="openai", response=mock_resp
     )
 
@@ -249,10 +251,10 @@ async def test_call_llm_step_permission_denied_raises_non_retryable() -> None:
 
 async def test_call_llm_step_transient_error_propagates_normally() -> None:
     """Transient errors (RateLimitError, ServiceUnavailableError) must propagate as-is for retry."""
-    err = litellm.RateLimitError(message="rate limited", model="gpt-4o", llm_provider="openai")
+    err = litellm.RateLimitError(message="rate limited", model="gpt-4o", llm_provider="openai")  # type: ignore[attr-defined]
 
     with patch("activities.litellm.acompletion", side_effect=err):
-        with pytest.raises(litellm.RateLimitError):
+        with pytest.raises(litellm.RateLimitError):  # type: ignore[attr-defined]
             await call_llm_step(
                 messages=[{"role": "user", "content": "hi"}], tools=[], model="openai/gpt-4o"
             )
@@ -263,7 +265,9 @@ async def test_call_llm_step_transient_error_propagates_normally() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _make_response(content: str | None, tool_calls=None):
+def _make_response(
+    content: str | None, tool_calls: list[dict[str, Any]] | None = None
+) -> MagicMock:
     tc_mocks = []
     if tool_calls:
         for tc in tool_calls:
@@ -316,7 +320,7 @@ async def test_call_llm_step_returns_tool_calls() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _make_mcp_session(content_items):
+def _make_mcp_session(content_items: list[Any]) -> tuple[AsyncMock, AsyncMock, AsyncMock]:
     result_mock = MagicMock()
     result_mock.content = content_items
 
@@ -450,7 +454,7 @@ async def test_call_http_mcp_tool_sse_stringifies_non_text_content() -> None:
 
 @respx.mock
 async def test_download_input_files_fetches_file_to_dest_dir(
-    tmp_path: pytest.TempPathFactory,
+    tmp_path: Path,
 ) -> None:
     """Files are downloaded from presigned URLs into the destination directory."""
     respx.get("http://store:9000/report.pdf").respond(200, content=b"PDF content")
@@ -458,10 +462,10 @@ async def test_download_input_files_fetches_file_to_dest_dir(
 
     await _download_input_files(files, trusted_netloc="store:9000", dest_dir=str(tmp_path))
 
-    assert (tmp_path / "report.pdf").read_bytes() == b"PDF content"  # type: ignore[operator]
+    assert (tmp_path / "report.pdf").read_bytes() == b"PDF content"
 
 
-async def test_download_input_files_raises_on_untrusted_host(tmp_path) -> None:
+async def test_download_input_files_raises_on_untrusted_host(tmp_path: Path) -> None:
     """SSRF guard: URLs with a host different from trusted_netloc raise ValueError."""
     files = [{"name": "evil.pdf", "url": "http://evil.com/evil.pdf"}]
 
@@ -469,19 +473,19 @@ async def test_download_input_files_raises_on_untrusted_host(tmp_path) -> None:
         await _download_input_files(files, trusted_netloc="store:9000", dest_dir=str(tmp_path))
 
 
-async def test_download_input_files_skips_entry_without_name(tmp_path) -> None:
+async def test_download_input_files_skips_entry_without_name(tmp_path: Path) -> None:
     """Entries missing 'name' are silently skipped — no file created."""
     files = [{"url": "http://store:9000/file.pdf"}]
 
     await _download_input_files(files, trusted_netloc="store:9000", dest_dir=str(tmp_path))
 
-    assert list(tmp_path.iterdir()) == []  # type: ignore[operator]
+    assert list(tmp_path.iterdir()) == []  # noqa: ASYNC240
 
 
-async def test_download_input_files_skips_entry_without_url(tmp_path) -> None:
+async def test_download_input_files_skips_entry_without_url(tmp_path: Path) -> None:
     """Entries missing 'url' are silently skipped — no file created."""
     files = [{"name": "file.pdf"}]
 
     await _download_input_files(files, trusted_netloc="store:9000", dest_dir=str(tmp_path))
 
-    assert list(tmp_path.iterdir()) == []  # type: ignore[operator]
+    assert list(tmp_path.iterdir()) == []  # noqa: ASYNC240

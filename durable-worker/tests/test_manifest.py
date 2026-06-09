@@ -92,26 +92,31 @@ def test_parse_agentlet_mcp_tool_name() -> None:
 
 def test_parse_agentlet_mcp_tool_command() -> None:
     spec = parse_agentlet(_MANIFEST_WITH_YAML)
+    assert isinstance(spec.mcp_tools[0], StdioMCPToolSpec)
     assert spec.mcp_tools[0].command == "python"
 
 
 def test_parse_agentlet_mcp_tool_args() -> None:
     spec = parse_agentlet(_MANIFEST_WITH_YAML)
+    assert isinstance(spec.mcp_tools[0], StdioMCPToolSpec)
     assert spec.mcp_tools[0].args == ["-m", "doc_reader"]
 
 
 def test_parse_agentlet_mcp_tool_env() -> None:
     spec = parse_agentlet(_MANIFEST_WITH_YAML)
+    assert isinstance(spec.mcp_tools[0], StdioMCPToolSpec)
     assert spec.mcp_tools[0].env == {"SOME_VAR": "value"}
 
 
 def test_parse_agentlet_mcp_tool_no_args_defaults_to_empty_list() -> None:
     spec = parse_agentlet(_MANIFEST_WITH_YAML)
+    assert isinstance(spec.mcp_tools[1], StdioMCPToolSpec)
     assert spec.mcp_tools[1].args == []
 
 
 def test_parse_agentlet_mcp_tool_no_env_defaults_to_empty_dict() -> None:
     spec = parse_agentlet(_MANIFEST_WITH_YAML)
+    assert isinstance(spec.mcp_tools[1], StdioMCPToolSpec)
     assert spec.mcp_tools[1].env == {}
 
 

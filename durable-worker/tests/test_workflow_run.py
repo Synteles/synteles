@@ -23,8 +23,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+from typing import Any
 
-import pytest
 from temporalio import activity
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
@@ -38,9 +38,9 @@ from workflows.agent import AgentWorkflow
 
 
 def _base_config(
-    stdio_tool_map: dict | None = None,
-    http_tool_map: dict | None = None,
-    tools_schema: list | None = None,
+    stdio_tool_map: dict[str, Any] | None = None,
+    http_tool_map: dict[str, Any] | None = None,
+    tools_schema: list[Any] | None = None,
     output_url: str = "",
 ) -> AgentWorkflowConfig:
     return AgentWorkflowConfig(
@@ -54,11 +54,13 @@ def _base_config(
     )
 
 
-def _final_answer_msg(text: str = "All done.") -> dict:
+def _final_answer_msg(text: str = "All done.") -> dict[str, Any]:
     return {"role": "assistant", "content": text, "tool_calls": None}
 
 
-def _tool_call_msg(tool_name: str, arguments: dict, call_id: str = "tc1") -> dict:
+def _tool_call_msg(
+    tool_name: str, arguments: dict[str, Any], call_id: str = "tc1"
+) -> dict[str, Any]:
     return {
         "role": "assistant",
         "content": None,
@@ -86,7 +88,7 @@ async def test_workflow_run_returns_final_answer() -> None:
             return _base_config()
 
         @activity.defn(name="call_llm_step")
-        async def mock_llm(messages: list, tools: list, model: str) -> dict:
+        async def mock_llm(messages: list[Any], tools: list[Any], model: str) -> dict[str, Any]:
             return _final_answer_msg("The answer is 42.")
 
         @activity.defn(name="upload_output")
@@ -94,12 +96,14 @@ async def test_workflow_run_returns_final_answer() -> None:
             pass
 
         @activity.defn(name="call_mcp_tool")
-        async def mock_mcp(cmd: str, args: list, env: dict, name: str, arguments: dict) -> str:
+        async def mock_mcp(
+            cmd: str, args: list[str], env: dict[str, str], name: str, arguments: dict[str, Any]
+        ) -> str:
             return ""
 
         @activity.defn(name="call_http_mcp_tool")
         async def mock_http_mcp(
-            url: str, transport: str, headers: dict, name: str, arguments: dict
+            url: str, transport: str, headers: dict[str, str], name: str, arguments: dict[str, Any]
         ) -> str:
             return ""
 
@@ -142,17 +146,19 @@ async def test_workflow_run_dispatches_stdio_mcp_tool() -> None:
             return _base_config(stdio_tool_map=stdio_map, tools_schema=tool_schema)
 
         @activity.defn(name="call_llm_step")
-        async def mock_llm(messages: list, tools: list, model: str) -> dict:
+        async def mock_llm(messages: list[Any], tools: list[Any], model: str) -> dict[str, Any]:
             return llm_responses.pop(0)
 
         @activity.defn(name="call_mcp_tool")
-        async def mock_mcp(cmd: str, args: list, env: dict, name: str, arguments: dict) -> str:
+        async def mock_mcp(
+            cmd: str, args: list[str], env: dict[str, str], name: str, arguments: dict[str, Any]
+        ) -> str:
             mcp_call_log.append(name)
             return "search result"
 
         @activity.defn(name="call_http_mcp_tool")
         async def mock_http_mcp(
-            url: str, transport: str, headers: dict, name: str, arguments: dict
+            url: str, transport: str, headers: dict[str, str], name: str, arguments: dict[str, Any]
         ) -> str:
             return ""
 
@@ -204,18 +210,20 @@ async def test_workflow_run_dispatches_http_mcp_tool() -> None:
             return _base_config(http_tool_map=http_map, tools_schema=tool_schema)
 
         @activity.defn(name="call_llm_step")
-        async def mock_llm(messages: list, tools: list, model: str) -> dict:
+        async def mock_llm(messages: list[Any], tools: list[Any], model: str) -> dict[str, Any]:
             return llm_responses.pop(0)
 
         @activity.defn(name="call_http_mcp_tool")
         async def mock_http_mcp(
-            url: str, transport: str, headers: dict, name: str, arguments: dict
+            url: str, transport: str, headers: dict[str, str], name: str, arguments: dict[str, Any]
         ) -> str:
             http_call_log.append(name)
             return "contact data"
 
         @activity.defn(name="call_mcp_tool")
-        async def mock_mcp(cmd: str, args: list, env: dict, name: str, arguments: dict) -> str:
+        async def mock_mcp(
+            cmd: str, args: list[str], env: dict[str, str], name: str, arguments: dict[str, Any]
+        ) -> str:
             return ""
 
         @activity.defn(name="upload_output")
@@ -258,7 +266,7 @@ async def test_workflow_run_returns_error_for_unknown_tool() -> None:
             return _base_config()
 
         @activity.defn(name="call_llm_step")
-        async def mock_llm(messages: list, tools: list, model: str) -> dict:
+        async def mock_llm(messages: list[Any], tools: list[Any], model: str) -> dict[str, Any]:
             return llm_responses.pop(0)
 
         @activity.defn(name="upload_output")
@@ -266,12 +274,14 @@ async def test_workflow_run_returns_error_for_unknown_tool() -> None:
             pass
 
         @activity.defn(name="call_mcp_tool")
-        async def mock_mcp(cmd: str, args: list, env: dict, name: str, arguments: dict) -> str:
+        async def mock_mcp(
+            cmd: str, args: list[str], env: dict[str, str], name: str, arguments: dict[str, Any]
+        ) -> str:
             return ""
 
         @activity.defn(name="call_http_mcp_tool")
         async def mock_http_mcp(
-            url: str, transport: str, headers: dict, name: str, arguments: dict
+            url: str, transport: str, headers: dict[str, str], name: str, arguments: dict[str, Any]
         ) -> str:
             return ""
 
@@ -309,7 +319,7 @@ async def test_workflow_run_ask_user_hitl_with_signal() -> None:
         call_count = {"n": 0}
 
         @activity.defn(name="call_llm_step")
-        async def mock_llm(messages: list, tools: list, model: str) -> dict:
+        async def mock_llm(messages: list[Any], tools: list[Any], model: str) -> dict[str, Any]:
             call_count["n"] += 1
             if call_count["n"] == 1:
                 return _tool_call_msg("ask_user", {"question_text": "Are you sure?"})
@@ -321,12 +331,14 @@ async def test_workflow_run_ask_user_hitl_with_signal() -> None:
             pass
 
         @activity.defn(name="call_mcp_tool")
-        async def mock_mcp(cmd: str, args: list, env: dict, name: str, arguments: dict) -> str:
+        async def mock_mcp(
+            cmd: str, args: list[str], env: dict[str, str], name: str, arguments: dict[str, Any]
+        ) -> str:
             return ""
 
         @activity.defn(name="call_http_mcp_tool")
         async def mock_http_mcp(
-            url: str, transport: str, headers: dict, name: str, arguments: dict
+            url: str, transport: str, headers: dict[str, str], name: str, arguments: dict[str, Any]
         ) -> str:
             return ""
 

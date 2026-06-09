@@ -27,11 +27,11 @@ from urllib.parse import urlparse
 import httpx
 import litellm
 from mcp import ClientSession, StdioServerParameters
-from temporalio.exceptions import ApplicationError
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import streamablehttp_client
 from temporalio import activity
+from temporalio.exceptions import ApplicationError
 
 from manifest import HttpMCPToolSpec, StdioMCPToolSpec
 from workflow_config import AgentWorkflowConfig, HttpServerConfig, StdioServerConfig
@@ -160,7 +160,7 @@ async def _fetch_mcp_schemas(
 async def _download_input_files(
     input_files: list[dict[str, Any]],
     trusted_netloc: str,
-    dest_dir: str = "/tmp/input",
+    dest_dir: str = "/tmp/input",  # nosec B108
 ) -> None:
     """Download each input file from its presigned GET URL into dest_dir.
 
@@ -272,9 +272,9 @@ async def call_llm_step(
             num_retries=0,
         )
     except (
-        litellm.BadRequestError,
-        litellm.AuthenticationError,
-        litellm.PermissionDeniedError,
+        litellm.BadRequestError,  # type: ignore[attr-defined]
+        litellm.AuthenticationError,  # type: ignore[attr-defined]
+        litellm.PermissionDeniedError,  # type: ignore[attr-defined]
     ) as exc:
         raise ApplicationError(str(exc), non_retryable=True) from exc
     finally:
@@ -284,7 +284,8 @@ async def call_llm_step(
         except asyncio.CancelledError:
             # Re-raise if the outer activity task itself is being cancelled so
             # Temporal receives the cancellation (Python 3.11+ Task.cancelling()).
-            if asyncio.current_task().cancelling():
+            t = asyncio.current_task()
+            if t is not None and t.cancelling():
                 raise
 
     msg = response.choices[0].message
@@ -336,7 +337,8 @@ async def call_mcp_tool(
         try:
             await hb_task
         except asyncio.CancelledError:
-            if asyncio.current_task().cancelling():
+            t = asyncio.current_task()
+            if t is not None and t.cancelling():
                 raise
 
     parts: list[str] = []
@@ -382,7 +384,8 @@ async def call_http_mcp_tool(
         try:
             await hb_task
         except asyncio.CancelledError:
-            if asyncio.current_task().cancelling():
+            t = asyncio.current_task()
+            if t is not None and t.cancelling():
                 raise
 
     parts: list[str] = []
@@ -401,15 +404,15 @@ async def upload_output(output_url: str) -> None:
     No-op when output_url is empty or /tmp/output has no files.
     Raises on upload failure so Temporal can retry.
     """
-    output_dir = "/tmp/output"
-    zip_path = "/tmp/output.zip"
+    output_dir = "/tmp/output"  # nosec B108
+    zip_path = "/tmp/output.zip"  # nosec B108
 
     if not output_url:
         logger.info("No output URL — skipping output upload")
         return
 
     if not os.path.isdir(output_dir):  # noqa: ASYNC240
-        logger.info("/tmp/output does not exist — skipping output upload")
+        logger.info("%s does not exist — skipping output upload", output_dir)
         return
 
     files: list[tuple[str, str]] = []

@@ -31,6 +31,7 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import timedelta
+from typing import Any
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
@@ -45,7 +46,7 @@ with workflow.unsafe.imports_passed_through():
     )
     from workflow_config import AgentWorkflowConfig
 
-_ASK_USER_TOOL: dict = {
+_ASK_USER_TOOL: dict[str, Any] = {
     "type": "function",
     "function": {
         "name": "ask_user",
@@ -109,7 +110,7 @@ class AgentWorkflow:
         )
         self._output_url = self._config.output_url
 
-        messages: list[dict] = []
+        messages: list[dict[str, Any]] = []
         if self._config.system_prompt:
             messages.append({"role": "system", "content": self._config.system_prompt})
         messages.append({"role": "user", "content": self._config.effective_prompt})
@@ -141,7 +142,7 @@ class AgentWorkflow:
 
                 for tool_call in tool_calls:
                     tool_name: str = tool_call["function"]["name"]
-                    tool_args: dict = json.loads(tool_call["function"]["arguments"])
+                    tool_args: dict[str, Any] = json.loads(tool_call["function"]["arguments"])
                     tool_call_id: str = tool_call["id"]
                     workflow.logger.info("[%s] tool call: %s", execution_id, tool_name)
 

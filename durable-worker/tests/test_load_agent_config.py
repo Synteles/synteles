@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -29,7 +30,7 @@ def _make_spec(
     system_prompt: str = "You are helpful.",
     provider: str = "openai",
     model_id: str = "gpt-4o",
-    mcp_tools: list | None = None,
+    mcp_tools: list[Any] | None = None,
 ) -> MagicMock:
     spec = MagicMock()
     spec.system_prompt = system_prompt
@@ -79,7 +80,7 @@ async def test_load_agent_config_raises_when_no_prompt() -> None:
 async def test_load_agent_config_returns_workflow_config() -> None:
     """Happy path: returns a fully-populated AgentWorkflowConfig."""
     env = ActivityEnvironment()
-    manifest_data: dict = {"output_url": "https://bucket/out.zip"}
+    manifest_data: dict[str, Any] = {"output_url": "https://bucket/out.zip"}
 
     with (
         patch("manifest.fetch_manifest", new=AsyncMock(return_value=manifest_data)),
@@ -99,7 +100,7 @@ async def test_load_agent_config_returns_workflow_config() -> None:
 async def test_load_agent_config_uses_synteles_output_url_over_manifest() -> None:
     """SYNTELES_OUTPUT_URL env var takes precedence over manifest.output_url."""
     env = ActivityEnvironment()
-    manifest_data: dict = {"output_url": "https://manifest/out.zip"}
+    manifest_data: dict[str, Any] = {"output_url": "https://manifest/out.zip"}
 
     with (
         patch("config.SYNTELES_OUTPUT_URL", "https://env/out.zip"),
@@ -116,7 +117,9 @@ async def test_load_agent_config_uses_synteles_output_url_over_manifest() -> Non
 async def test_load_agent_config_downloads_input_files_when_present() -> None:
     """When manifest contains input_files, _download_input_files is called."""
     env = ActivityEnvironment()
-    manifest_data: dict = {"input_files": [{"name": "doc.pdf", "url": "http://store:9000/doc.pdf"}]}
+    manifest_data: dict[str, Any] = {
+        "input_files": [{"name": "doc.pdf", "url": "http://store:9000/doc.pdf"}]
+    }
 
     with (
         patch("manifest.fetch_manifest", new=AsyncMock(return_value=manifest_data)),
