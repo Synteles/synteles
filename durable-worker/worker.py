@@ -32,18 +32,23 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 from typing import Any
 from urllib.parse import urlparse
 
 import httpx
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.sse import sse_client
+from mcp.client.stdio import stdio_client
+from mcp.client.streamable_http import streamablehttp_client
 from temporalio.client import Client
 from temporalio.worker import Worker
 
 import agent_config
 from activities import call_llm_step, call_mcp_tool, upload_output
-from agent_config import MCPServerRef
+from agent_config import HttpServerRef, StdioServerRef
 from config import EXECUTION_ID, SYNTELES_MANIFEST_URL, SYNTELES_OUTPUT_URL, TEMPORAL_ADDRESS, TEMPORAL_TASK_QUEUE
-from manifest import MCPToolSpec, fetch_manifest, parse_agentlet, resolve_prompt
+from manifest import HttpMCPToolSpec, StdioMCPToolSpec, fetch_manifest, parse_agentlet, resolve_prompt
 from workflows.agent import AgentWorkflow
 
 logging.basicConfig(
@@ -54,44 +59,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def _fetch_mcp_schemas(
-    mcp_tools: list[MCPToolSpec],
-) -> tuple[list[dict], dict[str, MCPServerRef]]:  # type: ignore[type-arg]
-    """Query each MCP stdio server for its tool list.
+def _resolve_headers(raw: dict[str, str], api_key_env: str | None) -> dict[str, str]:
+    """Resolve ${VAR} placeholders in header values and apply api_key_env if present."""
+    resolved: dict[str, str] = {}
+    for key, value in raw.items():
+        def _replace(m: re.Match) -> str:  # type: ignore[type-arg]
+            env_val = os.environ.get(m.group(1), "")
+            if not env_val:
+                logger.warning("Header placeholder ${%s} has no matching env var", m.group(1))
+            return env_val
+        resolved[key] = re.sub(r"\$\{([^}]+)\}", _replace, value)
 
-    Returns (openai-format tool schemas, tool_name → MCPServerRef mapping).
+    if api_key_env and "Authorization" not in resolved:
+        key_value = os.environ.get(api_key_env, "")
+        if key_value:
+            resolved["Authorization"] = f"Bearer {key_value}"
+        else:
+            logger.warning("api_key_env '%s' is set but env var is missing", api_key_env)
+
+    return resolved
+
+
+async def _fetch_mcp_schemas(
+    mcp_tools: list[StdioMCPToolSpec | HttpMCPToolSpec],
+) -> tuple[list[dict], dict[str, StdioServerRef | HttpServerRef]]:  # type: ignore[type-arg]
+    """Query each MCP server for its tool list.
+
+    Returns (openai-format tool schemas, tool_name → server ref mapping).
     Servers that fail to connect are skipped with a warning.
     """
-    from mcp import ClientSession, StdioServerParameters
-    from mcp.client.stdio import stdio_client
-
     schemas: list[dict] = []  # type: ignore[type-arg]
-    tool_map: dict[str, MCPServerRef] = {}
+    tool_map: dict[str, StdioServerRef | HttpServerRef] = {}
 
     for spec in mcp_tools:
-        server_params = StdioServerParameters(
-            command=spec.command,
-            args=spec.args,
-            env={**os.environ, **spec.env},  # static YAML env overrides; container secrets always present
-        )
         try:
-            async with stdio_client(server_params) as (read, write):
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
-                    tools_list = await session.list_tools()
-                    ref = MCPServerRef(command=spec.command, args=spec.args, env=spec.env)
-                    for tool in tools_list.tools:
-                        schemas.append(
-                            {
-                                "type": "function",
-                                "function": {
-                                    "name": tool.name,
-                                    "description": tool.description or "",
-                                    "parameters": tool.inputSchema,
-                                },
-                            }
-                        )
-                        tool_map[tool.name] = ref
+            if isinstance(spec, StdioMCPToolSpec):
+                server_params = StdioServerParameters(
+                    command=spec.command,
+                    args=spec.args,
+                    env={**os.environ, **spec.env},
+                )
+                async with stdio_client(server_params) as (read, write):
+                    async with ClientSession(read, write) as session:
+                        await session.initialize()
+                        tools_list = await session.list_tools()
+                        ref: StdioServerRef | HttpServerRef = StdioServerRef(command=spec.command, args=spec.args, env=spec.env)
+                        for tool in tools_list.tools:
+                            schemas.append(
+                                {
+                                    "type": "function",
+                                    "function": {
+                                        "name": tool.name,
+                                        "description": tool.description or "",
+                                        "parameters": tool.inputSchema,
+                                    },
+                                }
+                            )
+                            tool_map[tool.name] = ref
+            else:  # HttpMCPToolSpec
+                resolved_headers = _resolve_headers(spec.headers, spec.api_key_env)
+                if spec.transport == "http":
+                    ctx = streamablehttp_client(spec.url, headers=resolved_headers)
+                    async with ctx as (read, write, _):
+                        async with ClientSession(read, write) as session:
+                            await session.initialize()
+                            tools_list = await session.list_tools()
+                            ref = HttpServerRef(url=spec.url, transport=spec.transport, headers=resolved_headers)
+                            for tool in tools_list.tools:
+                                schemas.append(
+                                    {
+                                        "type": "function",
+                                        "function": {
+                                            "name": tool.name,
+                                            "description": tool.description or "",
+                                            "parameters": tool.inputSchema,
+                                        },
+                                    }
+                                )
+                                tool_map[tool.name] = ref
+                else:  # sse
+                    async with sse_client(spec.url) as (read, write):
+                        async with ClientSession(read, write) as session:
+                            await session.initialize()
+                            tools_list = await session.list_tools()
+                            ref = HttpServerRef(url=spec.url, transport=spec.transport, headers=resolved_headers)
+                            for tool in tools_list.tools:
+                                schemas.append(
+                                    {
+                                        "type": "function",
+                                        "function": {
+                                            "name": tool.name,
+                                            "description": tool.description or "",
+                                            "parameters": tool.inputSchema,
+                                        },
+                                    }
+                                )
+                                tool_map[tool.name] = ref
             logger.info(
                 "Fetched %d tools from MCP server '%s'", len(tools_list.tools), spec.name
             )
