@@ -24,6 +24,9 @@ from typing import Any
 
 import httpx
 import litellm
+from mcp import ClientSession
+from mcp.client.sse import sse_client
+from mcp.client.streamable_http import streamablehttp_client
 from temporalio import activity
 
 litellm.drop_params = True  # silently drop params unsupported by the active provider
@@ -85,6 +88,37 @@ async def call_mcp_tool(
         async with ClientSession(read, write) as session:
             await session.initialize()
             result = await session.call_tool(tool_name, arguments)
+
+    parts: list[str] = []
+    for content in result.content:
+        if hasattr(content, "text"):
+            parts.append(content.text)
+        else:
+            parts.append(str(content))
+    return "\n".join(parts)
+
+
+@activity.defn
+async def call_http_mcp_tool(
+    url: str,
+    transport: str,
+    headers: dict[str, str],
+    tool_name: str,
+    arguments: dict[str, Any],
+) -> str:
+    """Call a named tool on an HTTP or SSE MCP server and return the text result."""
+    logger.info("MCP HTTP tool call: url=%s transport=%s tool=%s", url, transport, tool_name)
+    if transport == "http":
+        ctx = streamablehttp_client(url, headers=headers)
+        async with ctx as (read, write, _):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                result = await session.call_tool(tool_name, arguments)
+    else:  # sse
+        async with sse_client(url) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                result = await session.call_tool(tool_name, arguments)
 
     parts: list[str] = []
     for content in result.content:
