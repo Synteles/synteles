@@ -220,9 +220,7 @@ async def test_call_llm_step_bad_request_raises_non_retryable() -> None:
 
 async def test_call_llm_step_auth_error_raises_non_retryable() -> None:
     """401 AuthenticationError from the LLM must become a non-retryable ApplicationError."""
-    err = litellm.AuthenticationError(
-        message="invalid key", model="gpt-4o", llm_provider="openai"
-    )
+    err = litellm.AuthenticationError(message="invalid key", model="gpt-4o", llm_provider="openai")
 
     with patch("activities.litellm.acompletion", side_effect=err):
         with pytest.raises(ApplicationError) as exc_info:
@@ -451,7 +449,9 @@ async def test_call_http_mcp_tool_sse_stringifies_non_text_content() -> None:
 
 
 @respx.mock
-async def test_download_input_files_fetches_file_to_dest_dir(tmp_path: pytest.TempPathFactory) -> None:
+async def test_download_input_files_fetches_file_to_dest_dir(
+    tmp_path: pytest.TempPathFactory,
+) -> None:
     """Files are downloaded from presigned URLs into the destination directory."""
     respx.get("http://store:9000/report.pdf").respond(200, content=b"PDF content")
     files = [{"name": "report.pdf", "url": "http://store:9000/report.pdf"}]

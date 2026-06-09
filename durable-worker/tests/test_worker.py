@@ -185,7 +185,9 @@ async def test_fetch_mcp_schemas_http_connection_failure_skips(
 
 
 async def test_fetch_mcp_schemas_stdio_returns_stdio_server_config() -> None:
-    spec = StdioMCPToolSpec(name="reader", command="uvx", args=["mcp-file-reader"], env={"KEY": "v"})
+    spec = StdioMCPToolSpec(
+        name="reader", command="uvx", args=["mcp-file-reader"], env={"KEY": "v"}
+    )
 
     session_mock = AsyncMock()
     session_mock.list_tools.return_value = MagicMock(tools=[_make_tool("read_file")])

@@ -116,9 +116,7 @@ async def test_load_agent_config_uses_synteles_output_url_over_manifest() -> Non
 async def test_load_agent_config_downloads_input_files_when_present() -> None:
     """When manifest contains input_files, _download_input_files is called."""
     env = ActivityEnvironment()
-    manifest_data: dict = {
-        "input_files": [{"name": "doc.pdf", "url": "http://store:9000/doc.pdf"}]
-    }
+    manifest_data: dict = {"input_files": [{"name": "doc.pdf", "url": "http://store:9000/doc.pdf"}]}
 
     with (
         patch("manifest.fetch_manifest", new=AsyncMock(return_value=manifest_data)),
@@ -140,7 +138,9 @@ async def test_load_agent_config_system_prompt_passed_through() -> None:
 
     with (
         patch("manifest.fetch_manifest", new=AsyncMock(return_value={})),
-        patch("manifest.parse_agentlet", return_value=_make_spec(system_prompt="You are a reviewer.")),
+        patch(
+            "manifest.parse_agentlet", return_value=_make_spec(system_prompt="You are a reviewer.")
+        ),
         patch("manifest.resolve_prompt", return_value="Review this."),
         patch("activities._fetch_mcp_schemas", new=AsyncMock(return_value=([], {}, {}))),
     ):
