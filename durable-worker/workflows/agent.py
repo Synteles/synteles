@@ -192,20 +192,29 @@ class AgentWorkflow:
                         {"role": "tool", "tool_call_id": tool_call_id, "content": tool_result}
                     )
         finally:
+            # Schedule the upload task before shielding so it is already registered
+            # with the event loop — asyncio.shield only protects an existing Task.
+            upload_task = asyncio.ensure_future(
+                workflow.execute_activity(
+                    upload_output,
+                    args=[self._output_url],
+                    start_to_close_timeout=timedelta(seconds=300),
+                    heartbeat_timeout=timedelta(seconds=30),  # C3
+                    retry_policy=_UPLOAD_RETRY,
+                )
+            )
             try:
-                await asyncio.shield(
-                    workflow.execute_activity(
-                        upload_output,
-                        args=[self._output_url],
-                        start_to_close_timeout=timedelta(seconds=300),
-                        heartbeat_timeout=timedelta(seconds=30),  # C3
-                        retry_policy=_UPLOAD_RETRY,
-                    )
-                )
+                await asyncio.shield(upload_task)
+            except asyncio.CancelledError:
+                # Workflow is being cancelled; wait for the upload to finish
+                # before propagating so the output is not lost.
+                try:
+                    await upload_task
+                except Exception as exc:
+                    workflow.logger.warning("[%s] output upload failed: %s", execution_id, exc)
+                raise
             except Exception as upload_exc:
-                workflow.logger.warning(
-                    "[%s] output upload failed: %s", execution_id, upload_exc
-                )
+                workflow.logger.warning("[%s] output upload failed: %s", execution_id, upload_exc)
 
         return result
 
