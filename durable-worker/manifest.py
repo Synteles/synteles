@@ -78,11 +78,15 @@ def parse_agentlet(manifest: Mapping[str, Any]) -> AgentletSpec:
 
     mcp_tools: list[StdioMCPToolSpec | HttpMCPToolSpec] = []
     for tool in config.get("mcp_tools") or []:
+        name = tool.get("name")
+        if not name:
+            _log.warning("mcp_tools entry skipped: missing required 'name' field")
+            continue
         server = tool.get("server")
         if server == "stdio" and tool.get("command"):
             mcp_tools.append(
                 StdioMCPToolSpec(
-                    name=tool["name"],
+                    name=name,
                     command=tool["command"],
                     args=tool.get("args") or [],
                     env=tool.get("env") or {},
@@ -91,7 +95,7 @@ def parse_agentlet(manifest: Mapping[str, Any]) -> AgentletSpec:
         elif server in ("http", "sse") and tool.get("url"):
             mcp_tools.append(
                 HttpMCPToolSpec(
-                    name=tool["name"],
+                    name=name,
                     url=tool["url"],
                     transport=server,
                     headers=tool.get("headers") or {},
@@ -99,7 +103,7 @@ def parse_agentlet(manifest: Mapping[str, Any]) -> AgentletSpec:
                 )
             )
         else:
-            _log.warning("mcp_tools entry '%s' skipped: unrecognised server type or missing required field", tool.get("name", "<unnamed>"))
+            _log.warning("mcp_tools entry '%s' skipped: unrecognised server type or missing required field", name)
 
     return AgentletSpec(
         system_prompt=system_prompt,
