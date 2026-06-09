@@ -20,7 +20,7 @@ import httpx
 import pytest
 import respx
 
-from manifest import AgentletSpec, MCPToolSpec, fetch_manifest, parse_agentlet, resolve_prompt
+from manifest import AgentletSpec, HttpMCPToolSpec, MCPToolSpec, StdioMCPToolSpec, fetch_manifest, parse_agentlet, resolve_prompt
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -156,12 +156,96 @@ def test_parse_agentlet_empty_prompt_field_is_none() -> None:
     assert spec.prompt is None
 
 
-def test_parse_agentlet_non_stdio_tools_excluded() -> None:
+def test_parse_agentlet_http_tool_included() -> None:
     yaml = """\
 mcp_tools:
-  - name: http_tool
+  - name: web_search
     server: http
-    url: http://localhost:9999
+    url: "http://search-mcp:8000/mcp"
+"""
+    spec = parse_agentlet({"agentlet_yaml": yaml})
+    assert len(spec.mcp_tools) == 1
+    tool = spec.mcp_tools[0]
+    assert isinstance(tool, HttpMCPToolSpec)
+    assert tool.name == "web_search"
+    assert tool.url == "http://search-mcp:8000/mcp"
+    assert tool.transport == "http"
+
+
+def test_parse_agentlet_sse_tool_included() -> None:
+    yaml = """\
+mcp_tools:
+  - name: crm_tools
+    server: sse
+    url: "http://crm-mcp:9000/sse"
+"""
+    spec = parse_agentlet({"agentlet_yaml": yaml})
+    assert len(spec.mcp_tools) == 1
+    tool = spec.mcp_tools[0]
+    assert isinstance(tool, HttpMCPToolSpec)
+    assert tool.transport == "sse"
+
+
+def test_parse_agentlet_http_tool_headers_and_api_key_env() -> None:
+    yaml = """\
+mcp_tools:
+  - name: secured
+    server: http
+    url: "http://mcp:8000/mcp"
+    headers:
+      X-Custom: "value"
+    api_key_env: MY_API_KEY
+"""
+    spec = parse_agentlet({"agentlet_yaml": yaml})
+    tool = spec.mcp_tools[0]
+    assert isinstance(tool, HttpMCPToolSpec)
+    assert tool.headers == {"X-Custom": "value"}
+    assert tool.api_key_env == "MY_API_KEY"
+
+
+def test_parse_agentlet_http_tool_without_url_excluded() -> None:
+    yaml = """\
+mcp_tools:
+  - name: no_url
+    server: http
+  - name: stdio_tool
+    server: stdio
+    command: my-server
+"""
+    spec = parse_agentlet({"agentlet_yaml": yaml})
+    assert len(spec.mcp_tools) == 1
+    assert spec.mcp_tools[0].name == "stdio_tool"
+
+
+def test_parse_agentlet_mixed_transports() -> None:
+    yaml = """\
+mcp_tools:
+  - name: file_reader
+    server: stdio
+    command: uvx
+    args: ["mcp-file-reader"]
+  - name: web_search
+    server: http
+    url: "http://search-mcp:8000/mcp"
+  - name: crm_tools
+    server: sse
+    url: "http://crm-mcp:9000/sse"
+"""
+    spec = parse_agentlet({"agentlet_yaml": yaml})
+    assert len(spec.mcp_tools) == 3
+    assert isinstance(spec.mcp_tools[0], StdioMCPToolSpec)
+    assert isinstance(spec.mcp_tools[1], HttpMCPToolSpec)
+    assert isinstance(spec.mcp_tools[2], HttpMCPToolSpec)
+    assert spec.mcp_tools[1].transport == "http"
+    assert spec.mcp_tools[2].transport == "sse"
+
+
+def test_parse_agentlet_unknown_server_type_excluded() -> None:
+    yaml = """\
+mcp_tools:
+  - name: ws_tool
+    server: websocket
+    url: "ws://mcp:8000"
   - name: stdio_tool
     server: stdio
     command: my-server

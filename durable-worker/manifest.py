@@ -20,8 +20,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+import logging
+
 import httpx
 import yaml
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -74,7 +78,8 @@ def parse_agentlet(manifest: Mapping[str, Any]) -> AgentletSpec:
 
     mcp_tools: list[StdioMCPToolSpec | HttpMCPToolSpec] = []
     for tool in config.get("mcp_tools") or []:
-        if tool.get("server") == "stdio" and tool.get("command"):
+        server = tool.get("server")
+        if server == "stdio" and tool.get("command"):
             mcp_tools.append(
                 StdioMCPToolSpec(
                     name=tool["name"],
@@ -83,6 +88,18 @@ def parse_agentlet(manifest: Mapping[str, Any]) -> AgentletSpec:
                     env=tool.get("env") or {},
                 )
             )
+        elif server in ("http", "sse") and tool.get("url"):
+            mcp_tools.append(
+                HttpMCPToolSpec(
+                    name=tool["name"],
+                    url=tool["url"],
+                    transport=server,
+                    headers=tool.get("headers") or {},
+                    api_key_env=tool.get("api_key_env") or None,
+                )
+            )
+        else:
+            _log.warning("mcp_tools entry '%s' skipped: unrecognised server type or missing required field", tool.get("name", "<unnamed>"))
 
     return AgentletSpec(
         system_prompt=system_prompt,
