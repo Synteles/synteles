@@ -201,8 +201,8 @@ cp .env.example .env   # then fill in values
 | `OIDC_ISSUER_URL` | `http://localhost:8080/auth/realms/synteles` |
 | `OIDC_CLIENT_ID` | `synteles-app` |
 | `OIDC_CLIENT_SECRET` | `synteles-dev-secret` |
-| `TEST_USER` | `synteles` |
-| `TEST_USER_PASSWORD` | `synteles` |
+| `TEST_USER` | `synteles-test` |
+| `TEST_USER_PASSWORD` | `synteles-test` |
 
 Run all tests:
 

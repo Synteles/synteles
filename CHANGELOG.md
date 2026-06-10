@@ -11,7 +11,7 @@ Before `v1.0`, breaking changes may occur without a major version bump.
 ### Added
 
 - Durable execution backend via [Temporal](https://temporal.io): agentlets can now be configured with `execution_backend: durable`, wrapping each run in a long-lived Temporal workflow that persists history, survives container crashes, and supports human-in-the-loop (HITL) pausing via the `ask_user` tool — see `docs/durable-execution.md`
-- `durable-worker` service: new Python service implementing `AgentWorkflow` (ReAct loop with LiteLLM) and three Temporal activities (`call_llm_step`, `call_mcp_tool`, `upload_output`) with configurable retry policies; supports stdio MCP servers
+- `durable-worker` service: new Python service implementing `AgentWorkflow` (ReAct loop with LiteLLM) and five Temporal activities (`load_agent_config`, `call_llm_step`, `call_mcp_tool`, `call_http_mcp_tool`, `upload_output`) with configurable retry policies; supports stdio and http/sse MCP servers
 - HITL signal bridge: monitor now polls `is_input_needed` on durable workflows and transitions executions between `running` and `waiting_for_signal`; `POST /api/executions/{id}/signal` and `POST /api/public/executions/{id}/signal` deliver user input to paused workflows
 - `execution_backend` column on the `agentlets` table (`standard` | `durable`, default `standard`) — replaces the previous YAML-level field; visible in all agentlet API responses
 - Worker container restart logic (`worker_restart.py`): monitor and signal delivery automatically relaunch a dead `durable-worker` container while the Temporal workflow remains live, refreshing presigned URLs via `update_output_url` signal
