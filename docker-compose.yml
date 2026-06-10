@@ -197,7 +197,7 @@ services:
       S3_LOGS_BUCKET: synteles-logs
       S3_UPLOAD_BUCKET: synteles-uploads
       EXECUTION_RUNTIME: docker
-      AGENT_WORKER_IMAGE: synteles/durable-agentlet:edge
+      AGENTLET_DURABLE_IMAGE: synteles/durable-agentlet:edge
       TEMPORAL_ADDRESS: temporal:7233
       DOCKER_NETWORK: synteles_default
       OIDC_ISSUER_URL: http://localhost:8080/auth/realms/synteles

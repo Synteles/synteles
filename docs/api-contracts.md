@@ -17,6 +17,7 @@
   - [Secrets Endpoints](#secrets-endpoints)
   - [Public Agentlet Endpoints](#public-agentlet-endpoints)
   - [Execution/Scheduler Endpoints](#executionscheduler-endpoints)
+    - [Signal Endpoints](#signal-endpoints)
   - [Files Endpoints](#files-endpoints)
   - [Conversations Endpoints](#conversations-endpoints)
   - [Model Presets Endpoints](#model-presets-endpoints)
@@ -34,6 +35,7 @@ The Synteles Platform API is a RESTful API built on FastAPI with two separate ba
 **Architecture:**
 - **core-service:** FastAPI — user profiles, agentlets, secrets, conversations, model presets, MCP presets, API keys, files
 - **scheduler-service:** FastAPI — execution submission and management
+- **durable-worker:** Temporal worker service — runs `AgentWorkflow` (ReAct loop + HITL) for durable executions
 - **synte-service:** FastAPI — streaming AI chat (`POST /chat/stream`)
 - **Database:** PostgreSQL (SQLAlchemy async ORM, single schema)
 - **Authentication:** Keycloak OIDC — JWT Bearer tokens for user endpoints; API keys (hashed in PostgreSQL) for public endpoints
@@ -346,6 +348,7 @@ Creates a new agentlet in the caller's organization.
   "id": "my_agentlet",
   "yaml": "agentlet:\n  name: MyAgent\n  ...",
   "description": "Agent description",
+  "execution_backend": "standard",
   "created_at": "2025-12-01T10:30:00.000000+00:00",
   "updated_at": "2025-12-01T10:30:00.000000+00:00"
 }
@@ -396,12 +399,14 @@ Lists all agentlets in the caller's organization.
   {
     "id": "agentlet1",
     "description": "First agent",
+    "execution_backend": "standard",
     "created_at": "2025-12-01T10:00:00.000000+00:00",
     "updated_at": "2025-12-01T10:30:00.000000+00:00"
   },
   {
     "id": "agentlet2",
     "description": "Second agent",
+    "execution_backend": "durable",
     "created_at": "2025-12-01T11:00:00.000000+00:00",
     "updated_at": "2025-12-01T11:00:00.000000+00:00"
   }
@@ -439,6 +444,7 @@ Retrieves full agentlet definition including YAML configuration.
 {
   "description": "Agent description",
   "YAML": "agentlet:\n  name: MyAgent\n  ...",
+  "execution_backend": "standard",
   "created_at": "2025-12-01T10:00:00.000000+00:00",
   "updated_at": "2025-12-01T10:30:00.000000+00:00"
 }
@@ -1095,20 +1101,29 @@ Retrieves execution status and metadata using API key authentication.
   "execution_id": "550e8400-e29b-41d4-a716-446655440000",
   "agentlet_id": "my_agentlet",
   "status": "completed",
+  "execution_type": "durable",
   "logs_s3_uri": "s3://synteles-logs/executions/550e8400-e29b-41d4-a716-446655440000/logs.txt",
   "created_at": "2025-12-13T10:30:45.000000+00:00",
   "completed_at": "2025-12-13T10:35:50.000000+00:00",
   "elapsed_seconds": 305,
-  "prompt": "Generate monthly sales report"
+  "prompt": "Generate monthly sales report",
+  "last_message": "The report has been generated.",
+  "pending_question": null
 }
 ```
 
 **Status Values:**
 - `deploying` - Container deployment in progress
 - `running` - Container is executing
+- `waiting_for_signal` - Durable execution paused at an `ask_user` call, waiting for human input
 - `completed` - Execution finished successfully
 - `failed` - Execution encountered an error
 - `terminated` - Execution was stopped (via cancel or delete)
+
+**Field Details:**
+- `execution_type`: `"standard"` or `"durable"`
+- `last_message`: Most recent assistant message; durable executions only (null if not available)
+- `pending_question`: Current `ask_user` question; only present when `status == "waiting_for_signal"` (null otherwise)
 
 **Error Responses:**
 - **401:** Missing or invalid API key
@@ -1129,8 +1144,10 @@ Endpoints for managing agentlet executions.
 
 **Architecture:**
 - Fire-and-forget async execution pattern
-- Background monitor loop polls active executions every 60 seconds
+- Background monitor loop polls active executions every 30 seconds
 - Automatic log collection and S3 storage on completion
+- Two execution backends: `standard` (short-lived Docker container) and `durable` (long-lived Temporal workflow via `durable-worker` service)
+- Durable executions support human-in-the-loop pausing (`waiting_for_signal` status) and survive container crashes via Temporal replay
 - Agentlet container backend is pluggable via `EXECUTION_BACKEND` env var (Docker by default)
 - Execution records are cleaned up automatically by PostgreSQL TTL logic after 30 days
 
@@ -1230,26 +1247,33 @@ Retrieves execution status and metadata.
   "execution_id": "550e8400-e29b-41d4-a716-446655440000",
   "agentlet_id": "my_agentlet",
   "status": "completed",
+  "execution_type": "durable",
   "logs_s3_uri": "s3://synteles-logs/executions/550e8400-e29b-41d4-a716-446655440000/logs.txt",
   "created_at": "2025-12-13T10:30:45.000000+00:00",
   "completed_at": "2025-12-13T10:35:50.000000+00:00",
   "elapsed_seconds": 305,
-  "prompt": "Generate monthly sales report"
+  "prompt": "Generate monthly sales report",
+  "last_message": "The report has been generated and saved to output.zip.",
+  "pending_question": null
 }
 ```
 
 **Status Values:**
 - `deploying` - Container deployment in progress
 - `running` - Container is executing
+- `waiting_for_signal` - Durable execution paused at an `ask_user` call, waiting for human input
 - `completed` - Execution finished successfully
 - `failed` - Execution encountered an error
 - `terminated` - Execution was stopped
 
 **Field Details:**
+- `execution_type`: `"standard"` or `"durable"`
 - `logs_s3_uri`: S3 URI for log file (null if execution still in progress)
 - `completed_at`: ISO 8601 timestamp (null if still running)
 - `elapsed_seconds`: Total execution time in seconds (only present if completed)
 - `prompt`: Task prompt provided at execution start
+- `last_message`: Most recent assistant message from the agent; durable executions only (null if not yet available)
+- `pending_question`: The question text from the current `ask_user` call; only present when `status == "waiting_for_signal"` (null otherwise)
 
 **Error Responses:**
 - **403:** Caller does not belong to this execution's organization
@@ -1419,7 +1443,7 @@ Lists executions with filtering and pagination support.
 **Query Parameters:**
 - `agentlet_id` (optional): Filter by agentlet identifier
 - `status` (optional): Filter by execution status
-  - Valid values: `deploying`, `running`, `completed`, `failed`, `stopped`, `terminated`
+  - Valid values: `deploying`, `running`, `waiting_for_signal`, `completed`, `failed`, `stopped`, `terminated`
 - `created_at_start` (optional): Filter by creation date (ISO 8601 timestamp, inclusive)
 - `created_at_end` (optional): Filter by creation date (ISO 8601 timestamp, inclusive)
 - `completed_at_start` (optional): Filter by completion date (ISO 8601 timestamp, inclusive)
@@ -1481,6 +1505,80 @@ curl "https://api.synteles.dev/v1/api/executions?agentlet_id=my_agentlet&status=
 # Paginate
 curl "https://api.synteles.dev/v1/api/executions?limit=50&next_token=NTA=" \
   -H "Authorization: Bearer ACCESS_TOKEN"
+```
+
+---
+
+### Signal Endpoints
+
+Signal endpoints deliver human input to a durable execution that is paused at an `ask_user` tool call (`status == "waiting_for_signal"`). Signals are rejected with `409 Conflict` if the execution is not durable, not in `waiting_for_signal` status, or has no associated Temporal workflow.
+
+---
+
+#### `POST /api/executions/{execution_id}/signal`
+
+Delivers user input to a paused durable execution. Authenticated with OIDC Bearer token.
+
+**Authorization:** Bearer token (OIDC)
+
+**Path Parameters:**
+- `execution_id` (required): Execution UUID
+
+**Request Body:**
+```json
+{
+  "input": "Yes, proceed with the deletion."
+}
+```
+
+**Field Details:**
+- `input` (required): The human answer to the pending question. Delivered to the workflow as the `provide_user_input` Temporal signal.
+
+**Response:**
+- **Status:** `202 Accepted`
+- **Body:**
+```json
+{
+  "execution_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "running"
+}
+```
+
+**Notes:**
+- The status flip to `running` is optimistic — the monitor confirms on the next poll tick
+- Sending the signal also refreshes the presigned output URL and restarts the worker container if it has stopped during the HITL pause
+
+**Error Responses:**
+- **404:** Execution not found
+- **409:** Execution is not durable, not in `waiting_for_signal` state, or has no `workflow_id`
+- **500:** Temporal RPC failure
+
+**Example:**
+```bash
+curl -X POST https://api.synteles.dev/v1/api/executions/550e8400-e29b-41d4-a716-446655440000/signal \
+  -H "Authorization: Bearer ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"input": "Yes, proceed."}'
+```
+
+---
+
+#### `POST /api/public/executions/{execution_id}/signal`
+
+Same as above but authenticated with an API key. Intended for external service integrations.
+
+**Authorization:** API Key (`X-API-Key: {api_key}`)
+
+**Path Parameters / Request Body / Response:** Same as `POST /api/executions/{execution_id}/signal`
+
+**Error Responses:** Same as above, plus **401** for missing or invalid API key.
+
+**Example:**
+```bash
+curl -X POST https://api.synteles.dev/v1/api/public/executions/550e8400-e29b-41d4-a716-446655440000/signal \
+  -H "X-API-Key: base64url-encoded-key-43-chars" \
+  -H "Content-Type: application/json" \
+  -d '{"input": "Yes, proceed."}'
 ```
 
 ---
@@ -2140,5 +2238,5 @@ For API issues or questions:
 
 ---
 
-**Last Updated:** 2026-05-27
+**Last Updated:** 2026-06-10
 **API Version:** v1

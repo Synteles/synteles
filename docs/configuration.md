@@ -13,6 +13,7 @@ All required variables are set automatically by `install.sh` and `docker-compose
 - [Shared / Root](#shared--root)
 - [core-service](#core-service)
 - [scheduler-service](#scheduler-service)
+- [durable-worker](#durable-worker)
 - [synte-service](#synte-service)
 - [ux-console](#ux-console)
 - [PostgreSQL](#postgresql)
@@ -111,11 +112,19 @@ Python service that schedules and monitors agentlet executions.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `EXECUTION_BACKEND` | Optional | `docker` | Execution backend for agentlet containers. Currently only `docker` is supported. |
-| `AGENTLET_IMAGE` | Optional | `synteles/agentlet:edge` | Docker image used to spawn agentlet containers. Override to pin a specific tag or use a private registry, e.g. `synteles/agentlet:1.2.3`. |
-| `DOCKER_NETWORK` | Optional | _(empty)_ | Docker network name to attach agentlet containers to, e.g. `synteles_default`. When empty, no explicit network is set. Required for containers to reach internal services (MinIO, PostgreSQL). |
-| `MONITOR_INTERVAL_SECONDS` | Optional | `30` | How often (in seconds) the scheduler polls running executions for status updates. |
+| `EXECUTION_RUNTIME` | Optional | `docker` | Container runtime for agentlet execution. Currently only `docker` is supported. |
+| `AGENTLET_IMAGE` | Optional | `synteles/agentlet:edge` | Docker image for standard agentlet containers. Override to pin a specific tag or use a private registry. |
+| `AGENTLET_DURABLE_IMAGE` | Optional | `synteles/durable-agentlet:edge` | Docker image for durable-worker containers (used by durable executions). Override to pin a specific tag. |
+| `DOCKER_NETWORK` | Optional | _(empty)_ | Docker network name to attach all agentlet containers to, e.g. `synteles_default`. Required for containers to reach internal services (MinIO, PostgreSQL, Temporal). |
+| `MONITOR_INTERVAL_SECONDS` | Optional | `30` | How often (in seconds) the monitor polls running executions for status updates. |
+| `SIGNAL_WAIT_TIMEOUT_SECONDS` | Optional | `86400` | Maximum time (in seconds) a durable execution may remain in `waiting_for_signal` before the monitor marks it `stopped`. Default is 24 hours. |
 | `TAVILY_API_KEY` | Optional | _(empty)_ | See [Shared / Root](#shared--root). |
+
+### Temporal (durable executions)
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `TEMPORAL_ADDRESS` | Conditional | `localhost:7233` | gRPC address of the Temporal server, e.g. `temporal:7233`. Required when any agentlet uses `execution_backend: durable`. |
 
 ### Networking
 
@@ -123,6 +132,20 @@ Python service that schedules and monitors agentlet executions.
 |---|---|---|---|
 | `PORTAL_DOMAIN_NAME` | Optional | _(empty)_ | See [core-service](#networking). |
 | `CORS_ALLOWED_ORIGINS` | Optional | _(derived)_ | See [core-service](#networking). |
+
+---
+
+## durable-worker
+
+Python Temporal worker service that runs `AgentWorkflow` for durable agentlet executions. Each execution launches a dedicated container; these variables are injected by `scheduler-service` at container start time — they are not set manually.
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `EXECUTION_ID` | **Required** | — | UUID of the execution this container is serving. Injected by the scheduler. |
+| `TEMPORAL_TASK_QUEUE` | **Required** | — | Temporal task queue name for this execution (`synteles-agent-{execution_id}`). Injected by the scheduler. |
+| `SYNTELES_MANIFEST_URL` | **Required** | — | Presigned S3 GET URL for the execution manifest JSON (agentlet YAML, input files, prompt, timeout). Injected by the scheduler. |
+| `SYNTELES_OUTPUT_URL` | **Required** | — | Presigned S3 PUT URL for `output.zip`. Injected by the scheduler; refreshed on each container restart via the `update_output_url` Temporal signal. |
+| `TEMPORAL_ADDRESS` | Optional | `localhost:7233` | gRPC address of the Temporal server. Must match the value set in scheduler-service. |
 
 ---
 

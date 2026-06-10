@@ -23,7 +23,7 @@ from temporalio.service import RPCError
 
 from backends.base import ExecutionBackend, ExecutionConfig, ExecutionStatus
 from backends.docker_runtime import DockerRuntime
-from config import AGENT_WORKER_IMAGE, TEMPORAL_ADDRESS
+from config import AGENTLET_DURABLE_IMAGE, TEMPORAL_ADDRESS
 from temporal_client import get_temporal_client
 
 logger = logging.getLogger(__name__)
@@ -87,7 +87,7 @@ class DockerDurableBackend(ExecutionBackend):
             **config.env,
         }
         cname = _container_name(config.execution_id)
-        self._runtime.run_container(AGENT_WORKER_IMAGE, cname, container_env)
+        self._runtime.run_container(AGENTLET_DURABLE_IMAGE, cname, container_env)
         logger.info("Launched agent-worker container %s", cname)
 
         return config.execution_id

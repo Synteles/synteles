@@ -32,7 +32,7 @@ from synteles_db.models import Execution
 from synteles_db.repos.agentlets import AgentletRepo
 
 from backends.docker_durable import DockerDurableBackend, _container_name
-from config import AGENT_WORKER_IMAGE, S3_LOGS_BUCKET, TAVILY_API_KEY, TEMPORAL_ADDRESS
+from config import AGENTLET_DURABLE_IMAGE, S3_LOGS_BUCKET, TAVILY_API_KEY, TEMPORAL_ADDRESS
 from db import get_s3
 from routers.execute import _fetch_platform_model_secret, _fetch_user_secrets
 
@@ -135,7 +135,7 @@ async def ensure_worker_running(execution: Execution, db: AsyncSession) -> bool:
     cname = _container_name(execution_id)
     backend._runtime.stop_container(cname)  # no-op if already gone
     try:
-        backend._runtime.run_container(AGENT_WORKER_IMAGE, cname, container_env)
+        backend._runtime.run_container(AGENTLET_DURABLE_IMAGE, cname, container_env)
         logger.info("Restarted agent-worker container %s", cname)
         return True
     except Exception as exc:

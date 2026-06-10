@@ -10,6 +10,15 @@ Before `v1.0`, breaking changes may occur without a major version bump.
 
 ### Added
 
+- Durable execution backend via [Temporal](https://temporal.io): agentlets can now be configured with `execution_backend: durable`, wrapping each run in a long-lived Temporal workflow that persists history, survives container crashes, and supports human-in-the-loop (HITL) pausing via the `ask_user` tool — see `docs/durable-execution.md`
+- `durable-worker` service: new Python service implementing `AgentWorkflow` (ReAct loop with LiteLLM) and three Temporal activities (`call_llm_step`, `call_mcp_tool`, `upload_output`) with configurable retry policies; supports stdio MCP servers
+- HITL signal bridge: monitor now polls `is_input_needed` on durable workflows and transitions executions between `running` and `waiting_for_signal`; `POST /api/executions/{id}/signal` and `POST /api/public/executions/{id}/signal` deliver user input to paused workflows
+- `execution_backend` column on the `agentlets` table (`standard` | `durable`, default `standard`) — replaces the previous YAML-level field; visible in all agentlet API responses
+- Worker container restart logic (`worker_restart.py`): monitor and signal delivery automatically relaunch a dead `durable-worker` container while the Temporal workflow remains live, refreshing presigned URLs via `update_output_url` signal
+- Frontend HITL UI: `ExecutionDetailSheet` shows the pending question and a signal input field when an execution is `waiting_for_signal`; `WatchdogProvider` treats `waiting_for_signal` as an active status for polling; `BackendBadge` component displays execution backend on agentlet cards and run tables; standard/durable `ToggleGroup` in the agentlet create and edit drawers
+- `GET /api/executions/{id}` now returns `pending_question`, `last_message`, and `execution_type` fields for durable executions
+- DB migrations: `0003_durable_executions` (adds `execution_type`, `workflow_id`, `timeout_at`, `waiting_for_signal` status), `0004_agentlet_execution_backend` (adds `execution_backend` column, backfills from YAML), `0005_drop_signal_name` (drops redundant `signal_name` column)
+
 - GitHub Actions CI workflow (`ci.yml`) — runs lint, type-check, Bandit security scan, and unit tests for every Python service (`core-service`, `scheduler-service`, `synte-service`, `platform-db`) and build + test for `ux-console` on every PR and push to `main`
 - GitHub Actions CodeQL workflow (`codeql.yml`) — static analysis of Python and TypeScript code for OWASP Top 10 and common CWEs; runs on PR, push to `main`, and weekly
 - GitHub Actions security workflow (`security.yml`) — dependency review (blocks PRs introducing packages with known CVEs) and Trivy lockfile scan uploading SARIF results to the Security tab; runs on PR, push to `main`, and weekly
@@ -38,6 +47,7 @@ Before `v1.0`, breaking changes may occur without a major version bump.
 
 ### Removed
 
+- `activity-worker` service — was a Zigflow DSL relic; all execution paths now use either the standard Docker backend or the new `durable-worker`
 - `synte-service/tests/test_model_catalog.py` — tested platform config loading which requires a populated `config/platform.toml`; removed to keep CI environment-independent (error still raised at runtime when config is missing)
 - `ux-console/CLAUDE.md` — removed stale AI assistant context file
 - Removed all direct AWS Cognito integration traces (`COGNITO_DOMAIN`, `COGNITO_USER_POOL_ID`) from `core-service`, `synte-service`, and `ux-console`; Cognito is now accessed exclusively through Keycloak as an identity broker

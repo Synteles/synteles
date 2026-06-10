@@ -249,6 +249,40 @@ def _resolve_execution_type(agentlet: Any) -> ExecutionType:
     return agentlet.execution_backend
 
 
+# Submit flow — standard execution:
+#   1. Look up agentlet by name → read execution_backend column
+#   2. Create execution row (status=deploying)
+#   3. Copy input files (S3 upload bucket → logs bucket)
+#   4. Generate presigned PUT URL for output.zip
+#   5. Build manifest JSON {agentlet_yaml, input_files, output_url, prompt, timeout}
+#   6. Upload manifest → s3://…/executions/{id}/manifest.json
+#   7. Generate presigned GET URL for manifest
+#   8. Resolve secrets (user secrets + platform model secrets)
+#   9. get_backend(standard).submit()
+#      └── DockerStandardBackend → DockerRuntime.run_container(AGENTLET_IMAGE, id, env)
+#             env: SYNTELES_MANIFEST_URL, SYNTELES_EXEC_ID, decrypted secrets
+#  10. Update execution row: status=running, job_ref=container_id
+#  11. Return 202 {execution_id, status:"running"}
+#
+# Submit flow — durable execution (steps 1–8 identical, step 9 differs):
+#   9. get_backend(durable).submit()
+#      └── DockerDurableBackend:
+#            a. client.start_workflow("AgentWorkflow", execution_id,
+#                 id="synteles-{execution_id}",
+#                 task_queue="synteles-agent-{execution_id}")
+#               Temporal holds the first task until a worker registers.
+#            b. DockerRuntime.run_container(AGENTLET_DURABLE_IMAGE, "agent-{id}", env)
+#               Container boots, fetches manifest, registers on task queue.
+#               Temporal dispatches the queued task.
+#               env: SYNTELES_MANIFEST_URL, SYNTELES_OUTPUT_URL, SYNTELES_EXEC_ID,
+#                    TEMPORAL_ADDRESS, TEMPORAL_TASK_QUEUE, decrypted secrets
+#  10. Update execution row: status=running, job_ref=execution_id,
+#                            workflow_id="synteles-{execution_id}"
+#  11. Return 202 {execution_id, status:"running"}
+#
+# Why start the workflow before the container?
+#   Temporal can hold a task for minutes until a worker registers.
+#   If the container never starts, Temporal's timeout still has a history record to work with.
 async def _run_execution(
     *,
     agentlet_name: str,

@@ -1,327 +1,98 @@
 # Durable Execution — Architecture Reference
 
-> PR #43 — `feat: durable execution via Temporal — AgentWorkflow, HITL signal bridge, DB refactor`
+## Overview
 
----
+Standard agentlets run as short-lived containers. The scheduler starts a Docker container, the agent executes, and the monitor records the result. There is no persistence: if the container crashes mid-run, the execution fails and must be restarted from scratch.
 
-## What This PR Adds
+**Durable execution** wraps every agent run in a [Temporal](https://temporal.io) workflow. Temporal continuously journals the full execution history — every LLM call and tool result — to its own database. If the container crashes, the scheduler detects the failure, starts a new container, and Temporal replays the recorded history to bring the new worker back to exactly where it left off. Only the step in progress is retried; completed steps are not re-executed.
 
-Before this PR, Synteles supported only short-lived **standard** agentlet containers — a process ran, finished, and the monitor recorded the result. There was no way to pause mid-execution and ask a human for input.
+This design also enables **human-in-the-loop** (HITL) pauses. When an agent calls the `ask_user` tool, the workflow suspends and waits indefinitely for a human signal. The container can exit during the wait — when the user provides input via the API, the scheduler restarts the container if needed and delivers the signal to resume.
 
-This PR introduces a parallel **durable** execution path that wraps every agentlet run in a long-lived [Temporal](https://temporal.io) workflow. The workflow persists its full execution history, survives container crashes (Temporal keeps retrying), and can pause at an `ask_user` tool call and wait indefinitely for a human signal before continuing.
+Practical implications:
+
+- Long-running jobs can be interrupted (OOM, host maintenance, intentional pause) and resume without losing progress.
+- Agents that require human approval or clarification before continuing do not need to re-run prior steps when the user responds.
+- Temporal's workflow history provides a structured audit log of every activity, separate from container stdout logs.
+- Standard executions remain available for short, stateless tasks where the overhead of a durable workflow is unnecessary.
 
 | Capability | Standard | Durable |
 |---|---|---|
-| Execution persistence across crashes | No — restart from scratch | Yes — Temporal replays history |
+| Crash recovery | Restart from scratch | Temporal replays history |
 | Human-in-the-loop pause | No | Yes — `waiting_for_signal` |
 | LLM provider | Via agentlet YAML / platform model | LiteLLM (`{provider}/{model_id}`) |
 | Container lifetime | Short-lived, exits when done | Long-lived, polls Temporal task queue |
-| `ask_user` tool | Not available | Pauses workflow, signals resume it |
+| `ask_user` tool | Not available | Pauses workflow; signal resumes it |
 | `execution_backend` setting | `standard` | `durable` |
 
 ---
 
-## Updated Platform Architecture
+## Durable Execution Architecture
 
 ```mermaid
 graph TB
-    User["User / Browser"]
-    Service["External Service / App"]
+    User["User / External App"]
 
-    subgraph Stack["Synteles Platform"]
-
-        subgraph Frontend["Frontend"]
-            UX["ux-console\n(Next.js)"]
-            Synte["synte-service\n(assistant chat)"]
-        end
-
-        Traefik["API Gateway\n(Traefik)"]
-
-        subgraph Backend["Backend Services"]
-            subgraph Core["core-service"]
-                CoreAPI["core-api"]
-                AuthAPI["auth-api"]
-            end
-            subgraph Sched["scheduler-service"]
-                ExecRouter["execute router\n/api/executions"]
-                MgmtRouter["management router\n/api/executions/{id}"]
-                Monitor["async monitor loop"]
-                TClient["temporal_client\n(gRPC singleton)"]
-                BackendFactory["get_backend()\ncached per ExecutionType"]
-            end
-        end
-
-        PG[("PostgreSQL\n(platform-db)")]
-        Minio[("MinIO / S3\nobject storage)")]
-        KC["Keycloak\n(OIDC / IdP)"]
-
-        subgraph Temporal["Temporal Cluster"]
-            TServer["Temporal Server\n(gRPC :7233)"]
-            TUI["Temporal Web UI\n(:8088)"]
-        end
-
-        subgraph Execution["Agentlet Execution Environment (Docker)"]
-            direction TB
-            StdContainer["standard-agentlet\ncontainer\n(short-lived)"]
-            DurContainer["durable-worker\ncontainer\n(per-execution,\nlong-lived)"]
-        end
-
+    subgraph Scheduler["scheduler-service"]
+        ExecRouter["execute router\n/api/executions"]
+        SigRouter["signal router\n/api/executions/{id}/signal"]
+        Monitor["monitor loop\n(every 30 s)"]
+        DurableBackend["DockerDurableBackend"]
+        TClient["Temporal client\n(gRPC singleton)"]
     end
 
-    LLM["LLM Providers\n(Azure AI / OpenAI /\nAnthropic / Ollama …)"]
-    MCPServers["MCP Servers\n(stdio, spawned inside\ndurable-worker container)"]
+    subgraph TemporalCluster["Temporal Cluster"]
+        TServer["Temporal Server\n(:7233)"]
+    end
 
-    User --> UX
-    UX -->|"/api"| Traefik
-    UX -->|"/chat/stream"| Synte
-    Service -->|"/api/public"| Traefik
-    Traefik --> CoreAPI
-    Traefik --> ExecRouter
-    Traefik --> MgmtRouter
-    Traefik -->|"ForwardAuth"| AuthAPI
-    Traefik -->|"/auth"| KC
-    AuthAPI -->|"JWKS"| KC
-    AuthAPI -->|"API key hash"| PG
-    Synte -->|"/api"| Traefik
-    CoreAPI --> PG
-    CoreAPI --> Minio
-    ExecRouter --> PG
-    ExecRouter --> Minio
-    ExecRouter --> BackendFactory
-    BackendFactory -->|"standard"| StdContainer
-    BackendFactory -->|"durable: start_workflow"| TServer
-    BackendFactory -->|"durable: docker run"| DurContainer
-    Monitor --> PG
-    Monitor --> TClient
+    subgraph Container["Per-Execution Container (Docker)"]
+        Worker["durable-worker\nAgentWorkflow"]
+    end
+
+    S3[("S3 / MinIO\n(manifest · output · logs)")]
+    LLM["LLM Provider"]
+    MCP["MCP Servers\n(stdio)"]
+
+    User -->|"POST /signal {input}"| SigRouter
+    ExecRouter --> DurableBackend
+    DurableBackend -->|"1. start_workflow"| TServer
+    DurableBackend -->|"2. docker run"| Container
+    Monitor -->|"query is_input_needed"| TClient
     TClient <-->|"gRPC"| TServer
-    MgmtRouter --> TClient
-    TServer <-->|"task queue\n(per execution)"| DurContainer
-    DurContainer -->|"LiteLLM"| LLM
-    DurContainer -->|"stdio"| MCPServers
-    DurContainer --> Minio
-    StdContainer --> LLM
-    User -->|"OIDC"| KC
-    TUI --- TServer
+    SigRouter --> TClient
+    TClient -->|"provide_user_input signal"| TServer
+    TServer <-->|"task queue\n(synteles-agent-{id})"| Worker
+    Worker --> LLM
+    Worker --> MCP
+    Worker --> S3
 ```
 
 ---
 
-## Execution Backend Architecture
 
-### Class Hierarchy
-
-```
-ExecutionBackend  (ABC — backends/base.py)
-│
-│  submit(config: ExecutionConfig) → job_ref: str
-│  status(job_ref) → ExecutionStatus
-│  logs(job_ref) → str
-│  stop(job_ref)
-│  query_is_input_needed(job_ref) → bool | None   [default: None]
-│  container_alive(job_ref) → bool                [default: True]
-│
-├── DockerStandardBackend   (backends/docker_standard.py)
-│     Thin wrapper. Delegates all operations to DockerRuntime.
-│     job_ref = container ID (returned by docker run)
-│     container_alive() inherits default → True
-│
-└── DockerDurableBackend    (backends/docker_durable.py)
-      Orchestrates Temporal + Docker.
-      job_ref = execution_id  (UUID string)
-      Derives workflow_id and container_name deterministically.
-      query_is_input_needed() → polls Temporal "is_input_needed" query
-      container_alive() → checks Docker container status
-
-DockerRuntime  (backends/docker_runtime.py)
-  Stateless helper; shared by both Docker backends.
-  run_container() · stop_container() · container_status() · container_logs()
-```
-
-### Backend Factory
-
-`get_backend(ExecutionType)` returns a **module-level cached singleton** per execution type.
-This means `DockerRuntime()` (Docker SDK socket) and the Temporal client's gRPC connection are each opened once, not once per execution per monitor tick.
-
-```
-EXECUTION_RUNTIME=docker (env var, selects infrastructure provider)
-execution_type=standard|durable (per-agentlet DB column, selects execution model)
-
-         ┌──────────────────────────────────┐
-         │         get_backend(type)        │
-         │   _cache: dict[ExecutionType,    │
-         │           ExecutionBackend]      │
-         └──────────┬───────────────────────┘
-                    │
-         ┌──────────▼──────────┐
-  type=standard          type=durable
-         │                     │
-DockerStandardBackend   DockerDurableBackend
-```
+| Component | Description |
+|---|---|
+| **execute router** | Accepts `POST /api/executions`. Calls `DockerDurableBackend.submit()`, which registers the Temporal workflow first and then launches the per-execution container. |
+| **signal router** | Accepts `POST /api/executions/{id}/signal`. Validates the execution is in `waiting_for_signal`, ensures the container is running, then delivers the `provide_user_input` signal to the Temporal workflow. |
+| **monitor loop** | Async background task polling every 30 s. Queries Temporal for `is_input_needed` to drive DB status transitions. Detects dead containers and restarts them. Finalises completed, failed, and timed-out executions. |
+| **DockerDurableBackend** | Orchestrates two-step submission: starts the Temporal workflow before the container so history exists from the beginning, then runs the Docker container with the per-execution task queue name. |
+| **Temporal client** | Shared gRPC singleton. One connection per scheduler-service process; reconnects transparently on drop. |
+| **Temporal Server** | Persists the full workflow event history. Holds pending activity tasks until a worker registers on the matching task queue. Each execution gets an isolated queue (`synteles-agent-{id}`). |
+| **durable-worker container** | One container per execution. Runs `AgentWorkflow` as a Temporal worker. Fetches the execution manifest from S3 at startup, initialises MCP server connections, registers on the per-execution task queue, and processes activity tasks. |
+| **S3 / MinIO** | Stores the execution manifest (fetched by the container at startup), output artifacts (`output.zip` uploaded by the `upload_output` activity), and container logs (written on finalise). |
+| **LLM Provider** | Called by the `call_llm_step` activity via LiteLLM. Provider and model are configured per agentlet in the YAML (`model.provider` / `model.model_id`). |
+| **MCP Servers** | Tool providers declared in the agentlet YAML under `mcp_tools`. Supported transports: `stdio` (subprocess spawned inside the container) and `http`/`sse` (remote server). |
 
 ---
 
-## Agentlet Execution Backend — Setting
+## ReAct Loop Implementation
 
-`execution_backend` was previously an optional YAML field inside the agentlet definition, which meant it had to be parsed from YAML on every execution, could not be indexed, and was invisible in API responses.
-
-**Migration 0004** promoted it to a first-class column on the `agentlets` table (reusing the existing `execution_type` PostgreSQL enum, `DEFAULT 'standard'`). A backfill step sets any rows whose YAML contained `execution_backend: durable` to the new column.
-
-```
-Before:
-  agentlet.yaml_definition → parse YAML → read execution_backend → fallback to env var
-
-After:
-  agentlet.execution_backend (DB column) → one-liner read
-```
-
-The YAML field was removed from `agentlet-schema.json`. It is no longer parsed or honoured.
-
----
-
-## Execution Submit Flow
-
-### Standard Execution
-
-```
-POST /api/executions
-        │
-        ▼
-scheduler-service / execute.py
-  1. Look up agentlet by name → read execution_backend column
-  2. Create execution row (status=deploying)
-  3. Copy input files (S3 upload bucket → logs bucket)
-  4. Generate presigned PUT URL for output.zip
-  5. Build manifest JSON  {agentlet_yaml, input_files, output_url, prompt, timeout}
-  6. Upload manifest to s3://…/executions/{id}/manifest.json
-  7. Generate presigned GET URL for manifest
-  8. Resolve secrets (user secrets + platform model secrets)
-  9. call get_backend(standard).submit()
-     └── DockerStandardBackend.submit()
-           └── DockerRuntime.run_container(AGENTLET_IMAGE, execution_id, env)
-                  env includes: SYNTELES_MANIFEST_URL, SYNTELES_EXEC_ID, decrypted secrets
- 10. Update execution row: status=running, job_ref=container_id
- 11. Return 202 {execution_id, status:"running"}
-```
-
-### Durable Execution
-
-```
-POST /api/executions
-        │
-        ▼
-scheduler-service / execute.py
-  1–8. Same as standard (manifest upload, secrets, presigned URLs)
-       + SYNTELES_OUTPUT_URL added to container env (worker needs it for output upload)
-  9. call get_backend(durable).submit()
-     └── DockerDurableBackend.submit()
-           a. client.start_workflow("AgentWorkflow", execution_id,
-                id="synteles-{execution_id}",
-                task_queue="synteles-agent-{execution_id}")
-              Temporal queues the first workflow task immediately.
-              The worker has not registered yet — Temporal holds the task.
-           b. DockerRuntime.run_container(AGENT_WORKER_IMAGE, "agent-{id}", env)
-              Container boots, fetches manifest, queries MCP tools,
-              then registers on the task queue. Temporal dispatches queued task.
- 10. Update execution row: status=running, job_ref=execution_id,
-                           workflow_id="synteles-{execution_id}"
- 11. Return 202 {execution_id, status:"running"}
-```
-
-**Why start the workflow before the container?**
-Temporal can safely hold a workflow task for minutes until a worker registers. Starting the workflow first ensures the execution ID is recorded in Temporal's event history from the beginning, so if the container never starts, Temporal's timeout mechanisms still have a record to work with.
-
----
-
-## durable-worker Service — Internals
-
-### Module Layout
-
-```
-durable-worker/
-├── worker.py          Entrypoint. Startup orchestration, Temporal worker registration.
-├── manifest.py        Fetch + parse agentlet YAML from presigned S3 URL.
-├── agent_config.py    Module-level singletons populated at startup (system_prompt,
-│                      model, tools_schema, mcp_tool_map, output_url).
-├── config.py          Env var declarations (TEMPORAL_ADDRESS, TEMPORAL_TASK_QUEUE,
-│                      EXECUTION_ID, SYNTELES_MANIFEST_URL, SYNTELES_OUTPUT_URL).
-├── activities.py      Temporal activities: call_llm_step, call_mcp_tool, upload_output.
-└── workflows/
-    └── agent.py       AgentWorkflow — ReAct loop, HITL signal/query surface.
-```
-
-### Key Data Classes (manifest.py)
-
-```
-MCPToolSpec
-  name:    str          agentlet YAML tool name (for logging)
-  command: str          stdio server command (e.g. "uvx", "npx")
-  args:    list[str]    CLI arguments
-  env:     dict[str,str] static env overrides from YAML
-
-AgentletSpec
-  system_prompt: str
-  prompt:        str | None   YAML default prompt (None if unset)
-  provider:      str          e.g. "azure_ai", "openai", "anthropic"
-  model_id:      str          e.g. "gpt-5.3-chat", "gpt-4o"
-  mcp_tools:     list[MCPToolSpec]
-```
-
-Only `stdio` MCP servers are supported in the durable worker. Servers declared with `server: http` or any other type are silently skipped during `parse_agentlet()`.
-
-### Startup Sequence
-
-```
-worker.py: main()
-  │
-  ├── 1. Validate env vars (SYNTELES_MANIFEST_URL, TEMPORAL_TASK_QUEUE, EXECUTION_ID)
-  │
-  ├── 2. fetch_manifest(SYNTELES_MANIFEST_URL)
-  │        GET presigned S3 URL → parse JSON
-  │        Returns: {agentlet_yaml, input_files, output_url, prompt, timeout}
-  │
-  ├── 3. Download input files → /tmp/input/
-  │        SSRF guard: input file URLs must share the same host:port as the manifest URL
-  │
-  ├── 4. parse_agentlet(manifest)
-  │        Parse agentlet_yaml → AgentletSpec
-  │        (system_prompt, provider, model_id, mcp_tools list)
-  │
-  ├── 5. resolve_prompt(manifest, spec)
-  │        Runtime prompt (from manifest.prompt) overrides YAML default
-  │        Raises if both are empty
-  │
-  ├── 6. Populate agent_config module-level singletons
-  │        system_prompt, effective_prompt, model = "{provider}/{model_id}"
-  │        output_url = SYNTELES_OUTPUT_URL (env) or manifest.output_url
-  │
-  ├── 7. _fetch_mcp_schemas(spec.mcp_tools)
-  │        For each stdio MCP server:
-  │          spawn process → ClientSession.initialize() → list_tools()
-  │          Build OpenAI-format tool schema dicts
-  │          Build tool_name → MCPServerRef mapping
-  │        Servers that fail to connect are skipped (warning logged)
-  │
-  ├── 8. Populate agent_config.tools_schema, agent_config.mcp_tool_map
-  │
-  └── 9. Client.connect(TEMPORAL_ADDRESS)
-           Worker(task_queue, workflows=[AgentWorkflow], activities=[…])
-           worker.run()  ← blocks until container exits
-```
-
-### LiteLLM Model String
-
-The model is assembled as `"{provider}/{model_id}"` — e.g. `"azure_ai/gpt-5.3-chat"`. LiteLLM routes to the correct SDK based on the prefix, and reads credentials from the container's environment variables (injected from the agentlet's `secrets` list by the scheduler). `litellm.drop_params = True` suppresses provider-specific parameters not supported by the active backend (e.g. `tool_choice` on providers that do not accept it).
-
----
-
-## AgentWorkflow — ReAct Loop
-
-The workflow implements a manual ReAct (Reason + Act) loop. **Every non-deterministic operation is an activity** so Temporal can replay the workflow history correctly after a crash.
+The workflow implements a manual ReAct (Reason + Act) loop. **Every non-deterministic operation is a Temporal activity** so the workflow history can be replayed correctly after a container crash.
 
 ```mermaid
 flowchart TD
-    Start([workflow.run  execution_id]) --> Init[Build messages\nsystem_prompt + effective_prompt]
-    Init --> Combine[tools = ask_user + MCP tools schemas]
+    Start([workflow.run  execution_id]) --> LoadCfg[load_agent_config activity\nfetch manifest from S3\nparse agentlet YAML\ninitialise MCP connections\nbuild tool schemas]
+    LoadCfg --> Init[Build messages\nsystem_prompt + effective_prompt]
+    Init --> Combine[tools = ask_user + MCP tool schemas]
     Combine --> LLM{call_llm_step activity\nLiteLLM acompletion}
     LLM --> Append[append assistant_msg\nupdate _last_message]
     Append --> Check{tool_calls\nin response?}
@@ -338,8 +109,11 @@ flowchart TD
     Signal -- received --> ClearHITL[clear _input_needed\ncopy _user_input\nclear _question]
     ClearHITL --> AppendTool[append tool result to messages]
 
-    Route -- known MCP tool --> MCP[call_mcp_tool activity\nspawn stdio process\ncall tool\nreturn text result]
-    MCP --> AppendTool
+    Route -- stdio MCP tool --> StdioMCP[call_mcp_tool activity\nspawn stdio process\ncall tool\nreturn text result]
+    StdioMCP --> AppendTool
+
+    Route -- http/sse MCP tool --> HttpMCP[call_http_mcp_tool activity\nHTTP or SSE request\ncall tool\nreturn text result]
+    HttpMCP --> AppendTool
 
     Route -- unknown tool --> Err[error string\nlog warning]
     Err --> AppendTool
@@ -351,6 +125,56 @@ flowchart TD
     LLM -->|exception + not cancelled| UploadFail[upload_output activity\non failure path]
     UploadFail --> Raise([re-raise])
 ```
+
+### Limitations
+
+Durable agentlets do not have access to the built-in platform tools available in standard agentlets (platform-native integrations, built-in file helpers, etc.). All tool capabilities must be provided via MCP servers declared in the agentlet YAML. The only built-in tool is `ask_user`, which is injected by the workflow itself and does not require any YAML configuration.
+
+### MCP Servers
+
+Two transport types are supported.
+
+**stdio** — the MCP server is spawned as a child process inside the container for each `call_mcp_tool` activity invocation:
+
+```yaml
+mcp_tools:
+  - name: web-search
+    server: stdio
+    command: uvx
+    args:
+      - tavily-mcp
+    env:
+      TAVILY_API_KEY: "sk-..."   # static env override applied at spawn time
+```
+
+**http / sse** — the MCP server runs externally; the container connects to it over HTTP or SSE via the `call_http_mcp_tool` activity:
+
+```yaml
+mcp_tools:
+  - name: database-reader
+    server: http          # or: sse
+    url: https://mcp.example.com/mcp
+    headers:
+      X-Custom-Header: value
+    api_key_env: DB_MCP_API_KEY   # env var name whose value becomes the Bearer token
+```
+
+Field reference:
+
+| Field | Transport | Required | Description |
+|---|---|---|---|
+| `name` | both | Yes | Identifier used in tool routing and logs |
+| `server` | both | Yes | `stdio`, `http`, or `sse` |
+| `command` | stdio | Yes | Executable to spawn (e.g. `uvx`, `npx`, `python`) |
+| `args` | stdio | No | CLI arguments passed to the command |
+| `env` | stdio | No | Static env overrides applied when spawning the process |
+| `url` | http/sse | Yes | MCP server base URL |
+| `headers` | http/sse | No | HTTP headers included in every request |
+| `api_key_env` | http/sse | No | Env var name whose value is sent as `Authorization: Bearer` |
+
+Tool schemas are discovered at container startup via the MCP `initialize` + `list_tools` protocol, before the workflow begins processing. A server that fails to connect is skipped with a warning; the workflow continues without its tools. Schemas are loaded once and replayed deterministically from Temporal's event history — MCP servers are not re-queried on workflow replay after a container restart.
+
+Secrets needed by MCP servers (API keys, tokens) can be injected into the container environment via the agentlet's `secrets` list — the scheduler resolves them from the user's stored secrets and populates the container's environment before start. For `stdio` tools, reference them in `env`; for `http`/`sse` tools, set `api_key_env` to the env var name.
 
 ### Temporal Interface Surface
 
