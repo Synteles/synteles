@@ -77,7 +77,9 @@ async def test_status_exited_zero(backend: DockerStandardBackend, mock_client: M
     assert await backend.status("abc123") == ExecutionStatus.COMPLETED
 
 
-async def test_status_exited_nonzero(backend: DockerStandardBackend, mock_client: MagicMock) -> None:
+async def test_status_exited_nonzero(
+    backend: DockerStandardBackend, mock_client: MagicMock
+) -> None:
     container = MagicMock()
     container.status = "exited"
     container.attrs = {"State": {"ExitCode": 1}}
@@ -97,7 +99,9 @@ async def test_status_not_found(backend: DockerStandardBackend, mock_client: Mag
 # ---------------------------------------------------------------------------
 
 
-async def test_logs_returns_decoded_bytes(backend: DockerStandardBackend, mock_client: MagicMock) -> None:
+async def test_logs_returns_decoded_bytes(
+    backend: DockerStandardBackend, mock_client: MagicMock
+) -> None:
     container = MagicMock()
     container.logs.return_value = b"hello\nworld"
     mock_client.containers.get.return_value = container
@@ -108,7 +112,9 @@ async def test_logs_returns_decoded_bytes(backend: DockerStandardBackend, mock_c
     container.logs.assert_called_once_with(stdout=True, stderr=True)
 
 
-async def test_logs_not_found_returns_empty(backend: DockerStandardBackend, mock_client: MagicMock) -> None:
+async def test_logs_not_found_returns_empty(
+    backend: DockerStandardBackend, mock_client: MagicMock
+) -> None:
     mock_client.containers.get.side_effect = docker.errors.NotFound("not found")
 
     assert await backend.logs("abc123") == ""
@@ -119,7 +125,9 @@ async def test_logs_not_found_returns_empty(backend: DockerStandardBackend, mock
 # ---------------------------------------------------------------------------
 
 
-async def test_submit_returns_container_id(backend: DockerStandardBackend, mock_client: MagicMock) -> None:
+async def test_submit_returns_container_id(
+    backend: DockerStandardBackend, mock_client: MagicMock
+) -> None:
     container = MagicMock()
     container.id = "deadbeef"
     mock_client.containers.run.return_value = container
@@ -174,7 +182,9 @@ async def test_submit_with_network(backend: DockerStandardBackend, mock_client: 
 # ---------------------------------------------------------------------------
 
 
-async def test_stop_running_container(backend: DockerStandardBackend, mock_client: MagicMock) -> None:
+async def test_stop_running_container(
+    backend: DockerStandardBackend, mock_client: MagicMock
+) -> None:
     container = MagicMock()
     container.status = "running"
     mock_client.containers.get.return_value = container
@@ -185,7 +195,9 @@ async def test_stop_running_container(backend: DockerStandardBackend, mock_clien
     container.remove.assert_called_once_with(force=True)
 
 
-async def test_stop_stopped_container(backend: DockerStandardBackend, mock_client: MagicMock) -> None:
+async def test_stop_stopped_container(
+    backend: DockerStandardBackend, mock_client: MagicMock
+) -> None:
     container = MagicMock()
     container.status = "exited"
     mock_client.containers.get.return_value = container
@@ -196,7 +208,9 @@ async def test_stop_stopped_container(backend: DockerStandardBackend, mock_clien
     container.remove.assert_called_once_with(force=True)
 
 
-async def test_stop_not_found_is_noop(backend: DockerStandardBackend, mock_client: MagicMock) -> None:
+async def test_stop_not_found_is_noop(
+    backend: DockerStandardBackend, mock_client: MagicMock
+) -> None:
     mock_client.containers.get.side_effect = docker.errors.NotFound("not found")
 
     await backend.stop("abc123")  # must not raise
