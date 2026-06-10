@@ -264,7 +264,7 @@ def _resolve_execution_type(agentlet: Any) -> ExecutionType:
 #  10. Update execution row: status=running, job_ref=container_id
 #  11. Return 202 {execution_id, status:"running"}
 #
-# Submit flow — durable execution (steps 1–8 identical, step 9 differs):
+# Submit flow - durable execution (steps 1-8 identical, step 9 differs):
 #   9. get_backend(durable).submit()
 #      └── DockerDurableBackend:
 #            a. client.start_workflow("AgentWorkflow", execution_id,
