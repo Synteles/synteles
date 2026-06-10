@@ -1,4 +1,4 @@
-# Durable Execution — Architecture Reference
+# Durable Execution
 
 ## Overview
 
@@ -8,7 +8,7 @@ Standard agentlets run as short-lived containers. The scheduler starts a Docker 
 
 This design also enables **human-in-the-loop** (HITL) pauses. When an agent calls the `ask_user` tool, the workflow suspends and waits indefinitely for a human signal. The container can exit during the wait — when the user provides input via the API, the scheduler restarts the container if needed and delivers the signal to resume.
 
-Practical implications:
+**Practical implications:**
 
 - Long-running jobs can be interrupted (OOM, host maintenance, intentional pause) and resume without losing progress.
 - Agents that require human approval or clarification before continuing do not need to re-run prior steps when the user responds.
@@ -24,11 +24,82 @@ Practical implications:
 | `ask_user` tool | Not available | Pauses workflow; signal resumes it |
 | `execution_backend` setting | `standard` | `durable` |
 
+## Configuring a Durable Agentlet
+
+### Setting execution_backend
+
+Set `execution_backend` to `"durable"` when creating or updating an agentlet via the API:
+
+```http
+POST /api/agentlets
+Content-Type: application/json
+
+{
+  "name": "my-durable-agent",
+  "execution_backend": "durable",
+  "agentlet_yaml": "..."
+}
+```
+
+Or update an existing agentlet:
+
+```http
+PATCH /api/agentlets/{id}
+Content-Type: application/json
+
+{ "execution_backend": "durable" }
+```
+
+`execution_backend` is stored in the database and controls how all executions of that agentlet are run. It is not part of the agentlet YAML.
+
+### Agentlet YAML
+
+A complete durable agentlet YAML:
+
+```yaml
+system_prompt: |
+  You are a data-processing assistant. Read input files from /tmp/input/.
+  Write output files to /tmp/output/ — anything written there will be
+  included in the output archive. Call ask_user when you need approval
+  before an irreversible operation.
+
+model:
+  provider: anthropic
+  model_id: claude-haiku-4-5
+
+mcp_tools:
+  - name: filesystem
+    server: stdio
+    command: uvx
+    args:
+      - mcp-server-filesystem
+      - /tmp
+
+secrets:
+  - default   # injects platform model credentials into the container environment
+```
+
+Key YAML fields for durable agentlets:
+
+| Field | Required | Description |
+|---|---|---|
+| `system_prompt` | Yes | Agent's system prompt. Instruct the agent to read from `/tmp/input/` and write to `/tmp/output/` as needed. |
+| `model.provider` | Yes | LiteLLM provider string (e.g. `anthropic`, `openai`, `azure_ai`) |
+| `model.model_id` | Yes | Model identifier as used by LiteLLM (e.g. `claude-haiku-4-5`, `gpt-4.1`) |
+| `mcp_tools` | No | MCP server declarations — the only way to give tools to a durable agentlet beyond `ask_user` |
+| `secrets` | No | `[default]` injects platform model credentials. Required when `model.provider` references a platform-managed credential. |
+
+### File conventions
+
+**Input files** from the execution request are downloaded to `/tmp/input/` at container startup. Reference them in your system prompt and make them accessible to MCP tools as needed.
+
+**Output files** must be written to `/tmp/output/`. When execution completes, the `upload_output` activity zips everything under `/tmp/output/` and stores it as `output.zip` in S3. Files written anywhere else in the container are discarded when the container exits.
+
 ---
 
 ## Durable Execution Architecture
 
-```mermaid
+```mermaid 
 graph TB
     User["User / External App"]
 
@@ -50,7 +121,7 @@ graph TB
 
     S3[("S3 / MinIO\n(manifest · output · logs)")]
     LLM["LLM Provider"]
-    MCP["MCP Servers\n(stdio)"]
+    MCP["MCP Servers\n(stdio · http/sse)"]
 
     User -->|"POST /signal {input}"| SigRouter
     ExecRouter --> DurableBackend
@@ -66,13 +137,10 @@ graph TB
     Worker --> S3
 ```
 
----
-
-
 | Component | Description |
 |---|---|
 | **execute router** | Accepts `POST /api/executions`. Calls `DockerDurableBackend.submit()`, which registers the Temporal workflow first and then launches the per-execution container. |
-| **signal router** | Accepts `POST /api/executions/{id}/signal`. Validates the execution is in `waiting_for_signal`, ensures the container is running, then delivers the `provide_user_input` signal to the Temporal workflow. |
+| **signal router** | Accepts `POST /api/executions/{id}/signal`. Validates the execution is in `waiting_for_signal`, delivers the `update_output_url` and `provide_user_input` signals to Temporal, updates the DB status to `running`, then ensures the container is running. |
 | **monitor loop** | Async background task polling every 30 s. Queries Temporal for `is_input_needed` to drive DB status transitions. Detects dead containers and restarts them. Finalises completed, failed, and timed-out executions. |
 | **DockerDurableBackend** | Orchestrates two-step submission: starts the Temporal workflow before the container so history exists from the beginning, then runs the Docker container with the per-execution task queue name. |
 | **Temporal client** | Shared gRPC singleton. One connection per scheduler-service process; reconnects transparently on drop. |
@@ -82,7 +150,17 @@ graph TB
 | **LLM Provider** | Called by the `call_llm_step` activity via LiteLLM. Provider and model are configured per agentlet in the YAML (`model.provider` / `model.model_id`). |
 | **MCP Servers** | Tool providers declared in the agentlet YAML under `mcp_tools`. Supported transports: `stdio` (subprocess spawned inside the container) and `http`/`sse` (remote server). |
 
----
+When a durable execution is submitted, `DockerDurableBackend` registers the Temporal workflow **before** starting the container. Temporal begins recording event history immediately, so if the container never boots, the execution still has a traceable record and Temporal's deadline mechanisms can act on it.
+
+Each execution gets its own isolated task queue named `synteles-agent-{execution_id}`. The `execution_id` UUID is the single stable identifier across all three systems — it becomes the Temporal workflow ID, the container name, and the task queue name. No secondary lookups or string parsing are needed anywhere in the stack.
+
+The container is stateless with respect to workflow progress. It is purely a Temporal activity runner: it registers on the task queue, executes activities (LLM calls, MCP tool invocations, output upload), and exits. All meaningful state — message history, position in the ReAct loop, HITL pause flags — lives in Temporal's event log. When the container crashes, the monitor detects it on the next poll and starts a fresh one. The new container re-registers on the same queue and Temporal dispatches the pending activity to it. From Temporal's perspective, a container restart is just a slow activity retry.
+
+Status synchronisation uses a monitor-pull model rather than callbacks from the container. The monitor — an async background loop in `scheduler-service` — polls Temporal every 30 seconds and writes the result to the platform database. The container needs no credentials to the scheduler and no knowledge of platform internals. All status authority stays in one place.
+
+HITL follows the same pull pattern. When the monitor reads `is_input_needed = true`, it transitions the execution to `waiting_for_signal`. When a signal is submitted via the API, the scheduler optimistically flips the status back to `running` in the 202 response rather than waiting for the next monitor tick — this keeps the UI responsive. Temporal confirms actual state on the following poll.
+
+LiteLLM is used inside the container rather than a provider-specific SDK. The model string (`{provider}/{model_id}`) routes to the correct backend, and credentials are injected via the container environment at launch. Durable agentlets are provider-agnostic by the same mechanism standard agentlets use — no separate credential handling per execution type.
 
 ## ReAct Loop Implementation
 
@@ -125,10 +203,6 @@ flowchart TD
     LLM -->|exception + not cancelled| UploadFail[upload_output activity\non failure path]
     UploadFail --> Raise([re-raise])
 ```
-
-### Limitations
-
-Durable agentlets do not have access to the built-in platform tools available in standard agentlets (platform-native integrations, built-in file helpers, etc.). All tool capabilities must be provided via MCP servers declared in the agentlet YAML. The only built-in tool is `ask_user`, which is injected by the workflow itself and does not require any YAML configuration.
 
 ### MCP Servers
 
@@ -176,272 +250,119 @@ Tool schemas are discovered at container startup via the MCP `initialize` + `lis
 
 Secrets needed by MCP servers (API keys, tokens) can be injected into the container environment via the agentlet's `secrets` list — the scheduler resolves them from the user's stored secrets and populates the container's environment before start. For `stdio` tools, reference them in `env`; for `http`/`sse` tools, set `api_key_env` to the env var name.
 
-### Temporal Interface Surface
+## Human-in-the-Loop
 
-| Type | Name | Signature | Purpose |
+A durable agentlet can pause mid-execution to ask the user a question and wait indefinitely for an answer before continuing. This is triggered when the agent calls the `ask_user` tool during the ReAct loop. The tool is injected automatically by the workflow — no configuration is required.
+
+When `ask_user` fires:
+
+1. The workflow suspends — the container blocks on an internal Temporal condition, holding the full conversation context in memory. The execution status transitions to `waiting_for_signal` on the next monitor poll (within 30 s).
+2. Your application detects this by polling `GET /api/executions/{id}` (or `GET /api/public/executions/{id}`). When `status` is `waiting_for_signal`, the response also includes `pending_question` (the text the agent is asking) and `last_message` (the last assistant message, for context).
+3. Submit the answer via `POST /api/executions/{id}/signal` with `{"input": "<answer>"}`. The platform refreshes the presigned output URL and delivers the signal to the Temporal workflow, then ensures the container is running (restarting it if it exited during the wait).
+4. The workflow resumes — the agent receives the answer as the `ask_user` tool result and the ReAct loop continues from exactly where it paused.
+
+There is no push mechanism. Your application must poll the status endpoint to detect when input is needed.
+
+If no signal is delivered within `SIGNAL_WAIT_TIMEOUT_SECONDS` (default 24 h), the monitor transitions the execution to `stopped`.
+
+```mermaid
+sequenceDiagram
+    participant W as durable-worker
+    participant T as Temporal
+    participant S as scheduler-service
+    participant U as User / App
+
+    W->>W: ask_user("Approve deletion?")
+    W->>T: wait_condition on _input_needed
+
+    loop monitor tick (every 30 s)
+        S->>T: query is_input_needed
+        T-->>S: true
+        S->>S: DB: running → waiting_for_signal
+    end
+
+    U->>S: GET /executions/{id}
+    S->>T: query get_pending_question
+    T-->>S: "Approve deletion?"
+    S-->>U: 200 { status: waiting_for_signal, pending_question: "Approve deletion?" }
+
+    U->>S: POST /executions/{id}/signal { input: "yes" }
+    S->>T: signal update_output_url(new_url)
+    S->>T: signal provide_user_input("yes")
+    S->>S: DB: waiting_for_signal → running
+    S->>S: ensure_worker_running()
+    S-->>U: 202 { status: running }
+    Note over T,W: Temporal delivers signal asynchronously
+    T->>W: condition satisfied
+    W->>W: tool result = "yes", resume ReAct loop
+
+    loop next monitor tick
+        S->>T: query is_input_needed
+        T-->>S: false
+        S->>S: DB: waiting_for_signal → running
+    end
+```
+
+
+## Durable Worker Lifecycle
+
+The platform tracks a durable execution through two systems in parallel: the Temporal workflow (which holds the full event history) and the execution `status` in the platform database (which your application reads via the API). The monitor keeps them in sync by polling Temporal every 30 seconds.
+
+### Execution Statuses
+
+| Status | What it means |
+|---|---|
+| `deploying` | Execution accepted; Temporal workflow registered; container starting |
+| `running` | Container is up and the ReAct loop is active |
+| `waiting_for_signal` | Agent paused on `ask_user` — waiting for a human response via `POST /signal` |
+| `completed` | Agent finished and output uploaded; container stopped and removed |
+| `failed` | Unrecoverable error; logs available; container stopped and removed |
+| `stopped` | Cancelled, timed out, or signal wait deadline passed; container stopped and removed |
+
+### State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> deploying : POST /api/executions
+    deploying --> running : container registered on task queue
+    running --> waiting_for_signal : agent calls ask_user
+    waiting_for_signal --> running : POST /signal delivered
+    waiting_for_signal --> stopped : signal timeout exceeded
+    running --> completed : agent finishes, output uploaded
+    running --> failed : unrecoverable error
+    running --> stopped : execution timeout or cancel
+    completed --> [*] : logs uploaded · container removed
+    failed --> [*] : logs uploaded · container removed
+    stopped --> [*] : logs uploaded · container removed
+```
+
+All three terminal states go through the same cleanup step: container logs are uploaded to S3, the container is stopped and removed, and the Temporal workflow is cancelled if still open. Standard executions follow the same path without `waiting_for_signal`: `deploying → running → completed / failed / stopped`.
+
+### Container Crash Recovery
+
+The durable-worker container holds no durable state — all execution history lives in Temporal. If the container exits unexpectedly (OOM, host maintenance, or any other reason), the Temporal workflow keeps running. On the next monitor tick, the platform detects the dead container and starts a fresh one. The new container registers on the same per-execution task queue, Temporal replays history to the point of failure, and execution continues. The status remains `running` throughout — no action is needed from your application.
+
+Container restarts are triggered in two situations:
+
+| When | Trigger |
+|---|---|
+| Monitor tick | Container has exited while the Temporal workflow is still running |
+| Signal delivery | Container may have exited during a `waiting_for_signal` pause; the scheduler ensures it is running before delivering the signal |
+
+On each restart, fresh presigned S3 URLs are generated and the workflow is updated via a Temporal signal so expired URLs are never used.
+
+### Timeouts
+
+Two independent deadlines apply to a durable execution:
+
+| Timeout | Set by | Default | Effect |
 |---|---|---|---|
-| **Signal** | `provide_user_input` | `(user_input: str)` | Deliver human answer to a paused `ask_user`. Sets `_user_input`, clears `_input_needed`. |
-| **Signal** | `update_output_url` | `(new_url: str)` | Refresh the presigned S3 PUT URL. Sent by `worker_restart.py` on each container restart so the URL does not expire. |
-| **Query** | `is_input_needed` | `→ bool` | Polled by monitor every tick. `True` when workflow is blocked at `ask_user`. |
-| **Query** | `get_pending_question` | `→ str` | The question text from the current `ask_user` call. Surfaced in GET status response. |
-| **Query** | `get_last_message` | `→ str` | Last assistant message (even if not a final answer). Lets callers track progress. |
+| Execution deadline | `timeout` in the API request (seconds) | 3600 s | Execution is stopped when the wall-clock deadline is reached |
+| Signal wait deadline | `SIGNAL_WAIT_TIMEOUT_SECONDS` env var | 86400 s (24 h) | If `waiting_for_signal` persists past this limit, execution is stopped |
 
-### Activity Retry Policies
+## Durable Execution API
 
-Retries are intentionally generous to absorb transient LLM errors and survive worker container restarts. The retry budget for `call_llm_step` gives ~10+ minutes before Temporal gives up.
-
-| Activity | Max Attempts | Initial Interval | Backoff | Max Interval |
-|---|---|---|---|---|
-| `call_llm_step` | 10 | 30 s | ×2 | 120 s |
-| `call_mcp_tool` | 5 | 30 s | ×2 | 120 s |
-| `upload_output` | 3 | 10 s | ×2 | 30 s |
-
----
-
-## Monitor — HITL Signal Bridge
-
-The monitor runs as an `asyncio` background task inside `scheduler-service`, polling every `MONITOR_INTERVAL_SECONDS`. All status transitions for both standard and durable executions flow through it — there are no HTTP callbacks from `durable-worker` to the platform.
-
-**Why no callbacks?**
-A callback approach would require the durable-worker container to authenticate to the scheduler API, adding service-to-service credential management and a surface area for auth bypass bugs. The monitor-pull design keeps all status logic in one place and requires no changes to the container.
-
-### Poll Loop Logic
-
-```
-_poll()
-  │
-  ├── list_active() from DB (one session for the whole batch)
-  │
-  ├── Build backends dict: { ExecutionType → ExecutionBackend }
-  │     One DockerRuntime + one Temporal client per poll tick (cached singletons)
-  │
-  └── for each execution with a job_ref:
-        │
-        ├── timeout_at < now?
-        │     └── _finalize(stopped)  [cancel workflow + stop container + upload logs]
-        │
-        ├── backend.status() == COMPLETED → _finalize(completed)
-        ├── backend.status() == FAILED    → _finalize(failed)
-        │
-        └── status == RUNNING and execution_type == durable:
-              │
-              ├── _sync_durable_signal_status()
-              │     Query Temporal: is_input_needed?
-              │     true  + DB=running            → DB: running → waiting_for_signal
-              │                                       set timeout_at = now + SIGNAL_WAIT_TIMEOUT
-              │     false + DB=waiting_for_signal  → DB: waiting_for_signal → running
-              │
-              └── container_alive()?
-                    No → ensure_worker_running()  [restart dead container]
-```
-
-### _finalize() Sequence
-
-```
-_finalize(execution, terminal_status, backend, db)
-  1. backend.logs(job_ref)        — fetch container stdout/stderr
-  2. Upload logs → s3://…/executions/{id}/logs.txt
-  3. ExecutionRepo.update_status(terminal_status, completed_at=now, logs_s3_uri)
-  4. db.commit()
-  5. backend.stop(job_ref)        — for durable: Temporal cancel + docker stop+rm
-```
-
----
-
-## HITL — Full Signal Round-Trip
-
-This diagram shows every component involved when a workflow pauses to ask the user a question, the user answers via the API, and the workflow resumes.
-
-```
-durable-worker                Temporal               scheduler-service            ux-console
-     │                            │                         │                         │
-     │ ask_user tool call          │                         │                         │
-     │ _input_needed = True        │                         │                         │
-     │◄── wait_condition ──────────│                         │                         │
-     │                            │                         │                         │
-     │                            │  ← monitor tick          │                         │
-     │                            │  query is_input_needed   │                         │
-     │                            │──────────────────────────►                         │
-     │                            │  ◄── True                │                         │
-     │                            │                         │                         │
-     │                            │  DB: running →          │                         │
-     │                            │  waiting_for_signal     │                         │
-     │                            │                         │                         │
-     │                            │                         │  GET /executions/{id}   │
-     │                            │                         │◄────────────────────────│
-     │                            │  get_pending_question   │                         │
-     │                            │──────────────────────────►                         │
-     │                            │  ◄── "Approve deletion?" │                         │
-     │                            │                         │──── 200 {status:        │
-     │                            │                         │  waiting_for_signal,    │
-     │                            │                         │  pending_question: ...} │
-     │                            │                         │────────────────────────►│
-     │                            │                         │                         │
-     │                            │  POST /executions/{id}/signal {input:"yes"}       │
-     │                            │                         │◄────────────────────────│
-     │                            │  ensure_worker_running()│                         │
-     │                            │  update_output_url signal│                        │
-     │                            │  provide_user_input("yes")                        │
-     │                            │──────────────────────────►                        │
-     │◄── signal received         │                         │                         │
-     │ _input_needed = False       │                         │  202 {status:running}   │
-     │ wait_condition exits        │                         │────────────────────────►│
-     │ continue ReAct loop         │                         │                         │
-     │                            │  ← next monitor tick     │                         │
-     │                            │  is_input_needed → False │                         │
-     │                            │  DB: waiting_for_signal → running                 │
-```
-
-### Signal Endpoint Guards (409 Conflict)
-
-The signal endpoints reject the request if any of these conditions hold:
-
-| Condition | Reason |
-|---|---|
-| `execution_type != durable` | Standard executions have no Temporal workflow to signal |
-| `status != waiting_for_signal` | Delivering a signal to a running workflow would corrupt the message loop |
-| `workflow_id IS NULL` | No Temporal handle to address; execution may have failed to start |
-
----
-
-## Worker Container Restart
-
-The `worker_restart.py` module handles two scenarios where the `durable-worker` container may no longer be running while the Temporal workflow is still live:
-
-| Trigger | Scenario |
-|---|---|
-| **Monitor** | Container exited (OOM, crash) while workflow is `RUNNING` in Temporal |
-| **Signal delivery** | Container may have exited during a long `waiting_for_signal` pause |
-
-In both cases `ensure_worker_running()`:
-1. Checks `container_alive()` — skips if container is already up.
-2. Re-assembles container env vars (re-fetches secrets from DB, regenerates a fresh presigned GET URL for the existing manifest already in S3 — no re-upload).
-3. Generates a fresh presigned PUT URL for output.zip (sent as `update_output_url` signal to the workflow so the old URL is not used after expiry).
-4. Calls `DockerRuntime.run_container()` with the original container name.
-
-The Temporal workflow re-dispatches its pending activity to the newly registered worker. From Temporal's perspective, the container restart is just a slow retry.
-
----
-
-## Execution Status State Machines
-
-### Standard
-
-```
-submit
-  │
-  ▼
-deploying ──► running ──► completed
-                     └──► failed
-                     └──► stopped   (timeout or cancel)
-```
-
-### Durable
-
-```
-submit
-  │
-  ▼
-deploying ──► running ──────────────────────────► completed
-                │                                  │
-                │ ask_user tool                     │ failed
-                ▼                   signal          │ stopped (timeout/cancel)
-         waiting_for_signal ──────► running ───────►│
-                │
-                └── signal timeout ──► stopped
-```
-
-**DB enforcement:** A PostgreSQL `CHECK` constraint ensures only valid status values can be written per execution type:
-
-```sql
-CHECK (
-  (execution_type = 'standard' AND status IN ('deploying','running','completed','failed','stopped'))
-  OR
-  (execution_type = 'durable'  AND status IN ('deploying','running','waiting_for_signal',
-                                               'completed','failed','stopped'))
-)
-```
-
-This means a durable status like `waiting_for_signal` cannot accidentally be written on a standard execution row and vice versa — enforced at the DB layer, not just application code.
-
----
-
-## Database Schema
-
-### Migrations Applied
-
-| File | Description |
-|---|---|
-| `0003_durable_executions.py` | Add `execution_type` enum (`standard` \| `durable`). Add `execution_type` column to `executions` (default `standard`). Add `workflow_id TEXT` (Temporal workflow ID). Add `timeout_at TIMESTAMPTZ`. Add `waiting_for_signal` to valid status values. |
-| `0004_agentlet_execution_backend.py` | Add `execution_backend execution_type NOT NULL DEFAULT 'standard'` to `agentlets`. Backfill rows whose YAML contains `execution_backend: durable`. |
-| `0005_drop_signal_name.py` | Drop unused `signal_name TEXT` column from `executions`. The signal name is always `provide_user_input` — hardcoded at the delivery site. |
-
-### Agentlet Model (relevant fields)
-
-```
-agentlets
-  id:                 UUID  PK
-  org_id:             UUID  FK
-  user_id:            UUID  FK
-  name:               TEXT  UNIQUE per org
-  yaml_definition:    TEXT
-  execution_backend:  execution_type  NOT NULL  DEFAULT 'standard'   ← NEW
-  created_at, updated_at
-```
-
-### Execution Model (relevant fields)
-
-```
-executions
-  id:             UUID  PK
-  execution_type: execution_type  NOT NULL  DEFAULT 'standard'         ← NEW
-  status:         TEXT  NOT NULL  [validated by CHECK constraint]
-  job_ref:        TEXT            standard: container_id / durable: execution_id
-  workflow_id:    TEXT            durable only: "synteles-{execution_id}"  ← NEW
-  timeout_at:     TIMESTAMPTZ     execution deadline + signal wait deadline  ← NEW
-  logs_s3_uri:    TEXT            set on finalize
-  prompt:         TEXT
-  completed_at:   TIMESTAMPTZ
-```
-
-### Object Storage Layout
-
-```
-s3://{S3_LOGS_BUCKET}/
-  executions/{id}/
-    manifest.json          Execution manifest (agentlet YAML, input files, prompt, output URL)
-    input/{filename}       Input files copied from upload bucket
-    logs.txt               Container stdout/stderr (written on finalize)
-    output/output.zip      Agent output artifacts (uploaded by durable-worker upload_output activity)
-
-s3://{S3_UPLOAD_BUCKET}/
-  {upload_id}/{filename}   User-uploaded files (pre-execution)
-```
-
----
-
-## Temporal Client Singleton
-
-Both `DockerDurableBackend` (submit, status, stop, query) and the management router (signal delivery, status queries) need a Temporal client. Without a singleton, a new gRPC connection would be opened on every monitor tick and every API request.
-
-`temporal_client.py` implements a **double-checked locking** singleton:
-
-```
-get_temporal_client()
-  if _client is None:
-    async with _lock:           ← asyncio.Lock, prevents races on first call
-      if _client is None:       ← re-check inside lock
-        _client = await Client.connect(TEMPORAL_ADDRESS)
-  return _client
-```
-
-The same `Client` instance is reused indefinitely. If the connection drops, `temporalio` reconnects transparently on the next RPC.
-
----
-
-## API — New and Changed Endpoints
-
-### New Endpoints (scheduler-service)
+### Signal Endpoints
 
 | Method | Path | Auth | Status | Description |
 |---|---|---|---|---|
@@ -457,12 +378,20 @@ The same `Client` instance is reused indefinitely. If the connection drops, `tem
 | Code | Condition |
 |---|---|
 | 404 | Execution not found |
-| 409 | Not durable / not `waiting_for_signal` / no `workflow_id` |
+| 409 | See conditions below |
 | 500 | Temporal RPC failure |
+
+**409 conditions:**
+
+| Condition | Reason |
+|---|---|
+| `execution_type != durable` | Standard executions have no Temporal workflow to signal |
+| `status != waiting_for_signal` | Delivering a signal to a running execution would corrupt the message loop |
+| `workflow_id IS NULL` | No Temporal handle to address; execution may have failed to start |
 
 ### Enriched Status Response
 
-`GET /api/executions/{id}` and `GET /api/public/executions/{id}` now include:
+`GET /api/executions/{id}` and `GET /api/public/executions/{id}` include:
 
 | Field | When present | Source |
 |---|---|---|
@@ -472,47 +401,22 @@ The same `Client` instance is reused indefinitely. If the connection drops, `tem
 
 ### Agentlet Endpoints (core-service)
 
-`POST /api/agentlets`, `GET /api/agentlets`, `GET /api/agentlets/{id}`, `PATCH /api/agentlets/{id}` all now accept and return `execution_backend: "standard" | "durable"`.
-
-The list endpoint (`GET /api/agentlets`) previously omitted `execution_backend` — this was fixed to prevent the frontend from always defaulting to `standard` after page load.
+`POST /api/agentlets`, `GET /api/agentlets`, `GET /api/agentlets/{id}`, `PATCH /api/agentlets/{id}` accept and return `execution_backend: "standard" | "durable"`.
 
 ---
 
-## Frontend Changes
+## Known Issues and Limitations
 
-### New UI Components
+**Output must be written to `/tmp/output/`.** Files created anywhere else in the container filesystem are discarded when the container exits. Input files from the execution request are made available at `/tmp/input/` at startup.
 
-| Component | File | Purpose |
-|---|---|---|
-| `BackendBadge` | `components/agentlets/` | Pill badge — "Standard" (gray) / "Durable" (blue) |
-| `ToggleGroup` | `components/ui/toggle-group.tsx` | shadcn/ui `@radix-ui/react-toggle-group` wrapper |
+**No built-in platform tools.** Durable agentlets do not have access to the built-in tools available in standard agentlets. All tool capabilities must be declared via MCP servers in the agentlet YAML. The only automatically available tool is `ask_user`, which is injected by the workflow and requires no configuration.
 
-### Modified Components
+**Status transitions are not instant.** The execution status in the API is updated by the monitor, which polls Temporal every 30 seconds. A workflow that has just paused on `ask_user` will not appear as `waiting_for_signal` in `GET /executions/{id}` until the next monitor tick. The same lag applies to completion and failure detection.
 
-| Component | Change |
-|---|---|
-| `AgentletsPage` | Standard/Durable `ToggleGroup` in create and edit drawers. Contextual hint paragraph per choice. Passes `execution_backend` through `createAgentlet` / `updateAgentlet` actions. |
-| `AgentletCard` | `BackendBadge` in card header — backend type visible at a glance. |
-| `RunsTable` | `Backend` column with `BackendBadge` between Status and Created. |
-| `ExecutionDetailSheet` | HITL UI: shows `pending_question` when `waiting_for_signal`; signal input field + submit button; polls for state changes. |
-| `WatchdogProvider` | Updated active-run polling to handle `waiting_for_signal` as an active status. |
+**Tool calls are processed sequentially.** All tool calls within a single LLM response are executed one at a time in the order returned. If the LLM includes `ask_user` alongside other tool calls in the same turn, the remaining calls are blocked until the user responds.
 
-### Type Changes
+**No sub-agentlet orchestration.** Durable agentlets cannot launch or coordinate other agentlets. For workflows that require multi-agentlet coordination, use standard execution.
 
-`ExecutionType` added to `Execution` / `ExecutionApi` TypeScript types. `AgentletApi` and `Agentlet` types include `execution_backend`. `fromApi` mapping updated.
+**No real-time log streaming.** Container logs are uploaded to S3 only when the execution reaches a terminal state (completed, failed, or stopped). There is no mechanism to stream live output from a running durable execution.
 
----
-
-## Key Design Decisions
-
-| Decision | Choice | Rationale |
-|---|---|---|
-| HITL detection mechanism | Monitor polls `is_input_needed` Temporal query | No service-to-service auth needed; all status logic stays in one place |
-| Signal delivery response | Optimistic flip to `running` immediately (202) | Monitor confirms on next tick; avoids a round-trip wait for Temporal to acknowledge |
-| Per-execution task queue | `synteles-agent-{execution_id}` | Isolates each workflow to its own worker; prevents cross-execution interference |
-| `job_ref` for durable | `execution_id` (UUID) | Stable primary key; no string parsing needed to derive Temporal ID or container name |
-| Worker restart approach | Monitor detects dead container; `ensure_worker_running()` relaunches | Temporal retries keep the workflow alive; the container is a stateless activity runner |
-| `execution_backend` DB column | `execution_type` enum reused | Avoids a new enum type; semantically correct — same domain values |
-| LiteLLM over `openai-agents` SDK | LiteLLM | Provider-agnostic; Azure AI, Anthropic, OpenAI, Ollama all work via the same mechanism used by standard agentlets |
-| Signal name hardcoded | Always `provide_user_input` | `signal_name` column was redundant; dropped in migration 0005 |
-| `activity-worker` removal | Deleted | Was a Zigflow DSL relic; no longer on any execution path |
+**Signal wait is bounded.** A `waiting_for_signal` execution that receives no response within `SIGNAL_WAIT_TIMEOUT_SECONDS` (default 24 h) is automatically stopped. See [Durable Worker Lifecycle](#durable-worker-lifecycle) for timeout configuration.
