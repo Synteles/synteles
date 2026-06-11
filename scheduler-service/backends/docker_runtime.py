@@ -49,7 +49,8 @@ class DockerRuntime:
                 container.stop(timeout=10)
             container.remove(force=True)
         except docker.errors.NotFound:
-            pass
+            # Container already absent; treat stop/remove as idempotent.
+            return
 
     def container_status(self, name_or_id: str) -> ExecutionStatus:
         """Return the current ExecutionStatus of a container."""
