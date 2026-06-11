@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from synteles_db.models import (
     DurableExecStatus,
     Execution,
-    ExecutionType,
+    ExecutionBackend,
     StandardExecStatus,
 )
 
@@ -99,7 +99,7 @@ class ExecutionRepo:
         status: StandardExecStatus | DurableExecStatus,
         timeout_at: datetime,
         prompt: str,
-        execution_type: ExecutionType = ExecutionType.standard,
+        execution_type: ExecutionBackend = ExecutionBackend.standard,
     ) -> Execution:
         execution = Execution(
             id=uuid.uuid4(),
@@ -167,7 +167,7 @@ class ExecutionRepo:
             select(Execution)
             .where(
                 Execution.org_id == org_id,
-                Execution.execution_type == ExecutionType.durable,
+                Execution.execution_type == ExecutionBackend.durable,
                 Execution.status == DurableExecStatus.waiting_for_signal,
             )
             .order_by(Execution.updated_at.asc())

@@ -33,7 +33,7 @@ class Base(DeclarativeBase):
     pass
 
 
-class ExecutionType(enum.StrEnum):
+class ExecutionBackend(enum.StrEnum):
     standard = "standard"
     durable = "durable"
 
@@ -59,9 +59,9 @@ class DurableExecStatus(enum.StrEnum):
 ExecStatus = StandardExecStatus
 
 # Declared with create_type=False — the type is created by the Alembic migration.
-_execution_type_sa = SAEnum(
-    ExecutionType,
-    name="execution_type",
+_execution_backend_sa = SAEnum(
+    ExecutionBackend,
+    name="execution_backend",
     schema=_SCHEMA,
     create_type=False,
 )
@@ -118,8 +118,8 @@ class Agentlet(Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     yaml_definition: Mapped[str] = mapped_column(Text, nullable=False)
-    execution_backend: Mapped[ExecutionType] = mapped_column(
-        _execution_type_sa, nullable=False, server_default=ExecutionType.standard
+    execution_backend: Mapped[ExecutionBackend] = mapped_column(
+        _execution_backend_sa, nullable=False, server_default=ExecutionBackend.standard
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
@@ -164,8 +164,8 @@ class Execution(Base):
     user_id: Mapped[UUID] = mapped_column(ForeignKey(f"{_SCHEMA}.users.id"), nullable=False)
     agentlet_id: Mapped[UUID] = mapped_column(ForeignKey(f"{_SCHEMA}.agentlets.id"), nullable=False)
     agentlet_name: Mapped[str] = mapped_column(Text, nullable=False, server_default="''")
-    execution_type: Mapped[ExecutionType] = mapped_column(
-        _execution_type_sa, nullable=False, server_default=ExecutionType.standard
+    execution_type: Mapped[ExecutionBackend] = mapped_column(
+        _execution_backend_sa, nullable=False, server_default=ExecutionBackend.standard
     )
     status: Mapped[str] = mapped_column(Text, nullable=False)
     job_ref: Mapped[str | None] = mapped_column(Text)

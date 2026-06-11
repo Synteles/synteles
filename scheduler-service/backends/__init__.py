@@ -17,14 +17,14 @@
 
 from __future__ import annotations
 
-from synteles_db.models import ExecutionType
+from synteles_db.models import ExecutionBackend
 
 from backends.base import ExecutionBackend
 
-_cache: dict[ExecutionType, ExecutionBackend] = {}
+_cache: dict[ExecutionBackend, ExecutionBackend] = {}
 
 
-def get_backend(execution_type: ExecutionType = ExecutionType.standard) -> ExecutionBackend:
+def get_backend(execution_type: ExecutionBackend = ExecutionBackend.standard) -> ExecutionBackend:
     """Return the backend for the given execution type, reusing a cached instance.
 
     Backends are stateless (all state flows through job_ref parameters), so a
@@ -40,7 +40,7 @@ def get_backend(execution_type: ExecutionType = ExecutionType.standard) -> Execu
     from config import EXECUTION_RUNTIME
 
     if EXECUTION_RUNTIME == "docker":
-        if execution_type == ExecutionType.durable:
+        if execution_type == ExecutionBackend.durable:
             from backends.docker_durable import DockerDurableBackend
 
             backend: ExecutionBackend = DockerDurableBackend()

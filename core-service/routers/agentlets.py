@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from synteles_db.models import ExecutionType
+from synteles_db.models import ExecutionBackend
 from synteles_db.repos.agentlets import AgentletRepo
 
 from auth import TokenClaims, trusted_claims_with_org
@@ -43,13 +43,13 @@ class CreateAgentletRequest(BaseModel):
     id: str
     YAML: str = ""
     description: str = ""
-    execution_backend: ExecutionType = ExecutionType.standard
+    execution_backend: ExecutionBackend = ExecutionBackend.standard
 
 
 class UpdateAgentletRequest(BaseModel):
     YAML: str | None = None
     description: str | None = None
-    execution_backend: ExecutionType | None = None
+    execution_backend: ExecutionBackend | None = None
 
 
 @router.get("/api/agentlets")

@@ -29,7 +29,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from synteles_db.crypto import decrypt
-from synteles_db.models import DurableExecStatus, ExecutionType, StandardExecStatus
+from synteles_db.models import DurableExecStatus, ExecutionBackend, StandardExecStatus
 from synteles_db.repos.agentlets import AgentletRepo
 from synteles_db.repos.executions import ExecutionRepo
 from synteles_db.repos.secrets import SecretRepo
@@ -244,8 +244,8 @@ def _upload_execution_manifest(
         ) from exc
 
 
-def _resolve_execution_type(agentlet: Any) -> ExecutionType:
-    """Return ExecutionType from the agentlet's execution_backend DB column."""
+def _resolve_execution_type(agentlet: Any) -> ExecutionBackend:
+    """Return ExecutionBackend from the agentlet's execution_backend DB column."""
     return agentlet.execution_backend
 
 
@@ -311,12 +311,12 @@ async def _run_execution(
     execution_type = _resolve_execution_type(agentlet)
     init_status: StandardExecStatus | DurableExecStatus = (
         DurableExecStatus.deploying
-        if execution_type == ExecutionType.durable
+        if execution_type == ExecutionBackend.durable
         else StandardExecStatus.deploying
     )
     fail_status: StandardExecStatus | DurableExecStatus = (
         DurableExecStatus.failed
-        if execution_type == ExecutionType.durable
+        if execution_type == ExecutionBackend.durable
         else StandardExecStatus.failed
     )
 
@@ -414,7 +414,7 @@ async def _run_execution(
 
     env_vars["SYNTELES_EXEC_ID"] = execution_id
     env_vars["SYNTELES_MANIFEST_URL"] = manifest_url
-    if execution_type == ExecutionType.durable:
+    if execution_type == ExecutionBackend.durable:
         env_vars["SYNTELES_OUTPUT_URL"] = output_presigned_url
 
     from backends import get_backend
@@ -430,7 +430,7 @@ async def _run_execution(
     )
     run_status: StandardExecStatus | DurableExecStatus = (
         DurableExecStatus.running
-        if execution_type == ExecutionType.durable
+        if execution_type == ExecutionBackend.durable
         else StandardExecStatus.running
     )
     try:
@@ -441,7 +441,7 @@ async def _run_execution(
         raise HTTPException(status_code=500, detail=f"Execution deployment failed: {exc}") from exc
 
     durable_workflow_id: str | None = None
-    if execution_type == ExecutionType.durable:
+    if execution_type == ExecutionBackend.durable:
         from backends.docker_durable import _workflow_id
 
         durable_workflow_id = _workflow_id(job_ref)

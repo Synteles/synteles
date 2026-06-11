@@ -21,7 +21,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from synteles_db.models import DurableExecStatus, Execution, ExecutionType, StandardExecStatus
+from synteles_db.models import DurableExecStatus, Execution, ExecutionBackend, StandardExecStatus
 from synteles_db.repos.executions import ExecutionRepo
 
 from backends import get_backend
@@ -132,7 +132,7 @@ async def _poll() -> None:
     # get_backend() calls DockerRuntime() → docker.from_env(); doing it per-execution
     # would open a Docker socket connection for every active execution on every poll.
     backends = {
-        ExecutionType(e.execution_type): get_backend(ExecutionType(e.execution_type))
+        ExecutionBackend(e.execution_type): get_backend(ExecutionBackend(e.execution_type))
         for e in executions
         if e.job_ref
     }
@@ -142,21 +142,21 @@ async def _poll() -> None:
         if not execution.job_ref:
             continue
         try:
-            exec_type = ExecutionType(execution.execution_type)
+            exec_type = ExecutionBackend(execution.execution_type)
             backend = backends[exec_type]
             stopped = (
                 DurableExecStatus.stopped
-                if exec_type == ExecutionType.durable
+                if exec_type == ExecutionBackend.durable
                 else StandardExecStatus.stopped
             )
             completed = (
                 DurableExecStatus.completed
-                if exec_type == ExecutionType.durable
+                if exec_type == ExecutionBackend.durable
                 else StandardExecStatus.completed
             )
             failed = (
                 DurableExecStatus.failed
-                if exec_type == ExecutionType.durable
+                if exec_type == ExecutionBackend.durable
                 else StandardExecStatus.failed
             )
             if execution.timeout_at and execution.timeout_at < now:
@@ -176,7 +176,7 @@ async def _poll() -> None:
                     fresh = await ExecutionRepo(db).get_by_id(execution.id)
                     if fresh:
                         await _finalize(fresh, failed, backend, db)
-            elif status == ExecutionStatus.RUNNING and exec_type == ExecutionType.durable:
+            elif status == ExecutionStatus.RUNNING and exec_type == ExecutionBackend.durable:
                 await _sync_durable_signal_status(execution, backend)
                 if not backend.container_alive(execution.job_ref):
                     async with AsyncSessionLocal() as db:

@@ -20,7 +20,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from synteles_db.models import Agentlet, ExecutionType
+from synteles_db.models import Agentlet, ExecutionBackend
 
 
 class AgentletRepo:
@@ -51,7 +51,7 @@ class AgentletRepo:
         name: str,
         description: str,
         yaml_definition: str,
-        execution_backend: ExecutionType = ExecutionType.standard,
+        execution_backend: ExecutionBackend = ExecutionBackend.standard,
     ) -> Agentlet:
         agentlet = Agentlet(
             id=uuid.uuid4(),
@@ -72,7 +72,7 @@ class AgentletRepo:
         *,
         description: str | None = None,
         yaml_definition: str | None = None,
-        execution_backend: ExecutionType | None = None,
+        execution_backend: ExecutionBackend | None = None,
     ) -> None:
         if description is not None:
             agentlet.description = description or None

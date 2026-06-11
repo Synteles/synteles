@@ -27,7 +27,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from synteles_db.models import DurableExecStatus, ExecStatus, ExecutionType
+from synteles_db.models import DurableExecStatus, ExecStatus, ExecutionBackend
 from synteles_db.repos.executions import ExecutionRepo
 from temporalio.service import RPCError
 
@@ -144,7 +144,7 @@ async def _deliver_signal(
         raise HTTPException(status_code=404, detail="Execution not found")
     if str(execution.org_id) != org_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this execution")
-    if execution.execution_type != ExecutionType.durable:
+    if execution.execution_type != ExecutionBackend.durable:
         raise HTTPException(
             status_code=409, detail="Signal is only supported for durable executions"
         )
@@ -333,7 +333,7 @@ async def get_execution_status(
     elapsed = _calc_elapsed(execution.created_at, execution.completed_at)
     if elapsed is not None:
         response_body["elapsed_seconds"] = elapsed
-    if execution.execution_type == ExecutionType.durable and execution.workflow_id:
+    if execution.execution_type == ExecutionBackend.durable and execution.workflow_id:
         response_body["workflow_id"] = execution.workflow_id
     if execution.status == DurableExecStatus.waiting_for_signal and execution.workflow_id:
         pending_question = await _query_pending_question(execution.workflow_id)
@@ -344,7 +344,7 @@ async def get_execution_status(
         ExecStatus.deploying,
         DurableExecStatus.waiting_for_signal,
     )
-    if execution.execution_type == ExecutionType.durable and execution.workflow_id:
+    if execution.execution_type == ExecutionBackend.durable and execution.workflow_id:
         if execution.status in _active_durable or execution.status == ExecStatus.completed:
             last_message = await _fetch_last_message(
                 execution.workflow_id, completed=(execution.status == ExecStatus.completed)
@@ -374,7 +374,7 @@ async def cancel_execution(
     )
     if execution.status in active_statuses:
         await _finalize(
-            execution, ExecStatus.stopped, get_backend(ExecutionType(execution.execution_type)), db
+            execution, ExecStatus.stopped, get_backend(ExecutionBackend(execution.execution_type)), db
         )
 
     completed_at = execution.completed_at.isoformat() if execution.completed_at else None
@@ -442,7 +442,7 @@ async def get_public_execution_status(
     elapsed = _calc_elapsed(execution.created_at, execution.completed_at)
     if elapsed is not None:
         response_body["elapsed_seconds"] = elapsed
-    if execution.execution_type == ExecutionType.durable and execution.workflow_id:
+    if execution.execution_type == ExecutionBackend.durable and execution.workflow_id:
         response_body["workflow_id"] = execution.workflow_id
     if execution.status == DurableExecStatus.waiting_for_signal and execution.workflow_id:
         pending_question = await _query_pending_question(execution.workflow_id)
@@ -453,7 +453,7 @@ async def get_public_execution_status(
         ExecStatus.deploying,
         DurableExecStatus.waiting_for_signal,
     )
-    if execution.execution_type == ExecutionType.durable and execution.workflow_id:
+    if execution.execution_type == ExecutionBackend.durable and execution.workflow_id:
         if execution.status in _active_durable or execution.status == ExecStatus.completed:
             last_message = await _fetch_last_message(
                 execution.workflow_id, completed=(execution.status == ExecStatus.completed)
@@ -483,5 +483,5 @@ async def delete_execution(
     )
     if execution.status in active_statuses:
         await _finalize(
-            execution, ExecStatus.stopped, get_backend(ExecutionType(execution.execution_type)), db
+            execution, ExecStatus.stopped, get_backend(ExecutionBackend(execution.execution_type)), db
         )
