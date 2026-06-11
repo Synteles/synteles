@@ -11,7 +11,7 @@
 
 **Open-source platform for AI workers and enterprise workflows.**
 
-Synteles is a platform for AI workers (agentlets) that execute workflows — including long-running, fault-tolerant ones that can pause and wait for human input. Business users can describe tasks in plain language and Synteles creates and launches AI workers in minutes. Engineers can customize them using a YAML DSL and integrate them into existing systems via REST APIs and connectors. Agentlets run ephemerally for simple tasks, or durably via Temporal for workflows that must survive failures, resume after restarts, or involve human-in-the-loop decisions. Runs on public cloud, on-premise, or air-gapped infrastructure.
+Synteles is a platform for AI workers ([agentlets](https://github.com/Synteles/agentlet)) that run long-running resilient workflows. Business users can describe tasks in plain language and Synteles creates and launches multi-agent AI workers in minutes. Engineers can customize them using a [YAML definition](https://github.com/Synteles/agentlet/blob/main/docs/reference/configuration.md) and integrate into existing technology landscape via [APIs](docs/integration-api.md) and MCP connectors. AI workers run ephemerally when a task completes in a single uninterrupted pass, or [durably](docs/durable-execution.md) for workflows that must survive failures, resume after restarts, or involve human-in-the-loop decisions. Synteles runs on public cloud, on-premise, or air-gapped infrastructure.
 
 ⚠️ **Early Development**: Synteles is pre-v1.0. APIs and definitions and deployment structure may change.
 
@@ -241,7 +241,7 @@ See the [Configuration](#configuration) section and [docs/configuration.md](docs
 ## Documentation
 
 - [docs/architecture.md](docs/architecture.md) — system overview and component diagram
-- [docs/api-contracts.md](docs/api-contracts.md) — API reference
+- [docs/integration-api.md](docs/integration-api.md) — integration API reference
 - [docs/configuration.md](docs/configuration.md) — environment variable reference for all services
 - [docs/durable-execution.md](docs/durable-execution.md) — durable execution architecture (Temporal, AgentWorkflow, HITL signal bridge)
 - [docs/testing.md](docs/testing.md) — unit and integration test guide

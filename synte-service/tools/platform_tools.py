@@ -30,7 +30,9 @@ from strands import ToolContext, tool
 
 log = logging.getLogger("synteles.ux.tools")
 
-_API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.synteles.dev/v1")
+_API_BASE_URL = os.environ.get("API_BASE_URL")
+if not _API_BASE_URL:
+    raise RuntimeError("API_BASE_URL environment variable is required")
 
 _HTTP_200_OK = 200
 _HTTP_400_BAD_REQUEST = 400

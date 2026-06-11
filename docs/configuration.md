@@ -164,7 +164,7 @@ Python service providing the streaming chat agent endpoint.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `API_BASE_URL` | Optional | `https://api.synteles.dev/v1` | Base URL for platform API calls made by the agent's tools, e.g. `http://traefik:8080`. |
+| `API_BASE_URL` | **Required** | — | Base URL for platform API calls made by the agent's tools, e.g. `http://traefik:8080` or `https://{api-domain-name}`. |
 | `CHAT_MODEL_ID` | Optional | `azure_ai/gpt-5.3-chat` | LiteLLM model string for the chat agent, e.g. `anthropic/claude-sonnet-4-6` or `openai/gpt-4.1`. |
 | `OPENAI_API_KEY` | Conditional | _(empty)_ | Required when `CHAT_MODEL_ID` references an OpenAI model. |
 | `ANTHROPIC_API_KEY` | Conditional | _(empty)_ | Required when `CHAT_MODEL_ID` references an Anthropic model. |
@@ -186,7 +186,7 @@ Next.js frontend application.
 | `OIDC_CLIENT_ID` | **Required** | — | OIDC client ID registered in Keycloak, e.g. `synteles-app`. |
 | `OIDC_CLIENT_SECRET` | **Required** | — | See [Shared / Root](#shared--root). Used server-side only for the token exchange. |
 | `API_BASE_URL` | **Required** | — | Base URL of the platform API gateway used by server-side Next.js code, e.g. `http://traefik:8080` inside Docker. |
-| `API_PUBLIC_BASE_URL` | Optional | `https://api.synteles.dev` | Publicly reachable API base URL shown in the **API Integration** curl snippets. Read server-side at request time (not baked into the bundle), so it reflects the running environment. Set to `http://localhost:8080` for local dev, `https://api.synteles.dev` for production. |
+| `API_PUBLIC_BASE_URL` | Optional | `https://{api-domain-name}` | Publicly reachable API base URL shown in the **API Integration** curl snippets. Read server-side at request time (not baked into the bundle), so it reflects the running environment. Set to `http://localhost:8080` for local dev, `https://{api-domain-name}` for production. |
 | `CHAT_STREAM_URL` | **Required** | — | Full URL of the synte-service streaming endpoint, e.g. `http://synte-service:8080/chat/stream`. |
 | `REDIRECT_URI` | **Required** | — | OIDC redirect URI registered in Keycloak, e.g. `http://localhost:3000/callback`. Must exactly match the URI configured in the Keycloak client. |
 

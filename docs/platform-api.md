@@ -1,11 +1,12 @@
-# Synteles Platform API Contracts
+# Synteles Platform API
+
+> **Intended audience:** Synteles frontend developers and internal tooling maintainers. These endpoints require a Keycloak OIDC session and are not designed for external callers. If you are building a third-party integration, see [integration-api.md](integration-api.md) instead.
 
 ## Table of Contents
 - [Overview](#overview)
 - [Base URL](#base-url)
 - [Authentication](#authentication)
   - [OIDC Bearer Token](#oidc-bearer-token)
-  - [API Key Authentication](#api-key-authentication)
 - [Common Patterns](#common-patterns)
 - [Error Responses](#error-responses)
 - [API Endpoints](#api-endpoints)
@@ -15,7 +16,6 @@
   - [Agentlet Endpoints](#agentlet-endpoints)
   - [API Key Management Endpoints](#api-key-management-endpoints)
   - [Secrets Endpoints](#secrets-endpoints)
-  - [Public Agentlet Endpoints](#public-agentlet-endpoints)
   - [Execution/Scheduler Endpoints](#executionscheduler-endpoints)
     - [Signal Endpoints](#signal-endpoints)
   - [Files Endpoints](#files-endpoints)
@@ -30,28 +30,22 @@
 
 The Synteles Platform API is a RESTful API built on FastAPI with two separate backend services.
 
-**API Version:** v1
-
 **Architecture:**
-- **core-service:** FastAPI — user profiles, agentlets, secrets, conversations, model presets, MCP presets, API keys, files
-- **scheduler-service:** FastAPI — execution submission and management
-- **durable-worker:** Temporal worker service — runs `AgentWorkflow` (ReAct loop + HITL) for durable executions
-- **synte-service:** FastAPI — streaming AI chat (`POST /chat/stream`)
-- **Database:** PostgreSQL (SQLAlchemy async ORM, single schema)
-- **Authentication:** Keycloak OIDC — JWT Bearer tokens for user endpoints; API keys (hashed in PostgreSQL) for public endpoints
-- **Forward-auth:** Traefik calls `GET /auth/verify` on core-service to validate tokens and inject identity headers
+- **core-service:** user profiles, agentlets, secrets, conversations, model presets, MCP presets, API keys, files
+- **scheduler-service:** execution submission and management
+- **Authentication:** Keycloak OIDC — JWT Bearer tokens for user endpoints; API keys for public/integration endpoints
+
+> **Building an integration?** See [integration-api.md](integration-api.md) for the public endpoints, API key authentication, and a step-by-step workflow guide aimed at external service integrations.
 
 ---
 
 ## Base URL
 
 ```
-https://{api-domain-name}/v1
+https://{api-domain-name}
 ```
 
-**Example:** `https://api.synteles.dev/v1`
-
-All endpoints are prefixed with the version: `/v1/...`
+Endpoints are served directly without a version prefix: `/api/...`, `/auth/...`
 
 ---
 
@@ -75,20 +69,7 @@ The `access_token` is a JWT issued by Keycloak. Tokens are verified against the 
 
 **OAuth2 flow** is handled directly by Keycloak (not by this API). The frontend initiates PKCE or authorization-code flows against the Keycloak authorization endpoint and receives tokens from there.
 
-### API Key Authentication
-
-Used for public agentlet access (`/api/public/agentlets/*`, `/api/public/executions/*`).
-
-**Authorization Header:**
-```
-Authorization: Bearer {api_key}
-```
-
-**Key Format:**
-- Generated via `POST /api/users/apikeys`
-- URL-safe base64 token (43 characters), generated with `secrets.token_urlsafe(32)`
-- SHA256 hash stored in PostgreSQL
-- `key_name` must start with a letter or digit; may contain letters, digits, underscores, and hyphens (max 128 characters)
+**API key authentication** (for `/api/public/*` endpoints) is documented in [integration-api.md](integration-api.md#authentication).
 
 ---
 
@@ -174,7 +155,7 @@ All endpoints support CORS with:
 
 Traefik forward-auth endpoint. Validates Bearer token (JWT or API key) and propagates identity headers to upstream services.
 
-**Authorization:** Bearer token (JWT or API key)
+**Authorization:** `X-API-Key: {api_key}` (API key) or `Authorization: Bearer {token}` (JWT)
 
 **Response:**
 - **Status:** `200 OK`
@@ -189,8 +170,8 @@ Traefik forward-auth endpoint. Validates Bearer token (JWT or API key) and propa
 ```
 
 **Behavior:**
-- If the token contains two dots (`.`), it is treated as a JWT and validated against OIDC JWKS
-- Otherwise it is treated as an API key and looked up via SHA256 hash in PostgreSQL
+- If `X-API-Key` header is present, it is looked up via SHA256 hash in PostgreSQL
+- Otherwise, if `Authorization: Bearer {token}` is present, the token is validated against OIDC JWKS
 
 **Error Responses:**
 - **401:** Missing or invalid token
@@ -230,7 +211,7 @@ Returns the authenticated user's basic profile and organization info. On the ver
 
 **Example:**
 ```bash
-curl https://api.synteles.dev/v1/api/users/me \
+curl https://{api-domain-name}/api/users/me \
   -H "Authorization: Bearer ACCESS_TOKEN"
 ```
 
@@ -267,7 +248,7 @@ Returns the full user profile including identity-provider fields (email, name, p
 
 **Example:**
 ```bash
-curl https://api.synteles.dev/v1/api/users/me/profile \
+curl https://{api-domain-name}/api/users/me/profile \
   -H "Authorization: Bearer ACCESS_TOKEN"
 ```
 
@@ -306,7 +287,7 @@ Retrieves organization metadata and list of member user IDs.
 
 **Example:**
 ```bash
-curl https://api.synteles.dev/v1/api/organizations/org-123 \
+curl https://{api-domain-name}/api/organizations/org-123 \
   -H "Authorization: Bearer ACCESS_TOKEN"
 ```
 
@@ -331,7 +312,8 @@ Creates a new agentlet in the caller's organization.
 {
   "id": "my_agentlet",
   "description": "Agent description",
-  "YAML": "agentlet:\n  name: MyAgent\n  ..."
+  "YAML": "agentlet:\n  name: MyAgent\n  ...",
+  "execution_backend": "standard"
 }
 ```
 
@@ -339,6 +321,7 @@ Creates a new agentlet in the caller's organization.
 - `id` (required): Must start with letter or digit, contain only alphanumeric chars, underscores, or hyphens (max 128 chars); regex `^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$`
 - `description` (optional): Text description
 - `YAML` (optional): YAML configuration string
+- `execution_backend` (optional): `"standard"` (default) or `"durable"` — controls whether executions run as short-lived Docker containers or long-lived Temporal workflows
 
 **Response:**
 - **Status:** `201 Created`
@@ -370,7 +353,7 @@ Creates a new agentlet in the caller's organization.
 
 **Example:**
 ```bash
-curl -X POST https://api.synteles.dev/v1/api/agentlets \
+curl -X POST https://{api-domain-name}/api/agentlets \
   -H "Authorization: Bearer ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -419,7 +402,7 @@ Lists all agentlets in the caller's organization.
 
 **Example:**
 ```bash
-curl https://api.synteles.dev/v1/api/agentlets \
+curl https://{api-domain-name}/api/agentlets \
   -H "Authorization: Bearer ACCESS_TOKEN"
 ```
 
@@ -460,7 +443,7 @@ Retrieves full agentlet definition including YAML configuration.
 
 **Example:**
 ```bash
-curl https://api.synteles.dev/v1/api/agentlets/my_agentlet \
+curl https://{api-domain-name}/api/agentlets/my_agentlet \
   -H "Authorization: Bearer ACCESS_TOKEN"
 ```
 
@@ -479,12 +462,14 @@ Updates an existing agentlet.
 ```json
 {
   "description": "Updated description",
-  "YAML": "agentlet:\n  name: UpdatedAgent\n  ..."
+  "YAML": "agentlet:\n  name: UpdatedAgent\n  ...",
+  "execution_backend": "durable"
 }
 ```
 
 **Notes:**
-- Both fields are optional; only provided fields will be updated
+- All fields are optional; only provided fields will be updated
+- `execution_backend` accepts `"standard"` or `"durable"`
 - `updated_at` timestamp is automatically set
 
 **Response:**
@@ -498,7 +483,7 @@ Updates an existing agentlet.
 
 **Example:**
 ```bash
-curl -X PATCH https://api.synteles.dev/v1/api/agentlets/my_agentlet \
+curl -X PATCH https://{api-domain-name}/api/agentlets/my_agentlet \
   -H "Authorization: Bearer ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -528,10 +513,16 @@ Deletes an agentlet.
   "detail": "Agentlet not found"
 }
 ```
+- **409:** Agentlet has existing executions and cannot be deleted
+```json
+{
+  "detail": "Cannot delete agentlet with existing executions"
+}
+```
 
 **Example:**
 ```bash
-curl -X DELETE https://api.synteles.dev/v1/api/agentlets/my_agentlet \
+curl -X DELETE https://{api-domain-name}/api/agentlets/my_agentlet \
   -H "Authorization: Bearer ACCESS_TOKEN"
 ```
 
@@ -565,7 +556,7 @@ Creates a new API key for the authenticated user.
 ```json
 {
   "key_id": "uuid-v4",
-  "key": "base64url-encoded-key-43-chars",
+  "key": "{api_key}",
   "key_name": "My API Key",
   "created_at": "2025-12-01T10:00:00.000000+00:00"
 }
@@ -586,7 +577,7 @@ Creates a new API key for the authenticated user.
 
 **Example:**
 ```bash
-curl -X POST https://api.synteles.dev/v1/api/users/apikeys \
+curl -X POST https://{api-domain-name}/api/users/apikeys \
   -H "Authorization: Bearer ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"key_name": "Production API Key"}'
@@ -626,7 +617,7 @@ Lists all API keys for the authenticated user.
 
 **Example:**
 ```bash
-curl https://api.synteles.dev/v1/api/users/apikeys \
+curl https://{api-domain-name}/api/users/apikeys \
   -H "Authorization: Bearer ACCESS_TOKEN"
 ```
 
@@ -654,7 +645,7 @@ Deletes (revokes) an API key.
 
 **Example:**
 ```bash
-curl -X DELETE https://api.synteles.dev/v1/api/users/apikeys/key-uuid \
+curl -X DELETE https://{api-domain-name}/api/users/apikeys/key-uuid \
   -H "Authorization: Bearer ACCESS_TOKEN"
 ```
 
@@ -742,7 +733,7 @@ Creates a new secret for the authenticated user.
 
 **Example:**
 ```bash
-curl -X POST https://api.synteles.dev/v1/api/secrets \
+curl -X POST https://{api-domain-name}/api/secrets \
   -H "Authorization: Bearer ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -780,7 +771,7 @@ Lists all secrets for the authenticated user (metadata only, no values).
 
 **Example:**
 ```bash
-curl https://api.synteles.dev/v1/api/secrets \
+curl https://{api-domain-name}/api/secrets \
   -H "Authorization: Bearer ACCESS_TOKEN"
 ```
 
@@ -842,11 +833,11 @@ Retrieves metadata and key names for a specific secret. Optionally returns the a
 **Examples:**
 ```bash
 # Key names only (default)
-curl https://api.synteles.dev/v1/api/secrets/my-llm-keys \
+curl https://{api-domain-name}/api/secrets/my-llm-keys \
   -H "Authorization: Bearer ACCESS_TOKEN"
 
 # Include actual values
-curl "https://api.synteles.dev/v1/api/secrets/my-llm-keys?reveal_value=true" \
+curl "https://{api-domain-name}/api/secrets/my-llm-keys?reveal_value=true" \
   -H "Authorization: Bearer ACCESS_TOKEN"
 ```
 
@@ -899,7 +890,7 @@ Updates the description and/or value of an existing secret.
 
 **Example:**
 ```bash
-curl -X PATCH https://api.synteles.dev/v1/api/secrets/my-llm-keys \
+curl -X PATCH https://{api-domain-name}/api/secrets/my-llm-keys \
   -H "Authorization: Bearer ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -929,211 +920,8 @@ Deletes a secret (removes encrypted value and metadata from PostgreSQL).
 
 **Example:**
 ```bash
-curl -X DELETE https://api.synteles.dev/v1/api/secrets/my-llm-keys \
+curl -X DELETE https://{api-domain-name}/api/secrets/my-llm-keys \
   -H "Authorization: Bearer ACCESS_TOKEN"
-```
-
----
-
-### Public Agentlet Endpoints
-
-Public endpoints for programmatic agentlet access using API keys.
-
-**Authentication:** All public endpoints use API Key authentication.
-
-**Authorization Header:**
-```
-Authorization: Bearer {api_key}
-```
-
----
-
-#### `GET /api/public/agentlets/{agentlet_id}`
-
-Retrieves agentlet YAML definition with injected organization attributes.
-
-**Authorization:** API Key (via `Authorization: Bearer {api_key}`)
-
-**Path Parameters:**
-- `agentlet_id` (required): Agentlet identifier
-
-**Query Parameters:**
-- `format` (optional): Set to `yaml` to return YAML instead of JSON
-
-**Headers:**
-- `Accept` (optional): Set to `application/x-yaml` for YAML response
-
-**Response (JSON):**
-- **Status:** `200 OK`
-- **Content-Type:** `application/json`
-- **Body:**
-```json
-{
-  "description": "Agent description",
-  "YAML": "agentlet:\n  name: MyAgent\n  attributes:\n    synteles.org.id: org-uuid\n  ..."
-}
-```
-
-**Response (YAML):**
-- **Status:** `200 OK`
-- **Content-Type:** `application/x-yaml`
-- **Body:**
-```yaml
-agentlet:
-  name: MyAgent
-  attributes:
-    synteles.org.id: org-uuid
-  ...
-```
-
-**Attribute Injection:**
-The endpoint automatically injects the following attributes into the YAML:
-- `synteles.org.id`: Organization UUID from API key context
-
-**Access Control:**
-- The agentlet must belong to the same user who created the API key (user-level check)
-
-**Error Responses:**
-- **401:** Unauthorized (invalid or missing API key)
-- **404:** Agentlet not found, empty agentlet_id, or no YAML definition
-```json
-{
-  "detail": "Agentlet not found"
-}
-```
-
-**Example (JSON):**
-```bash
-curl https://api.synteles.dev/v1/api/public/agentlets/my_agentlet \
-  -H "Authorization: Bearer base64url-encoded-key-43-chars"
-```
-
-**Example (YAML via query param):**
-```bash
-curl "https://api.synteles.dev/v1/api/public/agentlets/my_agentlet?format=yaml" \
-  -H "Authorization: Bearer base64url-encoded-key-43-chars"
-```
-
-**Example (YAML via Accept header):**
-```bash
-curl https://api.synteles.dev/v1/api/public/agentlets/my_agentlet \
-  -H "Authorization: Bearer base64url-encoded-key-43-chars" \
-  -H "Accept: application/x-yaml"
-```
-
----
-
-#### `POST /api/public/agentlets/{agentlet_id}/executions`
-
-Creates a new agentlet execution using API key authentication.
-
-**Authorization:** API Key (via `Authorization: Bearer {api_key}`)
-
-**Path Parameters:**
-- `agentlet_id` (required): Agentlet identifier
-
-**Request Body:**
-```json
-{
-  "prompt": "task description",
-  "timeout": 3600,
-  "input_objects": [
-    "s3://{upload-bucket}/{upload_id}/data.csv"
-  ]
-}
-```
-
-**Request Field Details:**
-- `prompt` (optional): Task description included in the execution manifest
-- `timeout` (optional): Maximum execution time in seconds
-  - Default: `3600` (1 hour)
-  - Range: `1-86400` (1 second to 24 hours)
-- `input_objects` (optional): List of S3 URIs for input files (from `POST /api/files`)
-
-**Response:**
-- **Status:** `202 Accepted`
-- **Body:**
-```json
-{
-  "execution_id": "550e8400-e29b-41d4-a716-446655440000",
-  "status": "running",
-  "agentlet_id": "my_agentlet",
-  "created_at": "2025-12-13T10:30:45.000000+00:00"
-}
-```
-
-**Access Control:**
-- API key must belong to the same user who created the agentlet
-
-**Error Responses:**
-- **400:** Invalid timeout value
-- **401:** Missing or invalid API key
-- **403:** Not authorized to access this agentlet
-- **404:** Agentlet not found
-
-**Example:**
-```bash
-curl -X POST https://api.synteles.dev/v1/api/public/agentlets/my_agentlet/executions \
-  -H "Authorization: Bearer base64url-encoded-key-43-chars" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "Generate monthly sales report",
-    "timeout": 1800
-  }'
-```
-
----
-
-#### `GET /api/public/executions/{execution_id}`
-
-Retrieves execution status and metadata using API key authentication.
-
-**Authorization:** API Key (via `Authorization: Bearer {api_key}`)
-
-**Path Parameters:**
-- `execution_id` (required): Execution UUID
-
-**Response:**
-- **Status:** `200 OK`
-- **Body:**
-```json
-{
-  "execution_id": "550e8400-e29b-41d4-a716-446655440000",
-  "agentlet_id": "my_agentlet",
-  "status": "completed",
-  "execution_type": "durable",
-  "logs_s3_uri": "s3://synteles-logs/executions/550e8400-e29b-41d4-a716-446655440000/logs.txt",
-  "created_at": "2025-12-13T10:30:45.000000+00:00",
-  "completed_at": "2025-12-13T10:35:50.000000+00:00",
-  "elapsed_seconds": 305,
-  "prompt": "Generate monthly sales report",
-  "last_message": "The report has been generated.",
-  "pending_question": null
-}
-```
-
-**Status Values:**
-- `deploying` - Container deployment in progress
-- `running` - Container is executing
-- `waiting_for_signal` - Durable execution paused at an `ask_user` call, waiting for human input
-- `completed` - Execution finished successfully
-- `failed` - Execution encountered an error
-- `terminated` - Execution was stopped (via cancel or delete)
-
-**Field Details:**
-- `execution_type`: `"standard"` or `"durable"`
-- `last_message`: Most recent assistant message; durable executions only (null if not available)
-- `pending_question`: Current `ask_user` question; only present when `status == "waiting_for_signal"` (null otherwise)
-
-**Error Responses:**
-- **401:** Missing or invalid API key
-- **403:** Not authorized (org mismatch)
-- **404:** Execution not found
-
-**Example:**
-```bash
-curl https://api.synteles.dev/v1/api/public/executions/550e8400-e29b-41d4-a716-446655440000 \
-  -H "Authorization: Bearer base64url-encoded-key-43-chars"
 ```
 
 ---
@@ -1218,7 +1006,7 @@ Creates a new agentlet execution.
 
 **Example:**
 ```bash
-curl -X POST https://api.synteles.dev/v1/api/executions \
+curl -X POST https://{api-domain-name}/api/executions \
   -H "Authorization: Bearer ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -1247,14 +1035,14 @@ Retrieves execution status and metadata.
   "execution_id": "550e8400-e29b-41d4-a716-446655440000",
   "agentlet_id": "my_agentlet",
   "status": "completed",
-  "execution_type": "durable",
   "logs_s3_uri": "s3://synteles-logs/executions/550e8400-e29b-41d4-a716-446655440000/logs.txt",
   "created_at": "2025-12-13T10:30:45.000000+00:00",
   "completed_at": "2025-12-13T10:35:50.000000+00:00",
   "elapsed_seconds": 305,
   "prompt": "Generate monthly sales report",
+  "workflow_id": "synteles-550e8400-e29b-41d4-a716-446655440000",
   "last_message": "The report has been generated and saved to output.zip.",
-  "pending_question": null
+  "pending_question": "Should I delete the old file?"
 }
 ```
 
@@ -1267,13 +1055,13 @@ Retrieves execution status and metadata.
 - `terminated` - Execution was stopped
 
 **Field Details:**
-- `execution_type`: `"standard"` or `"durable"`
 - `logs_s3_uri`: S3 URI for log file (null if execution still in progress)
 - `completed_at`: ISO 8601 timestamp (null if still running)
 - `elapsed_seconds`: Total execution time in seconds (only present if completed)
 - `prompt`: Task prompt provided at execution start
-- `last_message`: Most recent assistant message from the agent; durable executions only (null if not yet available)
-- `pending_question`: The question text from the current `ask_user` call; only present when `status == "waiting_for_signal"` (null otherwise)
+- `workflow_id`: Temporal workflow ID; **only present** for durable executions that have an associated workflow
+- `last_message`: Most recent assistant message; **only present** for active or completed durable executions when a message is available (omitted otherwise)
+- `pending_question`: The question text from the current `ask_user` call; **only present** when `status == "waiting_for_signal"` and a question is available (omitted otherwise)
 
 **Error Responses:**
 - **403:** Caller does not belong to this execution's organization
@@ -1281,7 +1069,7 @@ Retrieves execution status and metadata.
 
 **Example:**
 ```bash
-curl https://api.synteles.dev/v1/api/executions/550e8400-e29b-41d4-a716-446655440000 \
+curl https://{api-domain-name}/api/executions/550e8400-e29b-41d4-a716-446655440000 \
   -H "Authorization: Bearer ACCESS_TOKEN"
 ```
 
@@ -1335,7 +1123,7 @@ Retrieves execution logs from S3 storage.
 }
 ```
 
-**Response (202 Accepted - Logs Not Available):**
+**Response (200 OK - Logs Not Available Yet):**
 ```json
 {
   "execution_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -1345,6 +1133,7 @@ Retrieves execution logs from S3 storage.
   "created_at": "2025-12-13T10:30:45.000000+00:00"
 }
 ```
+*Returned when the execution is still `deploying` or `running` and no log URI has been stored yet.*
 
 **Error Responses:**
 - **404:** Execution not found
@@ -1359,15 +1148,15 @@ Retrieves execution logs from S3 storage.
 **Examples:**
 ```bash
 # Text format (default)
-curl https://api.synteles.dev/v1/api/executions/550e8400-e29b-41d4-a716-446655440000/logs \
+curl https://{api-domain-name}/api/executions/550e8400-e29b-41d4-a716-446655440000/logs \
   -H "Authorization: Bearer ACCESS_TOKEN"
 
 # JSON format
-curl "https://api.synteles.dev/v1/api/executions/550e8400-e29b-41d4-a716-446655440000/logs?format=json" \
+curl "https://{api-domain-name}/api/executions/550e8400-e29b-41d4-a716-446655440000/logs?format=json" \
   -H "Authorization: Bearer ACCESS_TOKEN"
 
 # Download as file
-curl "https://api.synteles.dev/v1/api/executions/550e8400-e29b-41d4-a716-446655440000/logs?download=true" \
+curl "https://{api-domain-name}/api/executions/550e8400-e29b-41d4-a716-446655440000/logs?download=true" \
   -H "Authorization: Bearer ACCESS_TOKEN" \
   -o execution-logs.txt
 ```
@@ -1376,7 +1165,7 @@ curl "https://api.synteles.dev/v1/api/executions/550e8400-e29b-41d4-a716-4466554
 
 #### `POST /api/executions/{execution_id}/cancel`
 
-Cancels a running execution. If the execution is `deploying` or `running`, sends a stop request to the container backend and marks the execution as `terminated`.
+Cancels a running execution. If the execution is `deploying`, `running`, or `waiting_for_signal`, sends a stop request to the container backend and marks the execution as `terminated`.
 
 **Authorization:** Bearer token (OIDC)
 
@@ -1404,7 +1193,7 @@ Cancels a running execution. If the execution is `deploying` or `running`, sends
 
 **Example:**
 ```bash
-curl -X POST https://api.synteles.dev/v1/api/executions/550e8400-e29b-41d4-a716-446655440000/cancel \
+curl -X POST https://{api-domain-name}/api/executions/550e8400-e29b-41d4-a716-446655440000/cancel \
   -H "Authorization: Bearer ACCESS_TOKEN"
 ```
 
@@ -1412,7 +1201,7 @@ curl -X POST https://api.synteles.dev/v1/api/executions/550e8400-e29b-41d4-a716-
 
 #### `DELETE /api/executions/{execution_id}`
 
-Stops a running execution and removes it from the active state. Calls the container backend's stop API if the execution is still running.
+Stops an execution and removes it from the active state. If the execution is `deploying`, `running`, or `waiting_for_signal`, calls the container backend's stop API before marking it terminated.
 
 **Authorization:** Bearer token (OIDC)
 
@@ -1428,7 +1217,7 @@ Stops a running execution and removes it from the active state. Calls the contai
 
 **Example:**
 ```bash
-curl -X DELETE https://api.synteles.dev/v1/api/executions/550e8400-e29b-41d4-a716-446655440000 \
+curl -X DELETE https://{api-domain-name}/api/executions/550e8400-e29b-41d4-a716-446655440000 \
   -H "Authorization: Bearer ACCESS_TOKEN"
 ```
 
@@ -1463,6 +1252,7 @@ Lists executions with filtering and pagination support.
       "execution_id": "550e8400-e29b-41d4-a716-446655440000",
       "agentlet_id": "my_agentlet",
       "status": "completed",
+      "execution_type": "standard",
       "created_at": "2025-12-13T10:30:45.000000+00:00",
       "completed_at": "2025-12-13T10:35:50.000000+00:00",
       "logs_s3_uri": "s3://synteles-logs/executions/550e8400-e29b-41d4-a716-446655440000/logs.txt",
@@ -1495,15 +1285,15 @@ Lists executions with filtering and pagination support.
 **Examples:**
 ```bash
 # List all executions
-curl "https://api.synteles.dev/v1/api/executions" \
+curl "https://{api-domain-name}/api/executions" \
   -H "Authorization: Bearer ACCESS_TOKEN"
 
 # Filter by agentlet_id and status
-curl "https://api.synteles.dev/v1/api/executions?agentlet_id=my_agentlet&status=completed&limit=10" \
+curl "https://{api-domain-name}/api/executions?agentlet_id=my_agentlet&status=completed&limit=10" \
   -H "Authorization: Bearer ACCESS_TOKEN"
 
 # Paginate
-curl "https://api.synteles.dev/v1/api/executions?limit=50&next_token=NTA=" \
+curl "https://{api-domain-name}/api/executions?limit=50&next_token=NTA=" \
   -H "Authorization: Bearer ACCESS_TOKEN"
 ```
 
@@ -1512,6 +1302,8 @@ curl "https://api.synteles.dev/v1/api/executions?limit=50&next_token=NTA=" \
 ### Signal Endpoints
 
 Signal endpoints deliver human input to a durable execution that is paused at an `ask_user` tool call (`status == "waiting_for_signal"`). Signals are rejected with `409 Conflict` if the execution is not durable, not in `waiting_for_signal` status, or has no associated Temporal workflow.
+
+The API-key-authenticated variant (`POST /api/public/executions/{execution_id}/signal`) is documented in [integration-api.md](integration-api.md#post-apipublicexecutionsexecution_idsignal).
 
 ---
 
@@ -1555,28 +1347,8 @@ Delivers user input to a paused durable execution. Authenticated with OIDC Beare
 
 **Example:**
 ```bash
-curl -X POST https://api.synteles.dev/v1/api/executions/550e8400-e29b-41d4-a716-446655440000/signal \
+curl -X POST https://{api-domain-name}/api/executions/550e8400-e29b-41d4-a716-446655440000/signal \
   -H "Authorization: Bearer ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"input": "Yes, proceed."}'
-```
-
----
-
-#### `POST /api/public/executions/{execution_id}/signal`
-
-Same as above but authenticated with an API key. Intended for external service integrations.
-
-**Authorization:** API Key (`X-API-Key: {api_key}`)
-
-**Path Parameters / Request Body / Response:** Same as `POST /api/executions/{execution_id}/signal`
-
-**Error Responses:** Same as above, plus **401** for missing or invalid API key.
-
-**Example:**
-```bash
-curl -X POST https://api.synteles.dev/v1/api/public/executions/550e8400-e29b-41d4-a716-446655440000/signal \
-  -H "X-API-Key: base64url-encoded-key-43-chars" \
   -H "Content-Type: application/json" \
   -d '{"input": "Yes, proceed."}'
 ```
@@ -1669,7 +1441,7 @@ curl -X POST {upload_url} \
 
 **Example:**
 ```bash
-curl -X POST https://api.synteles.dev/v1/api/files \
+curl -X POST https://{api-domain-name}/api/files \
   -H "Authorization: Bearer ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"files": [{"name": "data.csv"}, {"name": "config.yaml"}]}'
@@ -1728,7 +1500,7 @@ Lists input files and checks for output.zip for a completed execution, returning
 
 **Example:**
 ```bash
-curl https://api.synteles.dev/v1/api/executions/550e8400-e29b-41d4-a716-446655440000/files \
+curl https://{api-domain-name}/api/executions/550e8400-e29b-41d4-a716-446655440000/files \
   -H "Authorization: Bearer ACCESS_TOKEN"
 ```
 
@@ -1767,7 +1539,7 @@ Lists all conversations for the authenticated user (metadata only, no message co
 
 **Example:**
 ```bash
-curl https://api.synteles.dev/v1/api/conversations \
+curl https://{api-domain-name}/api/conversations \
   -H "Authorization: Bearer ACCESS_TOKEN"
 ```
 
@@ -1815,7 +1587,7 @@ Creates a new conversation, uploading display messages and agent state to S3.
 
 **Example:**
 ```bash
-curl -X POST https://api.synteles.dev/v1/api/conversations \
+curl -X POST https://{api-domain-name}/api/conversations \
   -H "Authorization: Bearer ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -1858,12 +1630,11 @@ Gets a conversation's metadata and returns presigned S3 URLs for display message
 
 **Error Responses:**
 - **401:** Unauthenticated
-- **403:** Not the owner of this conversation
-- **404:** Conversation not found
+- **404:** Conversation not found (also returned for wrong owner — resource existence is not disclosed)
 
 **Example:**
 ```bash
-curl https://api.synteles.dev/v1/api/conversations/conv-uuid \
+curl https://{api-domain-name}/api/conversations/conv-uuid \
   -H "Authorization: Bearer ACCESS_TOKEN"
 ```
 
@@ -1912,12 +1683,11 @@ Updates a conversation's title, display messages, and/or agent state.
 **Error Responses:**
 - **400:** Validation error
 - **401:** Unauthenticated
-- **403:** Not the owner
-- **404:** Not found
+- **404:** Not found (also returned for wrong owner — resource existence is not disclosed)
 
 **Example:**
 ```bash
-curl -X PATCH https://api.synteles.dev/v1/api/conversations/conv-uuid \
+curl -X PATCH https://{api-domain-name}/api/conversations/conv-uuid \
   -H "Authorization: Bearer ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"title": "Updated title"}'
@@ -1949,12 +1719,11 @@ Deletes a conversation and its S3 objects.
 
 **Error Responses:**
 - **401:** Unauthenticated
-- **403:** Not the owner
-- **404:** Not found
+- **404:** Not found (also returned for wrong owner — resource existence is not disclosed)
 
 **Example:**
 ```bash
-curl -X DELETE https://api.synteles.dev/v1/api/conversations/conv-uuid \
+curl -X DELETE https://{api-domain-name}/api/conversations/conv-uuid \
   -H "Authorization: Bearer ACCESS_TOKEN"
 ```
 
@@ -2222,11 +1991,9 @@ Contact the platform team to configure rate limits.
 
 ## Versioning
 
-**Current Version:** v1
+**Current Version:** v1 (no URL version prefix)
 
-The API version is specified in the URL path: `https://{domain}/v1/...`
-
-Breaking changes will be introduced in new versions (v2, v3, etc.) while maintaining backward compatibility with previous versions.
+The API does not use a URL version prefix — endpoints are served directly at `/api/...` and `/auth/...`. Breaking changes will be introduced with a new prefixed base path (e.g. `/v2/...`) while maintaining backward compatibility.
 
 ---
 
@@ -2238,5 +2005,5 @@ For API issues or questions:
 
 ---
 
-**Last Updated:** 2026-06-10
+**Last Updated:** 2026-06-11
 **API Version:** v1

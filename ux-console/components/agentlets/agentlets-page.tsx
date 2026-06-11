@@ -305,7 +305,6 @@ function RunsTable({ runs, onSelect }: {
 }
 
 // ── API Integration tab ────────────────────────────────────────────────────
-const DEFAULT_API_BASE = 'https://api.synteles.dev'
 
 type DrawerTab = 'properties' | 'api' | 'danger'
 
@@ -715,7 +714,7 @@ function DeleteAgentletModal({
 }
 
 // ── Main page ──────────────────────────────────────────────────────────────
-export function AgentletsPage({ initialData, initialRuns, apiBaseUrl = DEFAULT_API_BASE }: { initialData: AgentletApi[]; initialRuns: ExecutionApi[]; apiBaseUrl?: string }) {
+export function AgentletsPage({ initialData, initialRuns, apiBaseUrl }: { initialData: AgentletApi[]; initialRuns: ExecutionApi[]; apiBaseUrl: string }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { activeRuns: liveActiveRuns } = useWatchdog()
