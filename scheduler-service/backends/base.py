@@ -43,7 +43,7 @@ class ExecutionConfig:
     memory: str = "512"
 
 
-class ExecutionBackend(ABC):
+class ExecutionBackendRunner(ABC):
     """Abstract interface for execution backends (ECS, Docker, K8s, …)."""
 
     @abstractmethod

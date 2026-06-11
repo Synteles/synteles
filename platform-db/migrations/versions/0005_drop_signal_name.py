@@ -31,6 +31,7 @@ revision: str = "0005"
 down_revision = "0004"
 branch_labels = None
 depends_on = None
+__all__ = ["branch_labels", "depends_on", "down_revision", "revision"]
 
 _SCHEMA = "synteles"
 

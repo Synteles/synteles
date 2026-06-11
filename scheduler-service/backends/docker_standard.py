@@ -16,11 +16,11 @@
 
 from __future__ import annotations
 
-from backends.base import ExecutionBackend, ExecutionConfig, ExecutionStatus
+from backends.base import ExecutionBackendRunner, ExecutionConfig, ExecutionStatus
 from backends.docker_runtime import DockerRuntime
 
 
-class DockerStandardBackend(ExecutionBackend):
+class DockerStandardBackend(ExecutionBackendRunner):
     """Runs agentlet containers via Docker. One container per execution."""
 
     def __init__(self) -> None:

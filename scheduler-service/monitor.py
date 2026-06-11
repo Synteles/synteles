@@ -25,7 +25,7 @@ from synteles_db.models import DurableExecStatus, Execution, ExecutionBackend, S
 from synteles_db.repos.executions import ExecutionRepo
 
 from backends import get_backend
-from backends.base import ExecutionBackend, ExecutionStatus
+from backends.base import ExecutionBackendRunner, ExecutionStatus
 from config import MONITOR_INTERVAL_SECONDS, S3_LOGS_BUCKET, SIGNAL_WAIT_TIMEOUT_SECONDS
 from db import AsyncSessionLocal, get_s3
 
@@ -59,7 +59,7 @@ def _upload_logs_to_s3(execution_id: str, logs: str) -> str | None:
 async def _finalize(
     execution: Execution,
     db_status: StandardExecStatus | DurableExecStatus,
-    backend: ExecutionBackend,
+    backend: ExecutionBackendRunner,
     db: AsyncSession,
 ) -> None:
     """Retrieve logs, upload to S3, update DB status, then stop the job.
@@ -83,7 +83,9 @@ async def _finalize(
         await backend.stop(execution.job_ref)
 
 
-async def _sync_durable_signal_status(execution: Execution, backend: ExecutionBackend) -> None:
+async def _sync_durable_signal_status(
+    execution: Execution, backend: ExecutionBackendRunner
+) -> None:
     """Sync DB status with the AgentWorkflow's is_input_needed query result.
 
     running → waiting_for_signal when the workflow pauses for user input.

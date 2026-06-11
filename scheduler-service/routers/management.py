@@ -374,7 +374,10 @@ async def cancel_execution(
     )
     if execution.status in active_statuses:
         await _finalize(
-            execution, ExecStatus.stopped, get_backend(ExecutionBackend(execution.execution_type)), db
+            execution,
+            ExecStatus.stopped,
+            get_backend(ExecutionBackend(execution.execution_type)),
+            db,
         )
 
     completed_at = execution.completed_at.isoformat() if execution.completed_at else None
@@ -483,5 +486,8 @@ async def delete_execution(
     )
     if execution.status in active_statuses:
         await _finalize(
-            execution, ExecStatus.stopped, get_backend(ExecutionBackend(execution.execution_type)), db
+            execution,
+            ExecStatus.stopped,
+            get_backend(ExecutionBackend(execution.execution_type)),
+            db,
         )

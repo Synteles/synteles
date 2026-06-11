@@ -21,7 +21,7 @@ import logging
 from temporalio.client import WorkflowExecutionStatus
 from temporalio.service import RPCError
 
-from backends.base import ExecutionBackend, ExecutionConfig, ExecutionStatus
+from backends.base import ExecutionBackendRunner, ExecutionConfig, ExecutionStatus
 from backends.docker_runtime import DockerRuntime
 from config import AGENTLET_DURABLE_IMAGE, TEMPORAL_ADDRESS
 from temporal_client import get_temporal_client
@@ -50,7 +50,7 @@ _TEMPORAL_STATUS_MAP: dict[WorkflowExecutionStatus, ExecutionStatus] = {
 }
 
 
-class DockerDurableBackend(ExecutionBackend):
+class DockerDurableBackend(ExecutionBackendRunner):
     """Runs durable Temporal workflows via a per-execution agent-worker container.
 
     job_ref is the execution_id. Temporal workflow ID and container name are derived
