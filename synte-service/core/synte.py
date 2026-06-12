@@ -33,7 +33,7 @@ from strands.models.litellm import LiteLLMModel
 from strands_tools import calculator, current_time
 from strands_tools.tavily import tavily_search
 
-from agents.agentlet_creator import agent_creator_assistant
+from agents.agentlet_creator import agentlet_creator_assistant
 from core.protocol import map_strands_event
 from tools.agentlet_validator import validate_agentlet
 from tools.platform_tools import PlatformTools
@@ -78,9 +78,9 @@ _SYSTEM_PROMPT = """
 
     1. **Name**: Use lowercase kebab-case or snake_case (`data-analyst`, `code_reviewer`)
     2. **System prompt**: Be specific. Define the agent's role, capabilities, constraints, and behavioral rules. Use pipe (`|`) literal block scalar for multi-line content
-    3. **File I/O**: Include file path instructions in the agentlet's agent instructions only when files are explicitly the input or output mechanism — pass the corresponding parameter to `agent_creator_assistant` and it will inject the correct instruction:
-       - `/tmp/input/` — only when `input_sources = files`. Pass `input_format` to `agent_creator_assistant`.
-       - `/tmp/output/` — only when `output_destinations = files`. Pass `output_format` to `agent_creator_assistant`.
+    3. **File I/O**: Include file path instructions in the agentlet's agent instructions only when files are explicitly the input or output mechanism — pass the corresponding parameter to `agentlet_creator_assistant` and it will inject the correct instruction:
+       - `/tmp/input/` — only when `input_sources = files`. Pass `input_format` to `agentlet_creator_assistant`.
+       - `/tmp/output/` — only when `output_destinations = files`. Pass `output_format` to `agentlet_creator_assistant`.
        When input comes from MCP servers, web search, tools, or external APIs, or when output goes to MCP write-backs or chat, omit the respective parameter — no file path instruction will be generated.
     4. **Tools**: Only include tools the agentlet actually needs. Fewer tools = less risk of unintended side effects
     5. **Models**: When no model is specified, use a platform default (see Model Selection section)
@@ -88,13 +88,13 @@ _SYSTEM_PROMPT = """
     7. **MCP tools**: Use `tool_filters.allowed` to restrict to only required operations — principle of least privilege
     8. **Resource limits**: Never set `max_execution_time` — execution timeout is controlled by the user at run time, not in the YAML. Set `max_tokens` (default 10000) and `max_tool_calls` (default 20) as appropriate for the task.
     9. **Output format**: Use `markdown` for rich output (default), `json` for machine-to-machine, `text` for simple responses
-    10. **File generation libraries** (output): The following Python packages are pre-installed in every agentlet container — use them when the agentlet needs to produce binary output files. Always pass the appropriate `output_format` to `agent_creator_assistant` so it injects the correct library instruction into the agentlet's `system_prompt`:
+    10. **File generation libraries** (output): The following Python packages are pre-installed in every agentlet container — use them when the agentlet needs to produce binary output files. Always pass the appropriate `output_format` to `agentlet_creator_assistant` so it injects the correct library instruction into the agentlet's `system_prompt`:
         - **PDF** → `reportlab` (e.g. "use the reportlab library to generate a PDF and save it to `/tmp/output/report.pdf`")
         - **Excel (.xlsx)** → `openpyxl` (e.g. "use openpyxl to write the results to `/tmp/output/results.xlsx`")
         - **Word (.docx)** → `python-docx` (e.g. "use python-docx to create a Word document at `/tmp/output/document.docx`")
         - **PowerPoint (.pptx)** → `python-pptx` (e.g. "use python-pptx to build a presentation at `/tmp/output/slides.pptx`")
         No installation step is needed for any of the above. Do not suggest pip install or alternative libraries for these formats.
-    11. **File reading libraries** (input): When the agentlet reads input files from `/tmp/input/`, it must be instructed to use the correct library. Always pass the appropriate `input_format` to `agent_creator_assistant` — it will inject the right library instruction into the agentlet's `system_prompt`. Pre-installed libraries and their formats:
+    11. **File reading libraries** (input): When the agentlet reads input files from `/tmp/input/`, it must be instructed to use the correct library. Always pass the appropriate `input_format` to `agentlet_creator_assistant` — it will inject the right library instruction into the agentlet's `system_prompt`. Pre-installed libraries and their formats:
         - **CSV** → `csv` standard library (e.g. "use csv.DictReader to read files from `/tmp/input/`")
         - **Excel (.xlsx / .xls)** → `openpyxl` (e.g. "use openpyxl.load_workbook() to read spreadsheets from `/tmp/input/`")
         - **Word (.docx)** → `python-docx` (e.g. "use python-docx Document() to read Word files from `/tmp/input/`")
@@ -102,7 +102,7 @@ _SYSTEM_PROMPT = """
         - **JSON** → `json` standard library (e.g. "use json.load() to parse JSON files from `/tmp/input/`")
         - **Plain text / Markdown** → `open()` built-in (e.g. "use open() to read text files from `/tmp/input/`")
         - **PDF** → `pdfplumber` (e.g. "use pdfplumber to read PDF files from `/tmp/input/`")
-        - **Mixed / unknown types** → pass `input_format="mixed"` to `agent_creator_assistant`; it will generate extension-based dispatch logic in the system_prompt
+        - **Mixed / unknown types** → pass `input_format="mixed"` to `agentlet_creator_assistant`; it will generate extension-based dispatch logic in the system_prompt
         Do not omit this guidance when the agentlet processes input files — without it the generated system_prompt will not tell the agentlet which library to use, and the execution will fail.
 
     ---
@@ -170,20 +170,20 @@ _SYSTEM_PROMPT = """
 
        **Chat output mode** (`output_destinations = chat`): results returned as text/markdown directly in the chat UI — no output files. When identified:
        - Skip `output_format` question entirely
-       - Do **not** pass `output_format` to `agent_creator_assistant` (omitting it is sufficient — no `/tmp/output/` instruction will be generated)
-       - Instruct `agent_creator_assistant` to set `output.show_messages: true` and `output.format: markdown` in the YAML
+       - Do **not** pass `output_format` to `agentlet_creator_assistant` (omitting it is sufficient — no `/tmp/output/` instruction will be generated)
+       - Instruct `agentlet_creator_assistant` to set `output.show_messages: true` and `output.format: markdown` in the YAML
     3. **Select model**: follow the **Model Selection → Model Picker Workflow** below. Skip only if the user already specified both provider and model.
     4. **Check MCP presets** (only when `input_sources` or `output_destinations` from the brief includes MCP; also run if the user explicitly mentions MCP tools/Connectors at any point):
        - Call `list_mcp_presets()`. If presets exist: present them as a list with name + description. Ask:
          "Which Connector/MCP presets would you like to include? Available: {names}."
          Record the user's selection — include the full `mcp_config` JSON for each selected preset
-         (taken verbatim from the `list_mcp_presets` response) in the `agent_creator_assistant` query.
+         (taken verbatim from the `list_mcp_presets` response) in the `agentlet_creator_assistant` query.
          The agent creator will translate the `mcpServers` format into the agentlet `mcp_tools` YAML section.
        - If any MCP presets were selected AND secrets were not already asked in step 3,
          call `synteles_list_secrets` and ask the user which secrets the agentlet will need.
          If no secrets exist, inform the user and proceed without secrets.
        - If no MCP/Connector/Enterprise system/Business Application signals in the brief and user hasn't mentioned any of these: skip this step entirely.
-    5. **Generate YAML**: Call `agent_creator_assistant` with the structured brief as the query.
+    5. **Generate YAML**: Call `agentlet_creator_assistant` with the structured brief as the query.
 
        **Single-agentlet (default):**
        ```
@@ -285,13 +285,13 @@ _SYSTEM_PROMPT = """
 
        Additional query instructions when `output_destinations = chat`: include "Set `output.show_messages: true` and `output.format: markdown`" in the query text.
     6. **Validate YAML automatically**: `validate_agentlet(yaml_content=<yaml string>)`
-       - **This step is mandatory and runs without asking the user** — always validate immediately after receiving YAML from `agent_creator_assistant`
+       - **This step is mandatory and runs without asking the user** — always validate immediately after receiving YAML from `agentlet_creator_assistant`
        - If result starts with "AGENT_CREATOR_ERROR": do not validate — tell the user generation failed and ask them to try again.
-       - If result starts with "INVALID": call `agent_creator_assistant` again, passing the full
+       - If result starts with "INVALID": call `agentlet_creator_assistant` again, passing the full
          error message and asking it to fix the specific issues. Repeat until valid.
        - If result starts with "VALID": proceed to step 7
     7. **Review with user**: present the validated YAML and ask if they are happy with it
-       - If changes needed, call `agent_creator_assistant` again then re-validate (step 6 applies here too)
+       - If changes needed, call `agentlet_creator_assistant` again then re-validate (step 6 applies here too)
     8. **Create agentlet**: `synteles_create_agentlet(org_id, agentlet_id,
        description=<short description>, yaml_definition=<yaml string>)`
     9. **Confirm and offer next steps**: confirm creation succeeded; offer to execute immediately
@@ -319,7 +319,7 @@ _SYSTEM_PROMPT = """
 
     3. **Select model** — same Model Picker Workflow. The selected model must support tool calling.
     4. **Check MCP presets** — same as standard creation (only when input or output uses MCP).
-    5. **Generate YAML**: Call `agent_creator_assistant` with a durable-specific brief.
+    5. **Generate YAML**: Call `agentlet_creator_assistant` with a durable-specific brief.
 
        **Durable agentlet query template:**
        ```
@@ -385,16 +385,16 @@ _SYSTEM_PROMPT = """
          - **Platform default** (`is_platform_default: true`) → `available_secrets=["default"]`
          - **User preset with `secret_name` set** → `available_secrets=[<secret_name>]`
          - **User preset without `secret_name`** → warn the user: "⚠️ The preset `{preset_name}` has no secret linked. If this model requires credentials to run, go to **Profile → Models** to update the preset and link a secret, otherwise the agentlet may fail at execution time." Proceed without updating secrets.
-       - Note the selected `model_provider`, `model_id`, `temperature` (always use the model's `default_temperature`), and `available_secrets` — these are passed to `agent_creator_assistant` in step 3.
+       - Note the selected `model_provider`, `model_id`, `temperature` (always use the model's `default_temperature`), and `available_secrets` — these are passed to `agentlet_creator_assistant` in step 3.
        If the request does **not** involve a model change: skip this step entirely.
-    3. **Generate updated YAML**: `agent_creator_assistant(query=<current yaml + description of changes>, ...)`
+    3. **Generate updated YAML**: `agentlet_creator_assistant(query=<current yaml + description of changes>, ...)`
        - Always pass the full current YAML in the query alongside the change description
        - **If a model was selected in step 2**: pass `model_provider`, `model_id`, `temperature`, `available_secrets`; include this instruction in the query text: "Replace the model section with the provided settings and update the `secrets` list to use the new model credentials, removing any secrets that belonged to the previous model."
        - **If no model change**: pass `available_secrets` from the current YAML's `secrets` list when relevant; omit otherwise
        - Example query (non-model change): "Update this agentlet to add the http_request tool and raise timeout to 600s:\n\n<yaml>"
     4. **Validate automatically**: `validate_agentlet(yaml_content=<updated yaml>)`
        - **Always run this immediately — do not ask the user whether to validate**
-       - If invalid: pass errors back to `agent_creator_assistant` to fix, then re-validate
+       - If invalid: pass errors back to `agentlet_creator_assistant` to fix, then re-validate
     5. **Update immediately**: call `synteles_update_agentlet(org_id, agentlet_id, yaml_definition=<validated yaml>)` as soon as validation passes — **do not show the YAML first, do not ask for confirmation**. The user already requested the changes. After the update succeeds, show a brief confirmation and the updated YAML so the user can see what changed.
 
     ### Manage User Secrets
@@ -487,11 +487,11 @@ _SYSTEM_PROMPT = """
        - `get_model_options(use_case=<brief description>)` — platform default models, with scoring and a `recommended_id`
        - `list_model_presets()` — user's explicitly saved model configurations
     2. **Present a unified numbered list**: platform default models first (marked "Platform default — no API key needed"), then user presets (marked "Your preset"). Highlight the recommended option and share the `recommendation_reason`.
-    3. **After the user picks**, extract `provider`, `model_id`, and `default_temperature` from the chosen entry and pass them to `agent_creator_assistant`.
+    3. **After the user picks**, extract `provider`, `model_id`, and `default_temperature` from the chosen entry and pass them to `agentlet_creator_assistant`.
        - **Temperature**: always pass `temperature=default_temperature` from the chosen entry. Some models (e.g. GPT-5.3) have a minimum temperature constraint — passing the model's `default_temperature` ensures the value is always valid.
-       - If the chosen model is a platform default (`is_platform_default: true`): credentials are handled automatically — pass `available_secrets=["default"]` to `agent_creator_assistant`.
+       - If the chosen model is a platform default (`is_platform_default: true`): credentials are handled automatically — pass `available_secrets=["default"]` to `agentlet_creator_assistant`.
        - If the chosen model is a **user preset** (from `list_model_presets`):
-         - **Preset has `secret_name` set**: pass `available_secrets=[<secret_name>]` to `agent_creator_assistant` automatically — the preset already has credentials linked, no need to ask the user about secrets.
+         - **Preset has `secret_name` set**: pass `available_secrets=[<secret_name>]` to `agentlet_creator_assistant` automatically — the preset already has credentials linked, no need to ask the user about secrets.
          - **Preset has no `secret_name`**: warn the user — "⚠️ The preset `{preset_name}` has no secret linked. If this model requires credentials to run, go to **Profile → Models** to update the preset and link a secret, otherwise the agentlet may fail at execution time." Then proceed without secrets.
     4. **Use the `provider` and `model_id`** in the agentlet YAML `model` section:
        ```yaml
@@ -695,7 +695,7 @@ _SYSTEM_PROMPT = """
     ### Creating and Updating Agentlets
     Follow the **Create and Deploy** or **Update** workflow above. Key invariants:
     - **Always** validate with `validate_agentlet` immediately after receiving any YAML — never skip, never ask the user
-    - If validation fails, pass errors back to `agent_creator_assistant` to fix, then re-validate
+    - If validation fails, pass errors back to `agentlet_creator_assistant` to fix, then re-validate
     - Only call `synteles_create_agentlet` / `synteles_update_agentlet` once YAML is confirmed valid
     - **For updates**: call `synteles_update_agentlet` immediately after validation — never leave validated YAML unsaved while waiting for further user input
 
@@ -808,7 +808,7 @@ def _build_agent() -> Agent:
             platform.get_execution_files,
             platform.terminate_execution,
             platform.list_executions,
-            agent_creator_assistant,
+            agentlet_creator_assistant,
             validate_agentlet,
             platform.get_model_options,
         ],
