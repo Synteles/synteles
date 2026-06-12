@@ -14,7 +14,7 @@
 
 'use client'
 
-import { Wrench } from 'lucide-react'
+import { Wrench, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MarkdownContent } from './markdown-content'
 
@@ -59,7 +59,10 @@ export function StreamRenderer({ text, tools }: StreamRendererProps) {
                   g.done ? 'text-muted' : 'text-accent',
                 )}
               >
-                <Wrench size={10} className={cn('flex-none', !g.done && 'animate-pulse')} />
+                {g.done
+                  ? <Wrench size={10} className="flex-none" />
+                  : <Loader2 size={10} className="flex-none animate-spin" />
+                }
                 <span className="flex-1">{g.name.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase())}</span>
                 {g.count > 1 && (
                   <span className="rounded-full bg-surface px-1.5 py-0.5 text-[10px] tabular-nums text-muted">

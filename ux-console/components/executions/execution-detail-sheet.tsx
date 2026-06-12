@@ -35,6 +35,7 @@ import {
   type Execution,
   type ExecutionStatus,
 } from '@/lib/executions'
+import { MarkdownContent } from '@/components/chat/markdown-content'
 import { ResizablePanel } from '@/components/ui/resizable-panel'
 import {
   AlertDialog,
@@ -124,9 +125,9 @@ function SignalPanel({
     <div className="flex-none border-b border-warning-border bg-warning-bg px-6 py-4 flex flex-col gap-3">
       <div className="flex items-start gap-2">
         <Bell size={13} className="flex-none text-warning mt-0.5" />
-        <p className="text-xs text-warning font-medium leading-relaxed">
-          {execution.pending_question ?? 'The agent is waiting for your input.'}
-        </p>
+        <div className="text-xs text-warning font-medium leading-relaxed">
+          <MarkdownContent content={execution.pending_question ?? 'The agent is waiting for your input.'} />
+        </div>
       </div>
       <div className="flex gap-2">
         <textarea
@@ -197,10 +198,34 @@ function OutputBlock({ text }: { text: string }) {
           basicSetup={{ lineNumbers: false, foldGutter: false, highlightActiveLine: false }}
         />
       ) : (
-        <pre className="bg-surface px-4 py-3 text-xs text-foreground leading-relaxed whitespace-pre-wrap">
-          {text}
-        </pre>
+        <div className="bg-surface px-4 py-3 text-xs text-foreground leading-relaxed">
+          <MarkdownContent content={text} />
+        </div>
       )}
+    </div>
+  )
+}
+
+// ── Prompt block ─────────────────────────────────────────────────────────────
+function PromptBlock({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+
+  function handleCopy() {
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    <div className="group relative rounded-xl border border-border bg-surface px-4 py-3">
+      <button
+        onClick={handleCopy}
+        title="Copy"
+        className="absolute top-2 right-2 z-10 flex items-center justify-center rounded-md p-1.5 text-muted bg-surface border border-border opacity-0 group-hover:opacity-100 transition-opacity hover:text-foreground"
+      >
+        {copied ? <Check size={12} className="text-success" /> : <Copy size={12} />}
+      </button>
+      <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap pr-6">{text}</p>
     </div>
   )
 }
@@ -232,9 +257,7 @@ function DetailsTab({ execution }: { execution: Execution }) {
       {execution.prompt && (
         <div className="flex flex-col gap-1.5">
           <p className="text-xs font-medium text-foreground-2">Prompt</p>
-          <p className="rounded-xl border border-border bg-surface px-4 py-3 text-xs text-foreground leading-relaxed whitespace-pre-wrap">
-            {execution.prompt}
-          </p>
+          <PromptBlock text={execution.prompt} />
         </div>
       )}
 

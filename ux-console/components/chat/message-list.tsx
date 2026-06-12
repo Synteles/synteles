@@ -15,7 +15,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Wrench, Copy, Check } from 'lucide-react'
+import { Wrench, Loader2, Copy, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { DisplayMessage, ToolCall } from '@/lib/conversations'
 import { MarkdownContent } from './markdown-content'
@@ -48,7 +48,10 @@ function ToolCallRow({ group }: { group: ToolGroup }) {
         group.done ? 'text-muted' : 'text-accent',
       )}
     >
-      <Wrench size={10} className={cn('flex-none', !group.done && 'animate-pulse')} />
+      {group.done
+        ? <Wrench size={10} className="flex-none" />
+        : <Loader2 size={10} className="flex-none animate-spin" />
+      }
       <span className="flex-1">{group.name.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase())}</span>
       {group.count > 1 && (
         <span className="rounded-full bg-surface px-1.5 py-0.5 text-[10px] tabular-nums text-muted">

@@ -449,7 +449,7 @@ export function ChatPage({ initialConversations, user }: ChatPageProps) {
         id: crypto.randomUUID(),
         role: 'assistant',
         content: streamedText,
-        tools: streamedTools.map(t => ({ id: t.id, name: t.name, done: t.done })),
+        tools: streamedTools.map(t => ({ id: t.id, name: t.name, done: true })),
         ts: new Date().toISOString(),
       }
 
