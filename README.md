@@ -4,6 +4,7 @@
 
 # Synteles
 
+[![GitHub Release](https://img.shields.io/github/v/release/Synteles/synteles?include_prereleases)](https://github.com/Synteles/synteles/releases/latest)
 [![CI](https://github.com/Synteles/synteles/actions/workflows/ci.yml/badge.svg)](https://github.com/Synteles/synteles/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/Synteles/synteles/actions/workflows/codeql.yml/badge.svg)](https://github.com/Synteles/synteles/actions/workflows/codeql.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
