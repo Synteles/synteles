@@ -27,7 +27,7 @@ RUN cd synte-service && uv sync --frozen --no-dev --no-install-project
 
 # Copy service source
 COPY synte-service/ synte-service/
-COPY config/ config/
+COPY platform.toml platform.toml
 
 WORKDIR /app/synte-service
 
