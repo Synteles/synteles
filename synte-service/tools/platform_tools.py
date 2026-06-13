@@ -30,7 +30,10 @@ from strands import ToolContext, tool
 
 log = logging.getLogger("synteles.ux.tools")
 
-_API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.synteles.dev/v1")
+_api_base_url = os.environ.get("API_BASE_URL")
+if not _api_base_url:
+    raise RuntimeError("API_BASE_URL environment variable is required")
+_API_BASE_URL: str = _api_base_url
 
 _HTTP_200_OK = 200
 _HTTP_400_BAD_REQUEST = 400
@@ -146,6 +149,7 @@ class PlatformTools:
         tool_context: ToolContext,
         description: str | None = None,
         yaml_definition: str | None = None,
+        execution_backend: str = "standard",
     ) -> dict[str, Any]:
         """Create a new agentlet in the organization.
 
@@ -155,9 +159,11 @@ class PlatformTools:
                          contain only alphanumeric characters and underscores
             description: Optional human-readable description
             yaml_definition: Optional YAML configuration string
+            execution_backend: Execution backend — 'standard' (default) or 'durable'.
+                               'durable' enables checkpointing, retries, and HITL signals via Temporal.
         """
         token = tool_context.invocation_state.get("access_token", "")
-        body: dict[str, Any] = {"id": agentlet_id}
+        body: dict[str, Any] = {"id": agentlet_id, "execution_backend": execution_backend}
         if description is not None:
             body["description"] = description
         if yaml_definition is not None:
@@ -215,8 +221,9 @@ class PlatformTools:
         tool_context: ToolContext,
         description: str | None = None,
         yaml_definition: str | None = None,
+        execution_backend: str | None = None,
     ) -> dict[str, Any]:
-        """Update an existing agentlet's description and/or YAML configuration.
+        """Update an existing agentlet's description, YAML configuration, and/or execution backend.
 
         Only the provided fields are updated; omitted fields are left unchanged.
 
@@ -225,6 +232,7 @@ class PlatformTools:
             agentlet_id: Agentlet identifier
             description: Updated description (optional)
             yaml_definition: Updated YAML configuration string (optional)
+            execution_backend: Updated execution backend — 'standard' or 'durable' (optional)
         """
         token = tool_context.invocation_state.get("access_token", "")
         body: dict[str, str] = {}
@@ -232,6 +240,8 @@ class PlatformTools:
             body["description"] = description
         if yaml_definition is not None:
             body["YAML"] = yaml_definition
+        if execution_backend is not None:
+            body["execution_backend"] = execution_backend
         response = self._make_request(
             "PATCH",
             f"/api/agentlets/{agentlet_id}",

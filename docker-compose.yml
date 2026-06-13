@@ -196,7 +196,9 @@ services:
       S3_SECRET_KEY: minioadmin
       S3_LOGS_BUCKET: synteles-logs
       S3_UPLOAD_BUCKET: synteles-uploads
-      EXECUTION_BACKEND: docker
+      EXECUTION_RUNTIME: docker
+      AGENTLET_DURABLE_IMAGE: synteles/durable-agentlet:edge
+      TEMPORAL_ADDRESS: temporal:7233
       DOCKER_NETWORK: synteles_default
       OIDC_ISSUER_URL: http://localhost:8080/auth/realms/synteles
       OIDC_JWKS_URL: http://keycloak:9090/auth/realms/synteles/protocol/openid-connect/certs
@@ -242,6 +244,8 @@ services:
   ux-console:
     build:
       context: ux-console
+      args:
+        S3_PUBLIC_ENDPOINT_URL: ${S3_PUBLIC_ENDPOINT_URL:-http://localhost:9000}
     ports:
       - "3000:3000"
     env_file:
@@ -255,6 +259,7 @@ services:
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-synteles-dev-secret}
       API_BASE_URL: http://traefik:8080
       API_PUBLIC_BASE_URL: ${API_PUBLIC_BASE_URL:-http://localhost:8080}
+      S3_PUBLIC_ENDPOINT_URL: ${S3_PUBLIC_ENDPOINT_URL:-http://localhost:9000}
       CHAT_STREAM_URL: http://synte-service:8080/chat/stream
       REDIRECT_URI: http://localhost:3000/callback
     depends_on:
@@ -262,6 +267,53 @@ services:
         condition: service_healthy
       keycloak-provisioner:
         condition: service_completed_successfully
+
+  # ── Temporal ──────────────────────────────────────────────────────────────────
+
+  temporal:
+    image: temporalio/auto-setup:1.27
+    ports:
+      - "7233:7233"
+      - "8233:8233"
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_SEEDS: postgres
+      POSTGRES_USER: synteles
+      POSTGRES_PWD: synteles
+      DBNAME: temporal
+      VISIBILITY_DBNAME: temporal_visibility
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CLI_ADDRESS: temporal:7233
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "temporal operator cluster health --address temporal:7233 2>&1 | grep -q SERVING"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  temporal-ui:
+    image: temporalio/ui:2.34.0
+    ports:
+      - "8088:8080"
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:8088
+    depends_on:
+      temporal:
+        condition: service_healthy
+
+  # Build-only: DockerDurableBackend launches per-execution containers from this image.
+  # Not started by `docker compose up` — build with: docker compose build durable-agentlet
+  durable-agentlet:
+    image: synteles/durable-agentlet:edge
+    build:
+      context: durable-worker
+    profiles:
+      - build
 
 volumes:
   postgres_data:

@@ -20,7 +20,7 @@ export const metadata = { title: 'Agentlets — Synteles' }
 
 export default async function Page() {
   const [agentlets, executions] = await Promise.all([listAgentlets(), listExecutions()])
-  const apiBaseUrl = process.env.API_PUBLIC_BASE_URL ?? 'https://api.synteles.dev'
+  const apiBaseUrl = process.env.API_PUBLIC_BASE_URL ?? ''
   return (
     <Suspense>
       <AgentletsPage initialData={agentlets} initialRuns={executions} apiBaseUrl={apiBaseUrl} />

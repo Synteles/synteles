@@ -29,12 +29,13 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from synteles_db.crypto import decrypt
-from synteles_db.models import ExecStatus
+from synteles_db.models import DurableExecStatus, ExecutionBackend, StandardExecStatus
 from synteles_db.repos.agentlets import AgentletRepo
 from synteles_db.repos.executions import ExecutionRepo
 from synteles_db.repos.secrets import SecretRepo
 
 from auth import TokenClaims, trusted_claims, trusted_claims_with_org
+from config import OUTPUT_URL_MAX_EXPIRY_SECONDS
 from db import get_db, get_s3
 
 router = APIRouter()
@@ -46,7 +47,6 @@ _UUID_RE = re.compile(
 )
 _MAX_INPUT_FILES = 20
 _INPUT_URL_EXPIRY_SECONDS = 3600
-_OUTPUT_URL_MAX_EXPIRY_SECONDS = 43200
 _IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 
 _PLATFORM_SECRET_SENTINEL = "default"  # nosec B105 — sentinel string, not a password
@@ -186,7 +186,7 @@ def _copy_input_files(
 def _generate_output_presigned_url(s3_client: Any, execution_id: str, timeout: int) -> str:
     from config import S3_LOGS_BUCKET
 
-    expiry = min(timeout, _OUTPUT_URL_MAX_EXPIRY_SECONDS)
+    expiry = min(timeout, OUTPUT_URL_MAX_EXPIRY_SECONDS)
     output_key = f"executions/{execution_id}/output/output.zip"
     try:
         return str(
@@ -229,7 +229,7 @@ def _upload_execution_manifest(
     except Exception as exc:
         raise RuntimeError(f"Failed to upload execution manifest to S3: {exc}") from exc
 
-    expiry = min(timeout, _OUTPUT_URL_MAX_EXPIRY_SECONDS)
+    expiry = min(timeout, OUTPUT_URL_MAX_EXPIRY_SECONDS)
     try:
         return str(
             s3_client.generate_presigned_url(
@@ -244,6 +244,45 @@ def _upload_execution_manifest(
         ) from exc
 
 
+def _resolve_execution_type(agentlet: Any) -> ExecutionBackend:
+    """Return ExecutionBackend from the agentlet's execution_backend DB column."""
+    return agentlet.execution_backend
+
+
+# Submit flow — standard execution:
+#   1. Look up agentlet by name → read execution_backend column
+#   2. Create execution row (status=deploying)
+#   3. Copy input files (S3 upload bucket → logs bucket)
+#   4. Generate presigned PUT URL for output.zip
+#   5. Build manifest JSON {agentlet_yaml, input_files, output_url, prompt, timeout}
+#   6. Upload manifest → s3://…/executions/{id}/manifest.json
+#   7. Generate presigned GET URL for manifest
+#   8. Resolve secrets (user secrets + platform model secrets)
+#   9. get_backend(standard).submit()
+#      └── DockerStandardBackend → DockerRuntime.run_container(AGENTLET_IMAGE, id, env)
+#             env: SYNTELES_MANIFEST_URL, SYNTELES_EXEC_ID, decrypted secrets
+#  10. Update execution row: status=running, job_ref=container_id
+#  11. Return 202 {execution_id, status:"running"}
+#
+# Submit flow - durable execution (steps 1-8 identical, step 9 differs):
+#   9. get_backend(durable).submit()
+#      └── DockerDurableBackend:
+#            a. client.start_workflow("AgentWorkflow", execution_id,
+#                 id="synteles-{execution_id}",
+#                 task_queue="synteles-agent-{execution_id}")
+#               Temporal holds the first task until a worker registers.
+#            b. DockerRuntime.run_container(AGENTLET_DURABLE_IMAGE, "agent-{id}", env)
+#               Container boots, fetches manifest, registers on task queue.
+#               Temporal dispatches the queued task.
+#               env: SYNTELES_MANIFEST_URL, SYNTELES_OUTPUT_URL, SYNTELES_EXEC_ID,
+#                    TEMPORAL_ADDRESS, TEMPORAL_TASK_QUEUE, decrypted secrets
+#  10. Update execution row: status=running, job_ref=execution_id,
+#                            workflow_id="synteles-{execution_id}"
+#  11. Return 202 {execution_id, status:"running"}
+#
+# Why start the workflow before the container?
+#   Temporal can hold a task for minutes until a worker registers.
+#   If the container never starts, Temporal's timeout still has a history record to work with.
 async def _run_execution(
     *,
     agentlet_name: str,
@@ -269,6 +308,18 @@ async def _run_execution(
     if not agentlet:
         raise HTTPException(status_code=404, detail="Agentlet not found")
 
+    execution_type = _resolve_execution_type(agentlet)
+    init_status: StandardExecStatus | DurableExecStatus = (
+        DurableExecStatus.deploying
+        if execution_type == ExecutionBackend.durable
+        else StandardExecStatus.deploying
+    )
+    fail_status: StandardExecStatus | DurableExecStatus = (
+        DurableExecStatus.failed
+        if execution_type == ExecutionBackend.durable
+        else StandardExecStatus.failed
+    )
+
     now = datetime.now(UTC)
     timeout_at = now + timedelta(seconds=timeout_seconds)
 
@@ -277,9 +328,10 @@ async def _run_execution(
         user_id=UUID(user_id),
         agentlet_id=agentlet.id,
         agentlet_name=agentlet.name,
-        status=ExecStatus.deploying,
+        status=init_status,
         timeout_at=timeout_at,
         prompt=prompt or "",
+        execution_type=execution_type,
     )
     await db.commit()
 
@@ -292,7 +344,7 @@ async def _run_execution(
         except Exception as exc:
             logger.error("Input file copy failed for execution %s: %s", execution_id, exc)
             await ExecutionRepo(db).update_status(
-                execution, ExecStatus.failed, error=f"Input file copy failed: {exc}"
+                execution, fail_status, error=f"Input file copy failed: {exc}"
             )
             await db.commit()
             raise HTTPException(
@@ -362,26 +414,40 @@ async def _run_execution(
 
     env_vars["SYNTELES_EXEC_ID"] = execution_id
     env_vars["SYNTELES_MANIFEST_URL"] = manifest_url
+    if execution_type == ExecutionBackend.durable:
+        env_vars["SYNTELES_OUTPUT_URL"] = output_presigned_url
 
     from backends import get_backend
     from backends.base import ExecutionConfig
     from config import AGENTLET_IMAGE
 
-    backend = get_backend()
+    backend = get_backend(execution_type)
     config = ExecutionConfig(
         execution_id=execution_id,
         image=AGENTLET_IMAGE,
         env=env_vars,
         timeout_seconds=timeout_seconds,
     )
+    run_status: StandardExecStatus | DurableExecStatus = (
+        DurableExecStatus.running
+        if execution_type == ExecutionBackend.durable
+        else StandardExecStatus.running
+    )
     try:
-        task_arn = await backend.submit(config)
+        job_ref = await backend.submit(config)
     except Exception as exc:
-        await ExecutionRepo(db).update_status(execution, ExecStatus.failed, error=str(exc))
+        await ExecutionRepo(db).update_status(execution, fail_status, error=str(exc))
         await db.commit()
-        raise HTTPException(status_code=500, detail=f"Container deployment failed: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"Execution deployment failed: {exc}") from exc
 
-    await ExecutionRepo(db).update_job_ref(execution, task_arn, ExecStatus.running)
+    durable_workflow_id: str | None = None
+    if execution_type == ExecutionBackend.durable:
+        from backends.docker_durable import _workflow_id
+
+        durable_workflow_id = _workflow_id(job_ref)
+    await ExecutionRepo(db).update_job_ref(
+        execution, job_ref, run_status, workflow_id=durable_workflow_id
+    )
     await db.commit()
 
     return {

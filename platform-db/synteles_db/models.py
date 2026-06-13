@@ -21,7 +21,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, Text, UniqueConstraint
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import BYTEA, JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -33,7 +33,12 @@ class Base(DeclarativeBase):
     pass
 
 
-class ExecStatus(enum.StrEnum):
+class ExecutionBackend(enum.StrEnum):
+    standard = "standard"
+    durable = "durable"
+
+
+class StandardExecStatus(enum.StrEnum):
     deploying = "deploying"
     running = "running"
     completed = "completed"
@@ -41,13 +46,28 @@ class ExecStatus(enum.StrEnum):
     stopped = "stopped"
 
 
-# Declared with create_type=False — the type is created by the SQL migration.
-_exec_status_type = SAEnum(
-    ExecStatus,
-    name="exec_status",
+class DurableExecStatus(enum.StrEnum):
+    deploying = "deploying"
+    running = "running"
+    waiting_for_signal = "waiting_for_signal"
+    completed = "completed"
+    failed = "failed"
+    stopped = "stopped"
+
+
+# Backward-compatible alias — scheduler-service imports ExecStatus until Phase 3.
+ExecStatus = StandardExecStatus
+
+# Declared with create_type=False — the type is created by the Alembic migration.
+_execution_backend_sa = SAEnum(
+    ExecutionBackend,
+    name="execution_backend",
     schema=_SCHEMA,
     create_type=False,
 )
+
+_STANDARD_STATUSES = tuple(s.value for s in StandardExecStatus)
+_DURABLE_STATUSES = tuple(s.value for s in DurableExecStatus)
 
 
 class Organization(Base):
@@ -98,6 +118,9 @@ class Agentlet(Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     yaml_definition: Mapped[str] = mapped_column(Text, nullable=False)
+    execution_backend: Mapped[ExecutionBackend] = mapped_column(
+        _execution_backend_sa, nullable=False, server_default=ExecutionBackend.standard
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
 
@@ -128,6 +151,11 @@ class Execution(Base):
         Index(None, "agentlet_id", "created_at"),
         Index(None, "user_id", "created_at"),
         Index(None, "org_id", "created_at"),
+        CheckConstraint(
+            f"(execution_type = 'standard' AND status IN {_STANDARD_STATUSES})"
+            f" OR (execution_type = 'durable' AND status IN {_DURABLE_STATUSES})",
+            name="ck_execution_status",
+        ),
         {"schema": _SCHEMA},
     )
 
@@ -136,8 +164,12 @@ class Execution(Base):
     user_id: Mapped[UUID] = mapped_column(ForeignKey(f"{_SCHEMA}.users.id"), nullable=False)
     agentlet_id: Mapped[UUID] = mapped_column(ForeignKey(f"{_SCHEMA}.agentlets.id"), nullable=False)
     agentlet_name: Mapped[str] = mapped_column(Text, nullable=False, server_default="''")
-    status: Mapped[ExecStatus] = mapped_column(_exec_status_type, nullable=False)
+    execution_type: Mapped[ExecutionBackend] = mapped_column(
+        _execution_backend_sa, nullable=False, server_default=ExecutionBackend.standard
+    )
+    status: Mapped[str] = mapped_column(Text, nullable=False)
     job_ref: Mapped[str | None] = mapped_column(Text)
+    workflow_id: Mapped[str | None] = mapped_column(Text)
     timeout_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     prompt: Mapped[str] = mapped_column(Text, nullable=False, server_default="''")
     logs_s3_uri: Mapped[str | None] = mapped_column(Text)

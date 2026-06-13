@@ -415,20 +415,16 @@ generate_platform_toml() {
   ok "Generated config/platform.toml"
 }
 
-# ─── Docker image ─────────────────────────────────────────────────────────────
-pull_docker_image() {
-  step "Docker image"
-  # Honour AGENTLET_IMAGE from the freshly written .env, falling back to the
-  # default edge build. This means a user who sets AGENTLET_IMAGE=synteles/agentlet:1.2.3
-  # in their .env before running install.sh will pull the pinned release.
-  local image
-  image=$(grep -E '^AGENTLET_IMAGE=' .env 2>/dev/null | cut -d= -f2-)
-  image=${image:-synteles/agentlet:edge}
-  info "Pulling ${image} …"
-  printf "\n"
-  docker pull "${image}"
-  printf "\n"
-  ok "Image ready"
+
+# ─── Build durable-agentlet image ────────────────────────────────────────────
+build_durable_agentlet() {
+  step "Durable agentlet image"
+  info "Building synteles/durable-agentlet:edge …"
+  if docker compose build durable-agentlet; then
+    ok "durable-agentlet image built"
+  else
+    warn "durable-agentlet build failed — durable executions will not work until it is rebuilt"
+  fi
 }
 
 # ─── Done ─────────────────────────────────────────────────────────────────────
@@ -460,7 +456,7 @@ main() {
   ask_tavily
   generate_env
   generate_platform_toml
-  pull_docker_image
+  build_durable_agentlet
   print_done
 }
 

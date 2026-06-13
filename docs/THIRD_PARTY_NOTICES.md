@@ -9,7 +9,7 @@ repository-root `NOTICE` file, as required by Section 4(d) of that license.
 
 ## Python dependencies
 
-### core-service · scheduler-service · synte-service · platform-db
+### core-service · durable-worker · scheduler-service · synte-service · platform-db
 
 | Package | License | Copyright |
 |---|---|---|
@@ -31,6 +31,8 @@ repository-root `NOTICE` file, as required by Section 4(d) of that license.
 | LiteLLM | MIT | BerriAI |
 | jsonschema | MIT | Julian Berman |
 | requests | Apache-2.0 | Kenneth Reitz |
+| temporalio | MIT | Temporal Technologies Inc. |
+| mcp (Model Context Protocol Python SDK) | MIT | Anthropic, PBC |
 
 ### Development / tooling (not distributed)
 
@@ -43,6 +45,7 @@ repository-root `NOTICE` file, as required by Section 4(d) of that license.
 | pytest-asyncio | Apache-2.0 | Tin Tvrtković |
 | pytest-cov | MIT | Marc Schlaich |
 | pytest-mock | MIT | Bruno Oliveira |
+| respx | BSD-3-Clause | Jonas Lundberg |
 
 ---
 
@@ -72,6 +75,8 @@ repository-root `NOTICE` file, as required by Section 4(d) of that license.
 | @base-ui/react | MIT | MUI SAS |
 | shadcn/ui | MIT | shadcn |
 | tw-animate-css | MIT | Wombosvideo |
+| @radix-ui/react-toggle | MIT | WorkOS, Inc. |
+| @radix-ui/react-toggle-group | MIT | WorkOS, Inc. |
 
 ### Development / tooling (not distributed)
 

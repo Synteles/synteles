@@ -43,7 +43,7 @@ class ExecutionConfig:
     memory: str = "512"
 
 
-class ExecutionBackend(ABC):
+class ExecutionBackendRunner(ABC):
     """Abstract interface for execution backends (ECS, Docker, K8s, …)."""
 
     @abstractmethod
@@ -65,3 +65,19 @@ class ExecutionBackend(ABC):
     async def stop(self, job_ref: str) -> None:
         """Request graceful termination of an active job."""
         ...
+
+    async def query_is_input_needed(self, job_ref: str) -> bool | None:
+        """Return whether the workflow is paused waiting for user input.
+
+        Returns None for backends that do not support this query.
+        """
+        return None
+
+    def container_alive(self, job_ref: str) -> bool:
+        """Return True if the underlying compute unit is currently running.
+
+        Backends that do not have a separate long-lived process (e.g. ECS tasks
+        managed entirely by the orchestrator) should leave this as the default True.
+        DockerDurableBackend overrides it to check the agent-worker container.
+        """
+        return True

@@ -29,6 +29,7 @@ revision: str = "0002"
 down_revision = "0001"
 branch_labels = None
 depends_on = None
+__all__ = ["branch_labels", "depends_on", "down_revision", "revision"]
 
 
 def upgrade() -> None:

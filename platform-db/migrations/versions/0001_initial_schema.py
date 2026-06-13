@@ -29,6 +29,7 @@ revision: str = "0001"
 down_revision = None
 branch_labels = None
 depends_on = None
+__all__ = ["branch_labels", "depends_on", "down_revision", "revision"]
 
 _UPGRADE_SQL = (Path(__file__).parent / "synteles.sql").read_text()
 _DOWNGRADE_SQL = "DROP SCHEMA IF EXISTS synteles CASCADE;"

@@ -88,10 +88,10 @@ def validate_agentlet(yaml_content: str) -> str:
     Checks both YAML syntax and conformance to the agentlet JSON Schema
     (required fields, value types, enum constraints, etc.).
 
-    Call this tool after ``agent_creator_assistant`` returns a YAML definition
+    Call this tool after ``agentlet_creator_assistant`` returns a YAML definition
     and before calling ``synteles_create_agentlet`` or ``synteles_update_agentlet``.
     If the result starts with "INVALID", pass the error details back to
-    ``agent_creator_assistant`` and ask it to fix the specific issues.
+    ``agentlet_creator_assistant`` and ask it to fix the specific issues.
 
     Args:
         yaml_content: The YAML string to validate. Markdown code fences

@@ -27,6 +27,7 @@ const TIMEOUT_OPTIONS = [
   { label: '15 min', value: 900  },
   { label: '30 min', value: 1800 },
   { label: '1 hr',   value: 3600 },
+  { label: '2 hr',   value: 7200 },
 ]
 
 interface StagedFile {
@@ -153,7 +154,7 @@ export function RunExecutionDialog({ agentletId, onClose }: Props) {
         {/* Prompt */}
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-medium text-foreground-2">
-            Prompt <span className="text-faint font-normal">optional</span>
+            Task (prompt) <span className="text-faint font-normal">optional</span>
           </label>
           <textarea
             rows={5}

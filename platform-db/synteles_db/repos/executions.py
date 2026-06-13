@@ -21,7 +21,15 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from synteles_db.models import ExecStatus, Execution
+from synteles_db.models import (
+    DurableExecStatus,
+    Execution,
+    ExecutionBackend,
+    StandardExecStatus,
+)
+
+# Backward-compatible alias used by callers that still import ExecStatus.
+ExecStatus = StandardExecStatus
 
 
 class ExecutionRepo:
@@ -33,10 +41,16 @@ class ExecutionRepo:
         return result.scalar_one_or_none()
 
     async def list_active(self) -> list[Execution]:
+        """Return all executions in an active state across both execution types."""
+        active_statuses = [
+            StandardExecStatus.deploying,
+            StandardExecStatus.running,
+            DurableExecStatus.deploying,
+            DurableExecStatus.running,
+            DurableExecStatus.waiting_for_signal,
+        ]
         result = await self._db.execute(
-            select(Execution).where(
-                Execution.status.in_([ExecStatus.deploying, ExecStatus.running])
-            )
+            select(Execution).where(Execution.status.in_(active_statuses))
         )
         return list(result.scalars().all())
 
@@ -82,9 +96,10 @@ class ExecutionRepo:
         user_id: UUID,
         agentlet_id: UUID,
         agentlet_name: str,
-        status: ExecStatus,
+        status: StandardExecStatus | DurableExecStatus,
         timeout_at: datetime,
         prompt: str,
+        execution_type: ExecutionBackend = ExecutionBackend.standard,
     ) -> Execution:
         execution = Execution(
             id=uuid.uuid4(),
@@ -92,6 +107,7 @@ class ExecutionRepo:
             user_id=user_id,
             agentlet_id=agentlet_id,
             agentlet_name=agentlet_name,
+            execution_type=execution_type,
             status=status,
             timeout_at=timeout_at,
             prompt=prompt,
@@ -100,21 +116,31 @@ class ExecutionRepo:
         await self._db.flush()
         return execution
 
-    async def update_job_ref(self, execution: Execution, job_ref: str, status: ExecStatus) -> None:
+    async def update_job_ref(
+        self,
+        execution: Execution,
+        job_ref: str,
+        status: StandardExecStatus | DurableExecStatus,
+        *,
+        workflow_id: str | None = None,
+    ) -> None:
         execution.job_ref = job_ref
         execution.status = status
         execution.updated_at = datetime.now(UTC)
+        if workflow_id is not None:
+            execution.workflow_id = workflow_id
         await self._db.flush()
 
     async def update_status(
         self,
         execution: Execution,
-        status: ExecStatus,
+        status: StandardExecStatus | DurableExecStatus,
         *,
         job_ref: str | None = None,
         error: str | None = None,
         logs_s3_uri: str | None = None,
         completed_at: datetime | None = None,
+        timeout_at: datetime | None = None,
     ) -> None:
         execution.status = status
         execution.updated_at = datetime.now(UTC)
@@ -126,7 +152,27 @@ class ExecutionRepo:
             execution.logs_s3_uri = logs_s3_uri
         if completed_at is not None:
             execution.completed_at = completed_at
+        if timeout_at is not None:
+            execution.timeout_at = timeout_at
         await self._db.flush()
+
+    async def update_workflow_id(self, execution: Execution, workflow_id: str) -> None:
+        execution.workflow_id = workflow_id
+        execution.updated_at = datetime.now(UTC)
+        await self._db.flush()
+
+    async def list_waiting_for_signal(self, org_id: UUID) -> list[Execution]:
+        """Return durable executions currently paused awaiting a human signal."""
+        result = await self._db.execute(
+            select(Execution)
+            .where(
+                Execution.org_id == org_id,
+                Execution.execution_type == ExecutionBackend.durable,
+                Execution.status == DurableExecStatus.waiting_for_signal,
+            )
+            .order_by(Execution.updated_at.asc())
+        )
+        return list(result.scalars().all())
 
     async def delete_expired(self, cutoff: datetime) -> int:
         from sqlalchemy import delete

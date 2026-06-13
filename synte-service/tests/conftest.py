@@ -50,7 +50,7 @@ os.environ.setdefault("PORTAL_DOMAIN_NAME", "https://test.synteles.dev")
 os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-1")
 os.environ.setdefault("AWS_ACCESS_KEY_ID", "testing")
 os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "testing")
-os.environ.setdefault("API_BASE_URL", "https://api.test.synteles.dev/v1")
+os.environ.setdefault("API_BASE_URL", "http://localhost:8000")
 
 
 # ── mock_context fixture ─────────────────────────────────────────────────────

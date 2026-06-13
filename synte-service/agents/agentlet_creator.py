@@ -26,7 +26,7 @@ from tools.agentlet_validator import validate_agentlet_yaml
 _MAX_VALIDATION_RETRIES = 2
 
 # Define a specialized system prompt
-SYNTELES_AGENT_CREATOR_ASSISTANT_PROMPT = """
+SYNTELES_AGENTLET_CREATOR_ASSISTANT_PROMPT = """
 # Synteles Agentlet Creator — System Instructions
 
 You are a specialized AI assistant focused on helping users design and generate **Agentlet YAML configurations** for the Synteles Platform.
@@ -757,7 +757,7 @@ _INPUT_FORMAT_INSTRUCTIONS: dict[str, tuple[str, str, bool, str]] = {
 
 
 @tool
-def agent_creator_assistant(
+def agentlet_creator_assistant(
     query: str,
     available_secrets: list[str] | None = None,
     model_provider: str | None = None,
@@ -935,7 +935,7 @@ def agent_creator_assistant(
 
         agent_creator_agent = Agent(
             model=model,
-            system_prompt=SYNTELES_AGENT_CREATOR_ASSISTANT_PROMPT,
+            system_prompt=SYNTELES_AGENTLET_CREATOR_ASSISTANT_PROMPT,
             callback_handler=None,
             tools=[calculator, current_time],
         )

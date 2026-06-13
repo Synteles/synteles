@@ -27,6 +27,7 @@ jobs:
           - scheduler-service
           - synte-service
           - platform-db
+          - durable-worker
     defaults:
       run:
         working-directory: ${{ matrix.service }}

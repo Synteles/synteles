@@ -26,13 +26,15 @@ export async function GET() {
   if (!token) return NextResponse.json({ executions: [] }, { status: 401 })
 
   try {
-    const [running, deploying] = await Promise.all([
+    const [running, deploying, waiting] = await Promise.all([
       apiFetch<ExecutionsResponse | null>('/api/executions?status=running&limit=50', {}, token),
       apiFetch<ExecutionsResponse | null>('/api/executions?status=deploying&limit=50', {}, token),
+      apiFetch<ExecutionsResponse | null>('/api/executions?status=waiting_for_signal&limit=50', {}, token),
     ])
     const executions = [
       ...(running?.executions ?? []),
       ...(deploying?.executions ?? []),
+      ...(waiting?.executions ?? []),
     ]
     return NextResponse.json({ executions })
   } catch {

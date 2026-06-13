@@ -31,8 +31,17 @@ REGION: str = os.environ.get("AWS_REGION", os.environ.get("REGION", "eu-central-
 AGENTLET_IMAGE: str = os.environ.get("AGENTLET_IMAGE", "synteles/agentlet:edge")
 DOCKER_NETWORK: str = os.environ.get("DOCKER_NETWORK", "")
 MONITOR_INTERVAL_SECONDS: int = int(os.environ.get("MONITOR_INTERVAL_SECONDS", "30"))
-EXECUTION_BACKEND: str = os.environ.get("EXECUTION_BACKEND", "docker")
+EXECUTION_BACKEND: str = os.environ.get("EXECUTION_BACKEND", "standard")
+EXECUTION_RUNTIME: str = os.environ.get("EXECUTION_RUNTIME", "docker")
+TEMPORAL_ADDRESS: str = os.environ.get("TEMPORAL_ADDRESS", "localhost:7233")
+AGENTLET_DURABLE_IMAGE: str = os.environ.get(
+    "AGENTLET_DURABLE_IMAGE", "synteles/durable-agentlet:edge"
+)
 TAVILY_API_KEY: str = os.environ.get("TAVILY_API_KEY", "")
+SIGNAL_WAIT_TIMEOUT_SECONDS: int = int(
+    os.environ.get("SIGNAL_WAIT_TIMEOUT_SECONDS", str(24 * 3600))
+)
+OUTPUT_URL_MAX_EXPIRY_SECONDS: int = 43200
 
 _cors_env: str = os.environ.get("CORS_ALLOWED_ORIGINS", "")
 CORS_ALLOWED_ORIGINS: list[str] = (

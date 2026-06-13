@@ -22,7 +22,7 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from synteles_db.models import ExecStatus
+from synteles_db.models import ExecStatus, ExecutionBackend
 
 from auth import TokenClaims
 
@@ -49,6 +49,7 @@ def _make_execution(status: ExecStatus, exec_id: UUID | None = None) -> MagicMoc
     execution.id = exec_id or uuid4()
     execution.org_id = UUID("00000000-0000-0000-0000-000000000001")
     execution.status = status
+    execution.execution_type = ExecutionBackend.standard
     execution.completed_at = None
     execution.job_ref = "container-xyz"
     return execution

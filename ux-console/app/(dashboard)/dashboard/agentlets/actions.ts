@@ -22,12 +22,14 @@ export interface AgentletApi {
   id: string
   description?: string
   created_at?: string
+  execution_backend?: 'standard' | 'durable'
 }
 
 export interface ExecutionApi {
   execution_id: string
   agentlet_id: string
-  status: 'running' | 'deploying' | 'completed' | 'failed' | 'terminated'
+  status: 'running' | 'deploying' | 'waiting_for_signal' | 'completed' | 'failed' | 'terminated'
+  execution_type?: 'standard' | 'durable'
   created_at: string
   completed_at?: string | null
   elapsed_seconds?: number | null
@@ -38,10 +40,12 @@ export interface ExecutionApi {
 const REVALIDATE = '/dashboard/agentlets'
 
 const DEFAULT_YAML = `model:
-  provider: anthropic
-  model_id: claude-sonnet-4-6
+  provider: azure_ai
+  model_id: gpt-5.3-chat
 system_prompt: |
   You are a helpful assistant.
+secrets:
+  - default
 `
 
 export async function listExecutions(): Promise<ExecutionApi[]> {
@@ -88,13 +92,19 @@ export async function getAgentletYaml(
 export async function createAgentlet(
   id: string,
   description: string,
+  executionBackend: 'standard' | 'durable' = 'standard',
 ): Promise<{ error?: string }> {
   const token = await getServerToken()
   if (!token) return { error: 'Not authenticated' }
   try {
     await apiFetch('/api/agentlets', {
       method: 'POST',
-      body: JSON.stringify({ id, description: description || undefined, YAML: DEFAULT_YAML }),
+      body: JSON.stringify({
+        id,
+        description: description || undefined,
+        YAML: DEFAULT_YAML,
+        execution_backend: executionBackend,
+      }),
     }, token)
     revalidatePath(REVALIDATE)
     return {}
@@ -124,13 +134,17 @@ export async function saveAgentletYaml(
 export async function updateAgentlet(
   id: string,
   description: string,
+  executionBackend?: 'standard' | 'durable',
 ): Promise<{ error?: string }> {
   const token = await getServerToken()
   if (!token) return { error: 'Not authenticated' }
   try {
     await apiFetch(`/api/agentlets/${encodeURIComponent(id)}`, {
       method: 'PATCH',
-      body: JSON.stringify({ description }),
+      body: JSON.stringify({
+        description,
+        ...(executionBackend !== undefined && { execution_backend: executionBackend }),
+      }),
     }, token)
     revalidatePath(REVALIDATE)
     return {}

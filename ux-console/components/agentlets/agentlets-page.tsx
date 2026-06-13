@@ -20,7 +20,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Plus, Search, Zap, Play, Pencil, X, ChevronRight, ChevronDown,
   Clock, CheckCircle2, XCircle, Loader2, Check, Copy,
-  ListFilter, ArrowUpDown,
+  ListFilter, ArrowUpDown, Cpu, Workflow, Bell,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -34,6 +34,7 @@ import { useWatchdog } from '@/components/executions/watchdog-provider'
 import { YamlEditor } from './yaml-editor'
 import { AgentSchemaView } from './agent-schema'
 import { ResizablePanel } from '@/components/ui/resizable-panel'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import {
@@ -50,6 +51,7 @@ interface Agentlet {
   name: string
   description: string
   createdAt: Date
+  executionBackend: 'standard' | 'durable'
 }
 
 function fromApi(k: AgentletApi): Agentlet {
@@ -58,6 +60,7 @@ function fromApi(k: AgentletApi): Agentlet {
     name: k.id,
     description: k.description ?? '',
     createdAt: k.created_at ? new Date(k.created_at) : new Date(0),
+    executionBackend: k.execution_backend ?? 'standard',
   }
 }
 
@@ -72,13 +75,29 @@ function fmtElapsed(seconds: number | null | undefined): string | null {
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────
+function BackendBadge({ type }: { type?: 'standard' | 'durable' }) {
+  if (type === 'durable') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-accent-border bg-accent-light px-2 py-0.5 text-xs font-medium text-accent">
+        <Workflow size={10} /> Durable
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2 py-0.5 text-xs font-medium text-muted">
+      <Cpu size={10} /> Standard
+    </span>
+  )
+}
+
 function StatusBadge({ status }: { status: ExecutionApi['status'] }) {
   const map: Record<ExecutionApi['status'], { icon: typeof Loader2; label: string; cls: string; spin: boolean }> = {
-    running:    { icon: Loader2,      label: 'Running',    cls: 'text-running bg-running-bg border-running-border', spin: true  },
-    deploying:  { icon: Loader2,      label: 'Deploying',  cls: 'text-running bg-running-bg border-running-border', spin: true  },
-    completed:  { icon: CheckCircle2, label: 'Completed',  cls: 'text-success bg-success-bg border-success-border', spin: false },
-    failed:     { icon: XCircle,      label: 'Failed',     cls: 'text-error   bg-error-bg   border-error-border',   spin: false },
-    terminated: { icon: XCircle,      label: 'Terminated', cls: 'text-error   bg-error-bg   border-error-border',   spin: false },
+    running:            { icon: Loader2,      label: 'Running',    cls: 'text-running bg-running-bg border-running-border', spin: true  },
+    deploying:          { icon: Loader2,      label: 'Deploying',  cls: 'text-running bg-running-bg border-running-border', spin: true  },
+    waiting_for_signal: { icon: Bell,         label: 'Waiting',    cls: 'text-warning bg-warning-bg border-warning-border', spin: false },
+    completed:          { icon: CheckCircle2, label: 'Completed',  cls: 'text-success bg-success-bg border-success-border', spin: false },
+    failed:             { icon: XCircle,      label: 'Failed',     cls: 'text-error   bg-error-bg   border-error-border',   spin: false },
+    terminated:         { icon: XCircle,      label: 'Terminated', cls: 'text-error   bg-error-bg   border-error-border',   spin: false },
   }
   const { icon: Icon, label, cls, spin } = map[status] ?? map.failed
   return (
@@ -106,6 +125,9 @@ function AgentletCard({
           <Zap size={15} className="text-accent" />
         </div>
         <p className="truncate font-mono text-sm font-semibold text-foreground">{agentlet.name}</p>
+        <div className="ml-auto flex-none">
+          <BackendBadge type={agentlet.executionBackend} />
+        </div>
       </div>
 
       {/* Description */}
@@ -145,10 +167,10 @@ const SORT_LABELS: Record<SortField, string> = {
   elapsed_seconds: 'Elapsed',
 }
 
-const STATUS_OPTIONS = ['all', 'running', 'deploying', 'completed', 'failed', 'terminated'] as const
+const STATUS_OPTIONS = ['all', 'running', 'deploying', 'waiting_for_signal', 'completed', 'failed', 'terminated'] as const
 const STATUS_LABELS: Record<string, string> = {
   all: 'All statuses', running: 'Running', deploying: 'Deploying',
-  completed: 'Completed', failed: 'Failed', terminated: 'Terminated',
+  waiting_for_signal: 'Waiting', completed: 'Completed', failed: 'Failed', terminated: 'Terminated',
 }
 
 function RunsTable({ runs, onSelect }: {
@@ -241,6 +263,7 @@ function RunsTable({ runs, onSelect }: {
               <tr className="border-b border-border bg-surface">
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted">Agentlet</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted">Backend</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted">Created</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted">Completed</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted">Elapsed</th>
@@ -249,7 +272,7 @@ function RunsTable({ runs, onSelect }: {
             <tbody className="divide-y divide-border bg-card">
               {displayed.map(run => {
                 const elapsed = fmtElapsed(run.elapsed_seconds)
-                const active  = run.status === 'running' || run.status === 'deploying'
+                const active  = run.status === 'running' || run.status === 'deploying' || run.status === 'waiting_for_signal'
                 return (
                   <tr
                     key={run.execution_id}
@@ -260,6 +283,7 @@ function RunsTable({ runs, onSelect }: {
                       <span className="font-mono text-xs font-medium text-foreground">{run.agentlet_id}</span>
                     </td>
                     <td className="px-4 py-3"><StatusBadge status={run.status} /></td>
+                    <td className="px-4 py-3"><BackendBadge type={run.execution_type} /></td>
                     <td className="px-4 py-3 text-xs text-muted">{fmtDate(run.created_at)}</td>
                     <td className="px-4 py-3 text-xs text-muted">{fmtDate(run.completed_at)}</td>
                     <td className="px-4 py-3 text-xs text-muted font-mono">
@@ -281,7 +305,6 @@ function RunsTable({ runs, onSelect }: {
 }
 
 // ── API Integration tab ────────────────────────────────────────────────────
-const DEFAULT_API_BASE = 'https://api.synteles.dev'
 
 type DrawerTab = 'properties' | 'api' | 'danger'
 
@@ -426,26 +449,28 @@ function AgentletDrawer({
   pending: boolean
   error: string | null
   onClose: () => void
-  onSave: (name: string, description: string) => void
+  onSave: (name: string, description: string, executionBackend: 'standard' | 'durable') => void
   onDeleteRequest: () => void
   apiBaseUrl: string
 }) {
   const isEdit = !!initial?.id
   const [name, setName]        = useState(initial?.name ?? '')
   const [description, setDesc] = useState(initial?.description ?? '')
+  const [executionBackend, setExecutionBackend] = useState<'standard' | 'durable'>('standard')
   const [yamlMode, setYamlMode] = useState(false)
   const [drawerTab, setDrawerTab] = useState<DrawerTab>('properties')
 
   useEffect(() => {
     setName(initial?.name ?? '')
     setDesc(initial?.description ?? '')
+    setExecutionBackend(initial?.executionBackend ?? 'standard')
     setYamlMode(false)
     setDrawerTab('properties')
   }, [initial, open])
 
   function handleSave() {
     if (!name.trim()) return
-    onSave(name.trim(), description.trim())
+    onSave(name.trim(), description.trim(), executionBackend)
   }
 
   function switchTab(t: DrawerTab) {
@@ -539,6 +564,36 @@ function AgentletDrawer({
                     className="w-full resize-none rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-faint outline-none focus:border-accent-focus transition-colors"
                   />
                 </div>
+
+                <div className="flex flex-col gap-2">
+                    <label className="text-xs font-medium text-foreground-2">Execution backend</label>
+                    <ToggleGroup
+                      type="single"
+                      value={executionBackend}
+                      onValueChange={v => { if (v) setExecutionBackend(v as 'standard' | 'durable') }}
+                      className="w-full"
+                    >
+                      <ToggleGroupItem value="standard" className="flex-1">
+                        <Cpu size={13} /> Standard
+                      </ToggleGroupItem>
+                      <ToggleGroupItem value="durable" className="flex-1">
+                        <Workflow size={13} /> Durable
+                      </ToggleGroupItem>
+                    </ToggleGroup>
+                    <div className="rounded-lg border border-border bg-surface px-3 py-2.5 text-[11px] text-muted leading-relaxed">
+                      {executionBackend === 'standard' ? (
+                        <>
+                          <span className="font-medium text-foreground-2">Standard</span> runs your agentlet in a container for the duration of the task.
+                          Best for short jobs (seconds to a few minutes) that run without interruption.
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-medium text-foreground-2">Durable</span> runs your agentlet as a Temporal workflow — every step is checkpointed,
+                          so the run can pause for human input, survive restarts, and safely handle long-running tasks (hours or days).
+                        </>
+                      )}
+                    </div>
+                  </div>
 
                 {isEdit && initial?.id && (
                   <AgentSchemaView agentletId={initial.id} />
@@ -659,7 +714,7 @@ function DeleteAgentletModal({
 }
 
 // ── Main page ──────────────────────────────────────────────────────────────
-export function AgentletsPage({ initialData, initialRuns, apiBaseUrl = DEFAULT_API_BASE }: { initialData: AgentletApi[]; initialRuns: ExecutionApi[]; apiBaseUrl?: string }) {
+export function AgentletsPage({ initialData, initialRuns, apiBaseUrl }: { initialData: AgentletApi[]; initialRuns: ExecutionApi[]; apiBaseUrl: string }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { activeRuns: liveActiveRuns } = useWatchdog()
@@ -708,13 +763,12 @@ export function AgentletsPage({ initialData, initialRuns, apiBaseUrl = DEFAULT_A
   function openCreate() { setEdit(null); setSaveError(null); setDrawer(true) }
   function openEdit(a: Agentlet) { setEdit(a); setSaveError(null); setDrawer(true) }
 
-  function handleSave(name: string, description: string) {
+  function handleSave(name: string, description: string, executionBackend: 'standard' | 'durable' = 'standard') {
     setSaveError(null)
     if (editTarget) {
-      // Optimistic update
-      setAgentlets(prev => prev.map(a => a.id === editTarget.id ? { ...a, description } : a))
+      setAgentlets(prev => prev.map(a => a.id === editTarget.id ? { ...a, description, executionBackend } : a))
       startSave(async () => {
-        const result = await updateAgentlet(editTarget.id, description)
+        const result = await updateAgentlet(editTarget.id, description, executionBackend)
         if (result.error) {
           setSaveError(result.error)
           setAgentlets(prev => prev.map(a => a.id === editTarget.id ? editTarget : a))
@@ -724,10 +778,10 @@ export function AgentletsPage({ initialData, initialRuns, apiBaseUrl = DEFAULT_A
         router.refresh()
       })
     } else {
-      const optimistic: Agentlet = { id: name, name, description, createdAt: new Date() }
+      const optimistic: Agentlet = { id: name, name, description, createdAt: new Date(), executionBackend }
       setAgentlets(prev => [optimistic, ...prev])
       startSave(async () => {
-        const result = await createAgentlet(name, description)
+        const result = await createAgentlet(name, description, executionBackend)
         if (result.error) {
           setSaveError(result.error)
           setAgentlets(prev => prev.filter(a => a.id !== name))

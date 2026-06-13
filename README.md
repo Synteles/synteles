@@ -11,7 +11,7 @@
 
 **Open-source platform for AI workers and enterprise workflows.**
 
-Synteles is a platform for AI workers (agentlets) that execute workflows. Business users can describe tasks in plain language and Synteles creates and launches AI workers in minutes. Engineers can customize created AI workers using YAML DSL and then integrate them into existing systems via REST APIs and connectors. Runs on public cloud, on-premise, or air-gapped infrastructure.
+Synteles is a platform for AI workers ([agentlets](https://github.com/Synteles/agentlet)) that run long-running resilient workflows. Business users can describe tasks in plain language and Synteles creates and launches multi-agent AI workers in minutes. Engineers can customize them using a [YAML definition](https://github.com/Synteles/agentlet/blob/main/docs/reference/configuration.md) and integrate into existing technology landscape via [APIs](docs/integration-api.md) and MCP connectors. AI workers run ephemerally when a task completes in a single uninterrupted pass, or [durably](docs/durable-execution.md) for workflows that must survive failures, resume after restarts, or involve human-in-the-loop decisions. Synteles runs on public cloud, on-premise, or air-gapped infrastructure.
 
 ⚠️ **Early Development**: Synteles is pre-v1.0. APIs and definitions and deployment structure may change.
 
@@ -54,6 +54,7 @@ Docker Compose will:
 - Start MinIO and create the required buckets
 - Start Keycloak and provision the realm, client, and default user
 - Start the core and scheduler API services
+- Start Temporal server and its dependency services (Cassandra/PostgreSQL backend)
 - Start the web UI, synte service and API gateway (Traefik)
 
 First boot takes approximately 60–90 seconds while Keycloak initializes. You can watch progress with:
@@ -87,6 +88,7 @@ Once the stack is running, these URLs are available in your browser:
 | **Keycloak Admin**        | http://localhost:8080/auth/admin       | `admin` / `admin`              | Identity provider — manage users, clients, and realm settings |
 | **MinIO Console**         | http://localhost:9001                  | `minioadmin` / `minioadmin`    | Object storage — browse uploaded files, execution logs, and conversation blobs |
 | **Traefik Dashboard**     | http://localhost:8081                  | _(no login)_                   | API gateway — inspect routing rules, service health, and middleware |
+| **Temporal Web UI**       | http://localhost:8088                  | _(no login)_                   | Temporal cluster UI — inspect durable workflow history, task queues, and execution state |
 | **API (all routes)**      | http://localhost:8080                  | Bearer token or API key        | Entry point for all API calls (proxied via Traefik) |
 
 > Default credentials are defined in `.env`. Change them before deploying outside of a local dev environment.
@@ -199,8 +201,8 @@ cp .env.example .env   # then fill in values
 | `OIDC_ISSUER_URL` | `http://localhost:8080/auth/realms/synteles` |
 | `OIDC_CLIENT_ID` | `synteles-app` |
 | `OIDC_CLIENT_SECRET` | `synteles-dev-secret` |
-| `TEST_USER` | `synteles` |
-| `TEST_USER_PASSWORD` | `synteles` |
+| `TEST_USER` | `synteles-test` |
+| `TEST_USER_PASSWORD` | `synteles-test` |
 
 Run all tests:
 
@@ -214,6 +216,7 @@ uv run pytest
 synteles/
   core-service/         # REST API — agentlets, users, secrets, files, org management
   scheduler-service/    # Execution engine — deploys and monitors agentlet containers (see Agentlet Runtime below)
+  durable-worker/       # Temporal worker service — AgentWorkflow (ReAct loop + HITL) for durable executions
   synte-service/        # Synte chat assistant — AI agent powering the chat UI
   ux-console/           # Web UI — Next.js frontend (App Router)
   platform-db/          # Shared database library (synteles_db) + Alembic migrations
@@ -227,15 +230,20 @@ synteles/
 
 ## Agentlet Runtime
 
-Each agentlet execution runs inside an isolated Docker container using the [Synteles Agentlet](https://github.com/Synteles/agentlet) harness. The harness reads the agentlet's YAML definition, injects secrets, reads input files, runs the agent loop.
+Synteles supports two execution backends, configurable per agentlet via the `execution_backend` field:
 
-The default image is `synteles/agentlet:edge`. See the [Configuration](#configuration) section and [docs/configuration.md](docs/configuration.md) for how to pin a specific release tag via `AGENTLET_IMAGE`.
+**Standard** (`execution_backend: standard`, default) — each execution runs inside an isolated Docker container using the [Synteles Agentlet](https://github.com/Synteles/agentlet) harness. The harness reads the agentlet's YAML definition, injects secrets, reads input files, and runs the agent loop. The default image is `synteles/agentlet:edge`.
+
+**Durable** (`execution_backend: durable`) — each execution is wrapped in a long-lived [Temporal](https://temporal.io) workflow, handled by the `durable-worker` service. Durable executions persist full workflow history, survive container crashes (Temporal keeps retrying), and support human-in-the-loop (HITL) pausing: when an agentlet calls `ask_user`, the execution transitions to `waiting_for_signal` and waits indefinitely for a user response via the signal API before continuing. See [docs/durable-execution.md](docs/durable-execution.md) for the full architecture.
+
+See the [Configuration](#configuration) section and [docs/configuration.md](docs/configuration.md) for how to pin a specific agentlet image release tag via `AGENTLET_IMAGE`.
 
 ## Documentation
 
 - [docs/architecture.md](docs/architecture.md) — system overview and component diagram
-- [docs/api-contracts.md](docs/api-contracts.md) — API reference
+- [docs/integration-api.md](docs/integration-api.md) — integration API reference
 - [docs/configuration.md](docs/configuration.md) — environment variable reference for all services
+- [docs/durable-execution.md](docs/durable-execution.md) — durable execution architecture (Temporal, AgentWorkflow, HITL signal bridge)
 - [docs/testing.md](docs/testing.md) — unit and integration test guide
 
 ## Project Status
@@ -262,8 +270,7 @@ Stable release tags are published alongside each GitHub release. See [docs/confi
 Planned areas of work include:
 
 - Governance, identity and access management enhancements
-- Kubernetes deployment support (Helm charts) 
-- Agentlet durable execution support
+- Kubernetes deployment support (Helm charts)
 - Security hardening
 - Agentlet versioning
 - API stabilization

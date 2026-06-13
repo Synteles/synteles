@@ -25,6 +25,7 @@ Each backend service has its own isolated unit test suite under `<service>/tests
 ```
 core-service/tests/
 scheduler-service/tests/
+durable-worker/tests/
 ```
 
 Run them with the service `Makefile`:
@@ -33,9 +34,10 @@ Run them with the service `Makefile`:
 # from the repo root
 cd core-service      && make test
 cd scheduler-service && make test
+cd durable-worker    && make test
 ```
 
-`make check` runs linting (ruff) and type-checking (mypy) alongside the tests. Both must pass before merging.
+`make check` runs linting (ruff), type-checking (mypy), and security scanning (bandit) alongside the tests. All three must pass before merging. `durable-worker` runs the same `make check` target.
 
 Unit tests run in-process with no live external dependencies. Database calls and external HTTP requests are mocked.
 
@@ -143,6 +145,14 @@ access_token
 ---
 
 ### What the Tests Cover
+
+#### Executions (`test_executions.py`)
+
+Covers the standard execution lifecycle against a live stack: submitting an execution, listing and filtering by status, retrieving status and logs, terminating an execution, and launching with input files.
+
+Durable execution paths — HITL signal delivery, `waiting_for_signal` transitions, and the `execution_backend` field on agentlet CRUD — are covered by the `durable-worker` unit tests but not yet by the integration suite.
+
+---
 
 #### Authentication enforcement (`test_auth_enforcement.py`)
 

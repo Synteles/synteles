@@ -198,6 +198,7 @@ async def test_poll_finalises_completed() -> None:
     execution.id = exec_id
     execution.job_ref = "container-1"
     execution.timeout_at = None
+    execution.execution_type = "standard"
 
     fresh_execution = MagicMock()
 
@@ -254,6 +255,7 @@ async def test_poll_finalises_failed() -> None:
     execution.id = exec_id
     execution.job_ref = "container-2"
     execution.timeout_at = None
+    execution.execution_type = "standard"
 
     fresh_execution = MagicMock()
 
@@ -306,6 +308,7 @@ async def test_poll_skips_running() -> None:
     execution = MagicMock()
     execution.job_ref = "container-3"
     execution.timeout_at = None
+    execution.execution_type = "standard"
 
     backend = MagicMock()
     backend.status = AsyncMock(return_value=ExecutionStatus.RUNNING)
@@ -347,6 +350,7 @@ async def test_poll_finalises_timed_out() -> None:
     execution.id = exec_id
     execution.job_ref = "container-4"
     execution.timeout_at = past
+    execution.execution_type = "standard"
 
     fresh_execution = MagicMock()
 
