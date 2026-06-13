@@ -52,7 +52,8 @@ _repeat() {
 # Total line visual width: "  ║  "(5) + 62 + "  ║"(3) = 70
 _box_row() {
   local text="${1:-}"
-  local pad=$(( 62 - ${#text} ))
+  local len=$(( $(printf '%s' "$text" | wc -m) ))
+  local pad=$(( 62 - len ))
   [ "$pad" -lt 0 ] && pad=0
   printf "  ${BOLD}${GREEN}║${RESET}  %s%*s  ${BOLD}${GREEN}║${RESET}\n" "$text" "$pad" ""
 }
