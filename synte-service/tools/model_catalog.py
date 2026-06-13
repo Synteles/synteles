@@ -15,7 +15,7 @@
 """
 Platform default models for the Synteles Platform.
 
-No API calls — always available. Loaded from config/platform.toml.
+No API calls — always available. Loaded from platform.toml.
 """
 
 from __future__ import annotations
@@ -25,16 +25,16 @@ from pathlib import Path
 from typing import Any
 
 # ── Platform default models ───────────────────────────────────────────────────
-# Single source of truth: config/platform.toml (repo root).
+# Single source of truth: platform.toml (repo root).
 # Credentials for these models are managed by Synteles and injected automatically
 # at execution time when the agentlet YAML includes `secrets: [default]`.
 # Users never need to configure API keys for these models.
 
 
 def _load_platform_defaults() -> list[dict[str, Any]]:
-    # Search upward from this file for config/platform.toml.
-    # Works both in the repo (ux/ is the root) and inside Docker (/app is the root).
-    needle = Path("config") / "platform.toml"
+    # Search upward from this file for platform.toml.
+    # Works both in the repo (root) and inside Docker (/app is the root).
+    needle = Path("platform.toml")
     search_root = Path(__file__).resolve()
     config_path: Path | None = None
     for parent in search_root.parents:

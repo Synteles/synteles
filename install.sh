@@ -16,47 +16,120 @@
 
 set -euo pipefail
 
-# ─── Colours & formatting ─────────────────────────────────────────────────────
+# ─── Brand colours & formatting ───────────────────────────────────────────────
+# Palette: #A47FA7 purple · #ABA6AB silver · #EBECDF cream · #393840 charcoal
 if [ -t 1 ] && tput colors &>/dev/null 2>&1 && [ "$(tput colors)" -ge 8 ]; then
   BOLD=$(tput bold)
   RED=$(tput setaf 1); GREEN=$(tput setaf 2); YELLOW=$(tput setaf 3)
-  BLUE=$(tput setaf 4); CYAN=$(tput setaf 6)
-  DIM=$(tput dim 2>/dev/null || tput setaf 8 2>/dev/null || printf '')
   RESET=$(tput sgr0)
+  _DIM=$(tput dim 2>/dev/null || tput setaf 8 2>/dev/null || printf '')
+  if [[ "${COLORTERM:-}" =~ ^(truecolor|24bit)$ ]]; then
+    C_HEAD=$'\e[38;2;164;127;167m'   # #A47FA7 — brand purple
+    C_MUTED=$'\e[38;2;171;166;171m'  # #ABA6AB — silver grey
+    C_LIGHT=$'\e[38;2;235;236;223m'  # #EBECDF — warm cream
+  else
+    C_HEAD=$(tput setaf 5)            # magenta fallback
+    C_MUTED="$_DIM"
+    C_LIGHT=$(tput setaf 7)
+  fi
+  LOGO="$C_HEAD"
+  DIM="$C_MUTED"
 else
-  BOLD=''; RED=''; GREEN=''; YELLOW=''; BLUE=''; CYAN=''; DIM=''; RESET=''
+  BOLD=''; RED=''; GREEN=''; YELLOW=''; RESET=''
+  C_HEAD=''; C_MUTED=''; C_LIGHT=''; DIM=''; LOGO=''
 fi
 
-ok()   { printf "  ${GREEN}✓${RESET}  %s\n" "$1"; }
-warn() { printf "  ${YELLOW}⚠${RESET}  %s\n" "$1"; }
-err()  { printf "  ${RED}✗${RESET}  %s\n" "$1" >&2; }
-info() { printf "  %s\n" "$1"; }
-dim()  { printf "  ${DIM}%s${RESET}\n" "$1"; }
-step() { printf "\n${BOLD}${BLUE}  ── %s ──${RESET}\n\n" "$1"; }
-ask()  { printf "  ${CYAN}?${RESET}  %s " "$1"; }
-die()  { err "$1"; exit 1; }
+# ─── Layout helpers ───────────────────────────────────────────────────────────
+
+# Repeat character $1 exactly $2 times
+_repeat() {
+  local c="$1" n="$2" s="" i=0
+  while [ "$i" -lt "$n" ]; do s="${s}${c}"; i=$(( i + 1 )); done
+  printf '%s' "$s"
+}
+
+# Box row for print_done — inner content area = 62 chars
+# Total line visual width: "  ║  "(5) + 62 + "  ║"(3) = 70
+_box_row() {
+  local text="${1:-}"
+  local pad=$(( 62 - ${#text} ))
+  [ "$pad" -lt 0 ] && pad=0
+  printf "  ${BOLD}${GREEN}║${RESET}  %s%*s  ${BOLD}${GREEN}║${RESET}\n" "$text" "$pad" ""
+}
+_box_div() { printf "  ${BOLD}${GREEN}╠%s╣${RESET}\n" "$(_repeat ═ 66)"; }
+
+# ─── Print helpers ────────────────────────────────────────────────────────────
+ok()   { printf "  ${GREEN}✓${RESET}  %s\n" "$*"; }
+warn() { printf "  ${YELLOW}⚠${RESET}  %s\n" "$*"; }
+err()  { printf "  ${RED}✗${RESET}  %s\n" "$*" >&2; }
+info() { printf "  %s\n" "$*"; }
+dim()  { printf "  ${C_MUTED}%s${RESET}\n" "$*"; }
+note() { printf "  ${C_HEAD}→${RESET}  %s\n" "$*"; }
+ask()  { printf "  ${BOLD}${C_HEAD}›${RESET}  %s " "$*"; }
+die()  { err "$*"; exit 1; }
+
+# Section header: "  ╭─ N. Title ─────╮"  total visual width = 70
+# "  ╭─ "(5) + title + " "(1) + dashes + "╮"(1) = 70  →  dashes = 63 - len(title)
+STEP_N=0
+step() {
+  STEP_N=$(( STEP_N + 1 ))
+  local title="${STEP_N}. $1"
+  local pad=$(( 63 - ${#title} ))
+  [ "$pad" -lt 1 ] && pad=1
+  printf "\n${BOLD}${C_HEAD}  ╭─ %s %s╮${RESET}\n\n" "$title" "$(_repeat ─ "$pad")"
+}
+
+# Braille spinner for long background tasks
+_spinner() {
+  [ -t 1 ] || return
+  local pid="$1" msg="$2"
+  local frames='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏' i=0
+  while kill -0 "$pid" 2>/dev/null; do
+    printf "\r  ${C_HEAD}%s${RESET}  %s" "${frames:$(( i % ${#frames} )):1}" "$msg"
+    i=$(( i + 1 ))
+    sleep 0.1
+  done
+  printf "\r%*s\r" $(( ${#msg} + 8 )) ""
+}
+
+confirm_overwrite() {
+  [ -f "$1" ] || return 0
+  ask "$1 already exists. Overwrite? [Y/n]:"
+  read -r _ow
+  [[ "$_ow" =~ ^[Nn]$ ]] && { warn "Skipping $1 — using existing file"; return 1; }
+  return 0
+}
 
 # ─── Banner ───────────────────────────────────────────────────────────────────
 print_banner() {
+  local rule; rule=$(_repeat ─ 70)
   printf "\n"
-  printf "${BOLD}${CYAN}  ┌────────────────────────────────────────┐${RESET}\n"
-  printf "${BOLD}${CYAN}  │      Synteles  ·  Platform Setup       │${RESET}\n"
-  printf "${BOLD}${CYAN}  └────────────────────────────────────────┘${RESET}\n"
+  printf "${BOLD}${LOGO}    ███████╗██╗   ██╗███╗   ██╗████████╗███████╗██╗     ███████╗███████╗${RESET}\n"
+  printf "${BOLD}${LOGO}    ██╔════╝╚██╗ ██╔╝████╗  ██║╚══██╔══╝██╔════╝██║     ██╔════╝██╔════╝${RESET}\n"
+  printf "${BOLD}${LOGO}    ███████╗ ╚████╔╝ ██╔██╗ ██║   ██║   █████╗  ██║     █████╗  ███████╗${RESET}\n"
+  printf "${BOLD}${LOGO}    ╚════██║  ╚██╔╝  ██║╚██╗██║   ██║   ██╔══╝  ██║     ██╔══╝  ╚════██║${RESET}\n"
+  printf "${BOLD}${LOGO}    ███████║   ██║   ██║ ╚████║   ██║   ███████╗███████╗███████╗███████║${RESET}\n"
+  printf "${BOLD}${LOGO}    ╚══════╝   ╚═╝   ╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚══════╝╚══════╝╚══════╝${RESET}\n"
   printf "\n"
-  dim  "Configures LLM providers, generates .env"
-  dim  "and config/platform.toml, then pulls the stack image."
+  printf "  ${C_MUTED}%s${RESET}\n" "$rule"
+  printf "\n"
+  printf "  ${BOLD}${C_LIGHT}Welcome to Platform Setup${RESET}\n"
+  printf "\n"
+  printf "  ${C_MUTED}Guides you through choosing your AI providers and models,${RESET}\n"
+  printf "  ${C_MUTED}then generates the configuration files needed to start${RESET}\n"
+  printf "  ${C_MUTED}the platform. Takes about 2 minutes.${RESET}\n"
   printf "\n"
 }
 
 # ─── Prerequisites ────────────────────────────────────────────────────────────
 check_prereqs() {
-  step "Prerequisites"
+  step "System Requirements"
   local failed=0
   for cmd in docker; do
     if command -v "$cmd" &>/dev/null; then
       ok "$cmd"
     else
-      err "$cmd not found — please install it first"
+      err "$cmd is not installed. Install it from https://docs.docker.com/get-docker/"
       failed=1
     fi
   done
@@ -66,196 +139,107 @@ check_prereqs() {
 # ─── Repo root check ──────────────────────────────────────────────────────────
 check_repo_root() {
   if [ ! -f .env.example ]; then
-    die "Run this script from the repo root (can't find .env.example)"
+    die "Please run this script from the Synteles repository root directory."
   fi
 }
 
 # ─── Provider definitions ─────────────────────────────────────────────────────
-# PROVIDER_FIELDS format: fields separated by "|", each field: "key~Label~is_secret~default"
-#   is_secret : 1 = hidden input  |  0 = visible input
-#   default   : empty = required  |  non-empty = optional, shown in prompt, used on Enter
-#
-# PROVIDER_MODELS: "|"-separated model list shown at model-selection step.
-#   "__deployment__" is a sentinel meaning the model was already collected as a credential.
+# Format: "id;Display Name;key~default|key~default|..."
+#   id           — used as PLATFORM_SECRET_<ID> (uppercased) and in platform.toml
+#   Display Name — shown in prompts
+#   fields       — "|"-separated list of "key~default" pairs that form the
+#                  PLATFORM_SECRET_* JSON object. An empty default means the
+#                  user must fill in the value; a non-empty default is pre-filled.
 
-PROVIDER_IDS=(   openai      anthropic    azure_ai     bedrock      gemini       mistral              nebius                ollama       )
-PROVIDER_NAMES=( "OpenAI"    "Anthropic"  "Azure AI" "Amazon Bedrock" "Google Gemini" "Mistral AI"  "Nebius AI"           "Ollama (local)" )
-
-PROVIDER_FIELDS=(
-  "OPENAI_API_KEY~OpenAI API Key~1~"
-  "ANTHROPIC_API_KEY~Anthropic API Key~1~"
-  "AZURE_AI_API_KEY~Azure API Key~1~|AZURE_AI_API_BASE~Azure endpoint URL~0~|deployment_name~Deployment name~0~"
-  "AWS_ACCESS_KEY_ID~Access Key ID~0~|AWS_SECRET_ACCESS_KEY~Secret Access Key~1~|AWS_REGION_NAME~Region (e.g. us-east-1)~0~"
-  "GEMINI_API_KEY~Gemini API Key~1~"
-  "MISTRAL_API_KEY~Mistral API Key~1~"
-  "NEBIUS_API_KEY~Nebius API Key~1~"
-  "OLLAMA_API_BASE~Ollama server URL~0~http://localhost:11434"
-)
-
-PROVIDER_MODELS=(
-  "gpt-4o|gpt-4o-mini|gpt-4.1|gpt-4.1-mini|o3"
-  "claude-sonnet-4-6|claude-opus-4-7|claude-haiku-4-5"
-  "__deployment__"
-  "anthropic.claude-3-5-sonnet-20241022-v2:0|anthropic.claude-3-7-sonnet-20250219-v1:0|amazon.nova-pro-v1:0|amazon.nova-lite-v1:0"
-  "gemini-2.0-flash|gemini-2.5-pro|gemini-2.0-flash-lite"
-  "mistral-large-latest|mistral-medium-latest|mistral-small-latest|codestral-latest"
-  "meta-llama/Meta-Llama-3.1-70B-Instruct-fast|meta-llama/Meta-Llama-3.1-8B-Instruct-fast|Qwen/Qwen2.5-72B-Instruct-fast"
-  "llama3.2|llama3.1|mistral|gemma3|phi4|qwen2.5|deepseek-r1"
+PROVIDERS=(
+  "openai;OpenAI;OPENAI_API_KEY~"
+  "anthropic;Anthropic;ANTHROPIC_API_KEY~"
+  "azure_ai;Azure AI;AZURE_AI_API_KEY~|AZURE_AI_API_BASE~"
+  "bedrock;Amazon Bedrock;AWS_ACCESS_KEY_ID~|AWS_SECRET_ACCESS_KEY~|AWS_REGION_NAME~"
+  "gemini;Google Gemini;GEMINI_API_KEY~"
+  "mistral;Mistral AI;MISTRAL_API_KEY~"
+  "ollama;Ollama (local);OLLAMA_API_BASE~http://localhost:11434"
 )
 
 # ─── Runtime state ────────────────────────────────────────────────────────────
-SELECTED_INDICES=()   # indices into PROVIDER_* arrays for chosen providers
-CRED_JSONS=()         # env var blocks (KEY=value lines), parallel to SELECTED_INDICES
-SELECTED_MODELS=()    # chosen model IDs, parallel to SELECTED_INDICES
-AZURE_DEPLOYMENT=""
+SELECTED_INDICES=()   # indices into PROVIDERS for chosen providers
+SELECTED_MODELS=()    # model IDs entered by the user, parallel to SELECTED_INDICES
 CHAT_SEL_I=0          # index into SELECTED_INDICES for the chat model
 TAVILY_KEY=""
 
 # ─── Provider selection ───────────────────────────────────────────────────────
 select_providers() {
-  step "LLM Providers"
-  info "Select one or more providers to configure (space-separated numbers):"
+  step "AI Providers"
+  info "Which AI providers do you want to use?"
+  dim "Enter one or more numbers separated by spaces (e.g. 1 2)."
   printf "\n"
-  local i
-  for i in "${!PROVIDER_IDS[@]}"; do
-    printf "  ${BOLD}%d)${RESET} %s\n" $((i + 1)) "${PROVIDER_NAMES[$i]}"
+  local i _pid pname _fields
+  for i in "${!PROVIDERS[@]}"; do
+    IFS=';' read -r _pid pname _fields <<< "${PROVIDERS[$i]}"
+    printf "  ${C_HEAD}│${RESET}  ${BOLD}%d.${RESET}  %s\n" $((i + 1)) "$pname"
   done
+  local other_idx=$(( ${#PROVIDERS[@]} + 1 ))
+  printf "  ${C_HEAD}│${RESET}  ${BOLD}%d.${RESET}  ${C_MUTED}Other${RESET}\n" "$other_idx"
   printf "\n"
   ask "Selection (e.g. 1 2):"
   read -r raw
 
-  local token
+  local token selected_other=0
   for token in $raw; do
-    if [[ "$token" =~ ^[0-9]+$ ]] && [ "$token" -ge 1 ] && [ "$token" -le "${#PROVIDER_IDS[@]}" ]; then
+    if [[ "$token" =~ ^[0-9]+$ ]] && [ "$token" -ge 1 ] && [ "$token" -le "${#PROVIDERS[@]}" ]; then
       SELECTED_INDICES+=($((token - 1)))
+    elif [[ "$token" =~ ^[0-9]+$ ]] && [ "$token" -eq "$other_idx" ]; then
+      selected_other=1
     else
       warn "Ignoring invalid entry: $token"
     fi
   done
 
-  [ "${#SELECTED_INDICES[@]}" -gt 0 ] || die "No valid providers selected."
+  if [ "$selected_other" -eq 1 ]; then
+    printf "\n"
+    note "You can add any unlisted provider manually after setup:"
+    dim  "  • How to configure providers → docs/configuration.md"
+    dim  "  • Full provider list → https://docs.litellm.ai/docs/providers"
+  fi
+
+  if [ "${#SELECTED_INDICES[@]}" -eq 0 ]; then
+    [ "$selected_other" -eq 1 ] && exit 0
+    die "No valid providers selected."
+  fi
 
   printf "\n"
-  local idx
+  local idx _f
   for idx in "${SELECTED_INDICES[@]}"; do
-    ok "${PROVIDER_NAMES[$idx]}"
+    IFS=';' read -r _pid pname _f <<< "${PROVIDERS[$idx]}"
+    ok "$pname"
   done
 }
 
-# ─── Credential collection ────────────────────────────────────────────────────
-collect_credentials() {
-  step "Credentials"
-  dim "API keys will not be echoed to the terminal."
-
-  local sel_i
-  for sel_i in "${!SELECTED_INDICES[@]}"; do
-    local idx="${SELECTED_INDICES[$sel_i]}"
-    local pid="${PROVIDER_IDS[$idx]}"
-    local pname="${PROVIDER_NAMES[$idx]}"
-    local fields="${PROVIDER_FIELDS[$idx]}"
-
-    printf "\n  ${BOLD}%s${RESET}\n" "$pname"
-
-    local json="{"
-    local json_first=1
-    local field_defs field_def
-    IFS='|' read -ra field_defs <<< "$fields"
-
-    for field_def in "${field_defs[@]}"; do
-      local key label is_secret default_val value prompt_hint
-      IFS='~' read -r key label is_secret default_val <<< "$field_def"
-      value=""
-      prompt_hint=""
-      [ -n "$default_val" ] && prompt_hint=" [${default_val}]"
-
-      while true; do
-        if [ "$is_secret" = "1" ]; then
-          ask "${label}${prompt_hint}:"
-          read -rs value; printf "\n"
-        else
-          ask "${label}${prompt_hint}:"
-          read -r value
-        fi
-
-        if [ -z "$value" ] && [ -n "$default_val" ]; then
-          value="$default_val"
-          break
-        elif [ -z "$value" ]; then
-          warn "Cannot be empty. Try again."
-        else
-          break
-        fi
-      done
-
-      # Azure deployment name is a model identifier, not a credential
-      if [ "$pid" = "azure_ai" ] && [ "$key" = "deployment_name" ]; then
-        AZURE_DEPLOYMENT="$value"
-        continue
-      fi
-
-      value="${value//\\/\\\\}"; value="${value//\"/\\\"}"
-      [ "$json_first" -eq 0 ] && json+=", "
-      json+="\"${key}\": \"${value}\""
-      json_first=0
-    done
-
-    json+="}"
-    CRED_JSONS+=("$json")
-  done
-}
-
-# ─── Model selection ──────────────────────────────────────────────────────────
+# ─── Model ID collection ──────────────────────────────────────────────────────
 select_models() {
-  step "Model Selection"
-  info "Choose a default model for each configured provider."
-  dim "This model will be used for platform defaults and the chat assistant."
+  step "AI Models"
+  info "Enter the model name to use for each provider."
+  dim "Not sure which to pick? Check your provider's documentation."
+  dim "Examples: gpt-4o · claude-sonnet-4-6 · gemini-2.0-flash"
+  dim "For Azure AI, enter your deployment name."
+  printf "\n"
 
   local sel_i
   for sel_i in "${!SELECTED_INDICES[@]}"; do
     local idx="${SELECTED_INDICES[$sel_i]}"
-    local pid="${PROVIDER_IDS[$idx]}"
-    local pname="${PROVIDER_NAMES[$idx]}"
-    local models_raw="${PROVIDER_MODELS[$idx]}"
+    local pid pname fields
+    IFS=';' read -r pid pname fields <<< "${PROVIDERS[$idx]}"
 
-    printf "\n  ${BOLD}%s${RESET}\n" "$pname"
-
-    # Azure: deployment name was already collected as a credential
-    if [ "$models_raw" = "__deployment__" ]; then
-      SELECTED_MODELS+=("$AZURE_DEPLOYMENT")
-      dim "  Using deployment: $AZURE_DEPLOYMENT"
-      continue
-    fi
-
-    local models
-    IFS='|' read -ra models <<< "$models_raw"
-    local custom_idx=$(( ${#models[@]} + 1 ))
-
-    local i
-    for i in "${!models[@]}"; do
-      printf "  ${BOLD}%d)${RESET} %s\n" $((i + 1)) "${models[$i]}"
-    done
-    printf "  ${BOLD}%d)${RESET} ${DIM}Custom (enter model ID)${RESET}\n" "$custom_idx"
-    printf "\n"
-    ask "Choice [1]:"
-    read -r choice
-    choice="${choice:-1}"
-
+    printf "  ${BOLD}%s${RESET}\n" "$pname"
     local model_val=""
-    if [ "$choice" = "$custom_idx" ]; then
-      while [ -z "$model_val" ]; do
-        ask "Model ID:"
-        read -r model_val
-        [ -z "$model_val" ] && warn "Cannot be empty."
-      done
-    elif [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#models[@]}" ]; then
-      model_val="${models[$((choice - 1))]}"
-    else
-      warn "Invalid — using default"
-      model_val="${models[0]}"
-    fi
-
+    while [ -z "$model_val" ]; do
+      ask "Model name:"
+      read -r model_val
+      [ -z "$model_val" ] && warn "Model name cannot be empty."
+    done
     SELECTED_MODELS+=("$model_val")
-    ok "Model: $model_val"
+    ok "  $model_val"
+    printf "\n"
   done
 }
 
@@ -263,20 +247,25 @@ select_models() {
 select_chat_model() {
   if [ "${#SELECTED_INDICES[@]}" -eq 1 ]; then
     CHAT_SEL_I=0
-    printf "\n"
     local idx="${SELECTED_INDICES[0]}"
-    ok "Chat model: ${PROVIDER_NAMES[$idx]} — ${SELECTED_MODELS[0]}"
+    local _pid pname _f
+    IFS=';' read -r _pid pname _f <<< "${PROVIDERS[$idx]}"
+    printf "\n"
+    warn "$pname will be used for both Synte chat assistant and platform default models."
     return
   fi
 
-  step "Chat Model"
-  info "Which model should drive the Synte chat assistant?"
+  step "Synte Chat Assistant"
+  info "Synte is the AI assistant built into the platform UI."
+  dim "Which of your configured providers should power it?"
   printf "\n"
   local i
   for i in "${!SELECTED_INDICES[@]}"; do
     local idx="${SELECTED_INDICES[$i]}"
-    printf "  ${BOLD}%d)${RESET} %-20s ${DIM}%s${RESET}\n" \
-      $((i + 1)) "${PROVIDER_NAMES[$idx]}" "${SELECTED_MODELS[$i]}"
+    local _pid pname _f
+    IFS=';' read -r _pid pname _f <<< "${PROVIDERS[$idx]}"
+    printf "  ${C_HEAD}│${RESET}  ${BOLD}%d.${RESET}  %-20s  ${C_MUTED}%s${RESET}\n" \
+      $((i + 1)) "$pname" "${SELECTED_MODELS[$i]}"
   done
   printf "\n"
   ask "Choice [1]:"
@@ -291,103 +280,205 @@ select_chat_model() {
   fi
 
   local idx="${SELECTED_INDICES[$CHAT_SEL_I]}"
-  ok "Chat model: ${PROVIDER_NAMES[$idx]} — ${SELECTED_MODELS[$CHAT_SEL_I]}"
+  local _pid pname _f
+  IFS=';' read -r _pid pname _f <<< "${PROVIDERS[$idx]}"
+  ok "Chat model: $pname — ${SELECTED_MODELS[$CHAT_SEL_I]}"
 }
 
 # ─── Tavily key ───────────────────────────────────────────────────────────────
 ask_tavily() {
   step "Web Search (optional)"
-  dim "Tavily enables web search inside agentlets. Get a free key at https://app.tavily.com"
-  dim "Press Enter to skip."
+  info "Tavily lets your AI workers search the web during task execution."
+  dim "Get a free API key at https://app.tavily.com — press Enter to skip for now."
   printf "\n"
   ask "Tavily API key:"
   read -rs TAVILY_KEY; printf "\n"
   if [ -n "$TAVILY_KEY" ]; then
-    ok "Tavily key set"
+    ok "Web search enabled"
   else
-    warn "Skipping — web search unavailable until configured"
+    warn "Skipped — you can add a Tavily key to .env later to enable web search"
   fi
 }
 
 # ─── .env generation ──────────────────────────────────────────────────────────
-generate_env() {
-  step ".env"
 
-  if [ -f .env ]; then
-    ask ".env already exists. Overwrite? [Y/n]:"
-    read -r confirm
-    if [[ "$confirm" =~ ^[Nn]$ ]]; then
-      warn "Skipping .env — using existing file"
-      return
+# Build a JSON object from a fields string ("KEY~default|KEY~default").
+# Values with a non-empty default are pre-filled; others are left as "".
+_build_credential_json() {
+  local fields="$1" json="{" first=1
+  local field_defs field_def key default_val
+  IFS='|' read -ra field_defs <<< "$fields"
+  for field_def in "${field_defs[@]}"; do
+    IFS='~' read -r key default_val <<< "$field_def"
+    [ "$first" -eq 0 ] && json+=", "
+    json+="\"${key}\": \"${default_val}\""
+    first=0
+  done
+  printf '%s' "${json}}"
+}
+
+# True (returns 0) when the JSON contains at least one empty "" value.
+_json_needs_fill() { [[ "$1" == *'""'* ]]; }
+
+# Processes .env.example into .env, substituting TAVILY_API_KEY and
+# SECRET_ENCRYPTION_KEY, and inserting PLATFORM_SECRET_* lines before the
+# encryption key section. Uses mktemp + mv for an atomic write.
+_write_env_from_template() {
+  local enc_key="$1"
+
+  local creds_tmp env_tmp
+  creds_tmp=$(mktemp)
+  env_tmp=$(mktemp)
+  trap "rm -f '$creds_tmp' '$env_tmp'" RETURN
+
+  local sel_i needs_fill=0
+  for sel_i in "${!SELECTED_INDICES[@]}"; do
+    local idx="${SELECTED_INDICES[$sel_i]}"
+    local pid pname fields
+    IFS=';' read -r pid pname fields <<< "${PROVIDERS[$idx]}"
+    local var_name="PLATFORM_SECRET_$(printf '%s' "$pid" | tr '[:lower:]' '[:upper:]')"
+    local json
+    json=$(_build_credential_json "$fields")
+    if _json_needs_fill "$json"; then
+      printf "# %s — fill in your credentials\n%s=%s\n\n" "$pname" "$var_name" "$json"
+      needs_fill=1
+    else
+      printf "# %s\n%s=%s\n\n" "$pname" "$var_name" "$json"
     fi
+  done > "$creds_tmp"
+
+  CREDS_FILE="$creds_tmp" TAVILY="$TAVILY_KEY" ENC_KEY="$enc_key" \
+  awk '
+    /^TAVILY_API_KEY=/ {
+      print "TAVILY_API_KEY=" ENVIRON["TAVILY"]
+      next
+    }
+    /^SECRET_ENCRYPTION_KEY=/ {
+      creds_file = ENVIRON["CREDS_FILE"]
+      while ((getline line < creds_file) > 0) print line
+      close(creds_file)
+      print "SECRET_ENCRYPTION_KEY=" ENVIRON["ENC_KEY"]
+      next
+    }
+    { print }
+  ' .env.example > "$env_tmp"
+
+  mv "$env_tmp" .env
+  if [ "$needs_fill" -eq 1 ]; then
+    warn "LLM provider credentials are missing in .env — open it and replace"
+    warn "the empty \"\" values with your API keys before starting the platform."
+    note "Credential format reference → docs/configuration.md"
   fi
+}
+
+# Appends any PLATFORM_SECRET_* vars absent from the existing .env, and fills
+# SECRET_ENCRYPTION_KEY / TAVILY_API_KEY if present but empty.
+_merge_env() {
+  local enc_key="$1"
+  local changed=0 needs_fill=0
+
+  local sel_i
+  for sel_i in "${!SELECTED_INDICES[@]}"; do
+    local idx="${SELECTED_INDICES[$sel_i]}"
+    local pid pname fields
+    IFS=';' read -r pid pname fields <<< "${PROVIDERS[$idx]}"
+    local var_name="PLATFORM_SECRET_$(printf '%s' "$pid" | tr '[:lower:]' '[:upper:]')"
+    local json
+    json=$(_build_credential_json "$fields")
+    if ! grep -q "^${var_name}=" .env; then
+      if _json_needs_fill "$json"; then
+        printf "\n# %s — fill in your credentials\n%s=%s\n" "$pname" "$var_name" "$json" >> .env
+        needs_fill=1
+      else
+        printf "\n# %s\n%s=%s\n" "$pname" "$var_name" "$json" >> .env
+      fi
+      ok "  Added credentials for $pname"
+      changed=1
+    else
+      dim "  $pname already configured — skipped"
+    fi
+  done
+
+  if ! grep -q "^SECRET_ENCRYPTION_KEY=." .env; then
+    local tmp; tmp=$(mktemp)
+    if grep -q "^SECRET_ENCRYPTION_KEY=" .env; then
+      awk -v k="$enc_key" \
+        '/^SECRET_ENCRYPTION_KEY=/ { print "SECRET_ENCRYPTION_KEY=" k; next } { print }' \
+        .env > "$tmp" && mv "$tmp" .env
+    else
+      printf "\nSECRET_ENCRYPTION_KEY=%s\n" "$enc_key" >> .env
+    fi
+    ok "  Generated encryption key"
+    changed=1
+  fi
+
+  if [ -n "$TAVILY_KEY" ] && ! grep -q "^TAVILY_API_KEY=." .env; then
+    local tmp; tmp=$(mktemp)
+    if grep -q "^TAVILY_API_KEY=" .env; then
+      awk -v k="$TAVILY_KEY" \
+        '/^TAVILY_API_KEY=/ { print "TAVILY_API_KEY=" k; next } { print }' \
+        .env > "$tmp" && mv "$tmp" .env
+    else
+      printf "\nTAVILY_API_KEY=%s\n" "$TAVILY_KEY" >> .env
+    fi
+    ok "  Set Tavily web search key"
+    changed=1
+  fi
+
+  [ "$changed" -eq 1 ] && ok "Updated .env with new providers" || ok ".env is already up to date"
+  if [ "$needs_fill" -eq 1 ]; then
+    warn "LLM provider credentials are missing in .env — open it and replace"
+    warn "the empty \"\" values with your API keys before starting the platform."
+    note "Credential format reference → docs/configuration.md"
+  fi
+}
+
+generate_env() {
+  step "Credentials & Config"
+
+  local mode="create"
+  if [ -f .env ]; then
+    ask ".env already exists. [O]verwrite / [m]erge new providers / [s]kip [O/m/s]:"
+    read -r _c
+    case "${_c:-O}" in
+      [Mm]) mode="merge" ;;
+      [Ss]) warn "Keeping existing .env unchanged"; return ;;
+    esac
+  fi
+
+  grep -qxF '.env' .gitignore 2>/dev/null \
+    || warn ".env is not in .gitignore — add it to prevent accidentally committing secrets to git"
 
   local enc_key
   enc_key=$(od -vN 32 -An -tx1 /dev/urandom | tr -d ' \n')
 
-  {
-    printf "# Generated by install.sh — do not commit\n\n"
-
-    if [ -n "$TAVILY_KEY" ]; then
-      printf "TAVILY_API_KEY=%s\n" "$TAVILY_KEY"
-    else
-      printf "TAVILY_API_KEY=\n"
-    fi
-    printf "\n"
-
-    local sel_i
-    for sel_i in "${!SELECTED_INDICES[@]}"; do
-      local idx="${SELECTED_INDICES[$sel_i]}"
-      local pid="${PROVIDER_IDS[$idx]}"
-      local pname="${PROVIDER_NAMES[$idx]}"
-      local var_name
-      var_name="PLATFORM_SECRET_$(printf '%s' "$pid" | tr '[:lower:]' '[:upper:]')"
-      printf "# %s\n" "$pname"
-      printf "%s=%s\n\n" "$var_name" "${CRED_JSONS[$sel_i]}"
-    done
-
-    printf "# Encryption key — never share or commit\n"
-    printf "SECRET_ENCRYPTION_KEY=%s\n\n" "$enc_key"
-
-    printf "# Keycloak — safe defaults for local dev\n"
-    printf "KEYCLOAK_DEFAULT_USER=synteles\n"
-    printf "KEYCLOAK_DEFAULT_PASSWORD=synteles\n"
-    printf "KEYCLOAK_ADMIN_USER=admin\n"
-    printf "KEYCLOAK_ADMIN_PASSWORD=admin\n"
-    printf "OIDC_CLIENT_SECRET=synteles-dev-secret\n"
-    printf "KEYCLOAK_PROVISIONER_CLIENT_SECRET=provisioner-dev-secret\n"
-    printf "\n"
-    printf "# Agentlet runtime image. 'edge' tracks the latest development build.\n"
-    printf "# Pin to a release tag for stable/production deployments, e.g. synteles/agentlet:1.2.3\n"
-    printf "AGENTLET_IMAGE=synteles/agentlet:edge\n"
-  } > .env
-
-  ok "Generated .env"
+  if [ "$mode" = "create" ]; then
+    _write_env_from_template "$enc_key"
+    ok "Generated .env"
+  else
+    _merge_env "$enc_key"
+  fi
 }
 
 # ─── platform.toml generation ─────────────────────────────────────────────────
 generate_platform_toml() {
-  step "config/platform.toml"
+  step "Model Configuration"
 
-  if [ -f config/platform.toml ]; then
-    ask "config/platform.toml already exists. Overwrite? [Y/n]:"
-    read -r confirm
-    if [[ "$confirm" =~ ^[Nn]$ ]]; then
-      warn "Skipping platform.toml — using existing file"
-      return
-    fi
-  fi
+  confirm_overwrite platform.toml || return
 
-  local chat_prov_idx="${SELECTED_INDICES[$CHAT_SEL_I]}"
-  local chat_pid="${PROVIDER_IDS[$chat_prov_idx]}"
+  local chat_idx="${SELECTED_INDICES[$CHAT_SEL_I]}"
+  local chat_pid _pname _fields
+  IFS=';' read -r chat_pid _pname _fields <<< "${PROVIDERS[$chat_idx]}"
   local chat_model="${SELECTED_MODELS[$CHAT_SEL_I]}"
-  local chat_litellm_id="${chat_pid}/${chat_model}"
+
+  local tmp
+  tmp=$(mktemp)
 
   {
     printf "# Generated by install.sh\n\n"
     printf "# ── Chat engine ─────────────────────────────────────────────────────────────\n"
     printf "[chat]\n"
-    printf "model_id    = \"%s\"\n" "$chat_litellm_id"
+    printf "model_id    = \"%s/%s\"\n" "$chat_pid" "$chat_model"
     printf "secret_name = \"%s\"\n" "$chat_pid"
     printf "\n"
     printf "# ── Platform default models ──────────────────────────────────────────────────\n"
@@ -395,52 +486,78 @@ generate_platform_toml() {
     local sel_i
     for sel_i in "${!SELECTED_INDICES[@]}"; do
       local idx="${SELECTED_INDICES[$sel_i]}"
-      local pid="${PROVIDER_IDS[$idx]}"
+      local pid pname fields
+      IFS=';' read -r pid pname fields <<< "${PROVIDERS[$idx]}"
       local model="${SELECTED_MODELS[$sel_i]}"
-
-      local model_basename="${model##*/}"
       local safe_id
       safe_id=$(printf '%s' "$pid" | tr -d '_')
 
       printf "\n[[model]]\n"
       printf "id                  = \"platform_%s\"\n" "$safe_id"
-      printf "label               = \"%s\"\n" "$model_basename"
+      printf "label               = \"%s\"\n" "${model##*/}"
       printf "provider            = \"%s\"\n" "$pid"
       printf "model_id            = \"%s\"\n" "$model"
       printf "secret_name         = \"%s\"\n" "$pid"
       printf "default_temperature = 1.0\n"
     done
-  } > config/platform.toml
+  } > "$tmp"
 
-  ok "Generated config/platform.toml"
+  mv "$tmp" platform.toml
+  ok "Generated platform.toml"
 }
-
 
 # ─── Build durable-agentlet image ────────────────────────────────────────────
 build_durable_agentlet() {
-  step "Durable agentlet image"
-  info "Building synteles/durable-agentlet:edge …"
-  if docker compose build durable-agentlet; then
-    ok "durable-agentlet image built"
+  step "Docker Image"
+  dim "Building the image needed for long-running workflow support."
+  dim "This may take a minute on first run."
+  printf "\n"
+  docker compose build durable-agentlet > /dev/null 2>&1 &
+  local _bpid=$!
+  _spinner "$_bpid" "Building image …"
+  if wait "$_bpid"; then
+    ok "Docker image built successfully"
   else
-    warn "durable-agentlet build failed — durable executions will not work until it is rebuilt"
+    warn "Docker image build failed — run 'docker compose build durable-agentlet' to retry"
   fi
 }
 
 # ─── Done ─────────────────────────────────────────────────────────────────────
+# Box geometry: total width 70
+#   "  ╔"(3) + 66×═ + "╗"(1) = 70
+#   "  ║  "(5) + content(62) + "  ║"(3) = 70
 print_done() {
+  local thick; thick=$(_repeat ═ 66)
   printf "\n"
-  printf "${BOLD}${GREEN}  ┌────────────────────────────────────────┐${RESET}\n"
-  printf "${BOLD}${GREEN}  │           Setup complete!              │${RESET}\n"
-  printf "${BOLD}${GREEN}  └────────────────────────────────────────┘${RESET}\n"
-  printf "\n"
-  printf "  Start the platform:\n\n"
-  printf "    ${BOLD}docker compose up -d${RESET}\n\n"
-  printf "  Files written:\n"
-  printf "    ${DIM}.env${RESET}                  provider credentials & encryption key\n"
-  printf "    ${DIM}config/platform.toml${RESET}  model wiring\n"
-  printf "\n"
-  printf "  ${YELLOW}Never commit .env — it contains secrets.${RESET}\n"
+  printf "  ${BOLD}${GREEN}╔%s╗${RESET}\n" "$thick"
+  _box_row ""
+  _box_row "✓  Setup complete!"
+  _box_row ""
+  _box_div
+  _box_row ""
+  _box_row "Files written:"
+  _box_row "  .env            LLM credentials, service config & secrets"
+  _box_row "  platform.toml   model IDs and provider routing"
+  _box_row ""
+  _box_div
+  _box_row ""
+  _box_row "Next steps:"
+  _box_row ""
+  _box_row "  1.  Open .env and fill in your LLM provider API keys."
+  _box_row "      Replace each empty \"\" value with the real credential."
+  _box_row "      docs/configuration.md — credential format reference"
+  _box_row "      https://docs.litellm.ai/docs/providers — provider list"
+  _box_row ""
+  _box_row "  2.  (Optional) Review platform.toml to adjust model IDs"
+  _box_row "      or add additional providers."
+  _box_row ""
+  _box_row "  3.  Start the platform:"
+  _box_row ""
+  _box_row "        docker compose up -d"
+  _box_row ""
+  _box_row "  ⚠  Never commit .env to git — it contains secrets."
+  _box_row ""
+  printf "  ${BOLD}${GREEN}╚%s╝${RESET}\n" "$thick"
   printf "\n"
 }
 
@@ -450,7 +567,6 @@ main() {
   check_prereqs
   check_repo_root
   select_providers
-  collect_credentials
   select_models
   select_chat_model
   ask_tavily

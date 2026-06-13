@@ -168,7 +168,7 @@ Python service providing the streaming chat agent endpoint.
 | `CHAT_MODEL_ID` | Optional | `azure_ai/gpt-5.3-chat` | LiteLLM model string for the chat agent, e.g. `anthropic/claude-sonnet-4-6` or `openai/gpt-4.1`. |
 | `OPENAI_API_KEY` | Conditional | _(empty)_ | Required when `CHAT_MODEL_ID` references an OpenAI model. |
 | `ANTHROPIC_API_KEY` | Conditional | _(empty)_ | Required when `CHAT_MODEL_ID` references an Anthropic model. |
-| `PLATFORM_SECRET_<NAME>` | Conditional | — | Dynamic provider credentials loaded from `config/platform.toml`. One variable per configured secret, where `<NAME>` matches the secret name in uppercase. Value must be a JSON object of key-value credential pairs, e.g. `PLATFORM_SECRET_OPENAI={"OPENAI_API_KEY":"sk-..."}`. |
+| `PLATFORM_SECRET_<NAME>` | Conditional | — | Dynamic provider credentials loaded from `platform.toml`. One variable per configured secret, where `<NAME>` matches the secret name in uppercase. Value must be a JSON object of key-value credential pairs, e.g. `PLATFORM_SECRET_OPENAI={"OPENAI_API_KEY":"sk-..."}`. |
 
 ---
 

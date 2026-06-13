@@ -89,7 +89,7 @@ cd synteles
 bash install.sh
 ```
 
-`install.sh` configures your LLM providers, generates `.env` and `config/platform.toml`, and pulls the agentlet image. Then start the stack:
+`install.sh` configures your LLM providers, generates `.env` and `platform.toml`, and pulls the agentlet image. Then start the stack:
 
 ```bash
 docker compose up -d

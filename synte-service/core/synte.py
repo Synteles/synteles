@@ -736,7 +736,7 @@ _SYSTEM_PROMPT = """
 # Reads chat model config from platform.toml and expands PLATFORM_SECRET_<NAME> JSON
 # into individual env vars (keys in the JSON are already the target env var names).
 def _load_chat_config() -> tuple[str, dict[str, str]]:
-    needle = Path("config") / "platform.toml"
+    needle = Path("platform.toml")
     config_path: Path | None = None
     for parent in Path(__file__).resolve().parents:
         candidate = parent / needle
