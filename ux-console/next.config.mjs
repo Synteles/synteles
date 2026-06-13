@@ -11,6 +11,9 @@ const connectSrc = ["'self'", s3Origin].join(' ')
 
 const nextConfig = {
   output: 'standalone',
+  experimental: {
+    turbo: false,
+  },
   async headers() {
     return [
       {
