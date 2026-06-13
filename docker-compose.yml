@@ -1,3 +1,27 @@
+x-s3-env: &s3-env
+  S3_ENDPOINT_URL: http://minio:9000
+  S3_ACCESS_KEY: minioadmin
+  S3_SECRET_KEY: minioadmin
+
+x-oidc-env: &oidc-env
+  OIDC_ISSUER_URL: http://localhost:8080/auth/realms/synteles
+  OIDC_JWKS_URL: http://keycloak:9090/auth/realms/synteles/protocol/openid-connect/certs
+
+x-backend-healthcheck: &backend-healthcheck
+  test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+  interval: 10s
+  timeout: 5s
+  retries: 5
+  start_period: 30s
+
+x-backend-deps: &backend-deps
+  migrate:
+    condition: service_completed_successfully
+  minio-init:
+    condition: service_completed_successfully
+  keycloak-provisioner:
+    condition: service_completed_successfully
+
 services:
   # ── Infrastructure ───────────────────────────────────────────────────────
 
@@ -151,31 +175,18 @@ services:
       - path: .env
         required: false
     environment:
+      <<: [*s3-env, *oidc-env]
       DATABASE_URL: postgresql+asyncpg://synteles:synteles@postgres:5432/synteles
-      S3_ENDPOINT_URL: http://minio:9000
       S3_PUBLIC_ENDPOINT_URL: http://localhost:9000
-      S3_ACCESS_KEY: minioadmin
-      S3_SECRET_KEY: minioadmin
       S3_LOGS_BUCKET: synteles-logs
       S3_UPLOADS_BUCKET: synteles-uploads
-      OIDC_ISSUER_URL: http://localhost:8080/auth/realms/synteles
-      OIDC_JWKS_URL: http://keycloak:9090/auth/realms/synteles/protocol/openid-connect/certs
       KEYCLOAK_ADMIN_URL: http://keycloak:9090/auth
       KEYCLOAK_PROVISIONER_CLIENT_ID: synteles-provisioner
       KEYCLOAK_PROVISIONER_CLIENT_SECRET: ${KEYCLOAK_PROVISIONER_CLIENT_SECRET:-provisioner-dev-secret}
     depends_on:
-      migrate:
-        condition: service_completed_successfully
-      minio-init:
-        condition: service_completed_successfully
-      keycloak-provisioner:
-        condition: service_completed_successfully
+      <<: *backend-deps
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      <<: *backend-healthcheck
 
   scheduler-service:
     build:
@@ -185,36 +196,23 @@ services:
       - "8002:8000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./config/platform.toml:/app/config/platform.toml:ro
+      - ./platform.toml:/app/platform.toml:ro
     env_file:
       - path: .env
         required: false
     environment:
+      <<: [*s3-env, *oidc-env]
       DATABASE_URL: postgresql+asyncpg://synteles:synteles@postgres:5432/synteles
-      S3_ENDPOINT_URL: http://minio:9000
-      S3_ACCESS_KEY: minioadmin
-      S3_SECRET_KEY: minioadmin
       S3_LOGS_BUCKET: synteles-logs
       S3_UPLOAD_BUCKET: synteles-uploads
       EXECUTION_RUNTIME: docker
-      AGENTLET_DURABLE_IMAGE: synteles/durable-agentlet:edge
+      AGENTLET_DURABLE_IMAGE: ${AGENTLET_DURABLE_IMAGE:-synteles/durable-agentlet:edge}
       TEMPORAL_ADDRESS: temporal:7233
       DOCKER_NETWORK: synteles_default
-      OIDC_ISSUER_URL: http://localhost:8080/auth/realms/synteles
-      OIDC_JWKS_URL: http://keycloak:9090/auth/realms/synteles/protocol/openid-connect/certs
     depends_on:
-      migrate:
-        condition: service_completed_successfully
-      minio-init:
-        condition: service_completed_successfully
-      keycloak-provisioner:
-        condition: service_completed_successfully
+      <<: *backend-deps
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      <<: *backend-healthcheck
 
   synte-service:
     build:
@@ -223,13 +221,12 @@ services:
     ports:
       - "8082:8080"
     volumes:
-      - ./config/platform.toml:/app/config/platform.toml:ro
+      - ./platform.toml:/app/platform.toml:ro
     env_file:
       - path: .env
         required: false
     environment:
-      OIDC_ISSUER_URL: http://localhost:8080/auth/realms/synteles
-      OIDC_JWKS_URL: http://keycloak:9090/auth/realms/synteles/protocol/openid-connect/certs
+      <<: *oidc-env
       API_BASE_URL: http://traefik:8080
     depends_on:
       keycloak-provisioner:

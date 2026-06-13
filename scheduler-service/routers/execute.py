@@ -58,7 +58,7 @@ def _load_platform_models() -> None:
     import tomllib
     from pathlib import Path
 
-    needle = Path("config") / "platform.toml"
+    needle = Path("platform.toml")
     config_path: Path | None = None
     for parent in Path(__file__).resolve().parents:
         candidate = parent / needle

@@ -45,6 +45,7 @@ terraform.rc
 # Local platform config — customised per deployment, not committed
 config/platform.toml
 !config/platform.toml.example
+platform.toml
 
 .agents
 
