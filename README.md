@@ -10,15 +10,25 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Powered by Synteles Agentlet](https://img.shields.io/badge/powered%20by-Synteles%20Agentlet-6f42c1)](https://github.com/Synteles/agentlet)
 
-**Open-source platform for AI workers and enterprise workflows.**
+**Open-source platform for AI workers and resilient enterprise workflows.**
 
-Synteles is a platform for AI workers ([agentlets](https://github.com/Synteles/agentlet)) that run long-running resilient workflows. Business users can describe tasks in plain language and Synteles creates and launches multi-agent AI workers in minutes. Engineers can customize them using a [YAML definition](https://github.com/Synteles/agentlet/blob/main/docs/reference/configuration.md) and integrate into existing technology landscape via [APIs](docs/integration-api.md) and MCP connectors. AI workers run ephemerally when a task completes in a single uninterrupted pass, or [durably](docs/durable-execution.md) for workflows that must survive failures, resume after restarts, or involve human-in-the-loop decisions. Synteles runs on public cloud, on-premises, or air-gapped infrastructure.
+Synteles is a platform for AI workers, called ([agentlets](https://github.com/Synteles/agentlet)), that execute resilient long-running workflows. Business users can describe tasks in plain language, and Synteles generates and launches multi-agent AI workers in minutes. Engineers can customize them using a [YAML definition](https://github.com/Synteles/agentlet/blob/main/docs/reference/configuration.md) and integrate into existing systems via [APIs](docs/integration-api.md) and MCP connectors. AI workers can run as quick tasks or as stateful workflows that survive failures, resume after restarts, and pause for human input. Synteles runs locally and designed for self-hosted, cloud, on-premises, and air-gapped environments.
 
 ⚠️ **Early Development**: Synteles is pre-v1.0. APIs, definitions, and deployment structure may change.
 
 **If you find this useful, please consider [starring this repository](https://github.com/Synteles/synteles) to help other developers discover it!** ⭐
 
 <img src="docs/images/Screenshot1.png" width="49%"/> <img src="docs/images/Screenshot2.png" width="49%"/>
+
+## Why Synteles?
+
+Synteles is designed for organizations that need AI workers to be:
+
+- **Fast to launch**: business teams can describe workflows and run AI workers in minutes.
+- **Customizable**: agentlets are defined in YAML and can be reviewed, and adapted by engineers.
+- **Stateful**: long-running workflows can survive failures and wait for human input.
+- **Portable**: run locally with Docker Compose and evolve toward controlled infrastructure deployments.
+- **Traceable**: executions expose tool calls, workflow state, and operational history.
 
 ## Quick Start
 
