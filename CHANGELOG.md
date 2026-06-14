@@ -34,7 +34,6 @@ Before `v1.0`, breaking changes may occur without a major version bump.
 ### Removed
 
 - `activity-worker` service — executions now use the standard Docker or new `durable-worker` backends
-- Direct AWS Cognito integration — Cognito is now accessed exclusively through Keycloak as an identity broker
 
 ## [0.1.0-alpha] - 2026-05-27
 

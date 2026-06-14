@@ -25,7 +25,6 @@ Synteles is a platform for AI workers ([agentlets](https://github.com/Synteles/a
 ### Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) 24+ with Docker Compose v2
-- ~5 GB free RAM for the full stack
 
 ### First-time setup
 
@@ -39,7 +38,7 @@ cd synteles
 **2. Run the install script**
 
 ```bash
-bash install.sh
+./install.sh
 ```
 
 This walks you through selecting LLM providers and generates `.env` and `platform.toml`. Open `.env` after the script finishes and fill in your provider API keys.
@@ -92,7 +91,7 @@ Once the stack is running, these URLs are available in your browser:
 | **Temporal Web UI**       | http://localhost:8088                  | _(no login)_                   | Temporal cluster UI — inspect durable workflow history, task queues, and execution state |
 | **API (all routes)**      | http://localhost:8080                  | Bearer token or API key        | Entry point for all API calls (proxied via Traefik) |
 
-> Default credentials are defined in `.env`. Change them before deploying outside of a local dev environment.
+> Default credentials are defined in `.env`. Change them before deploying outside of a local dev environment. See the [Production Checklist](docs/configuration.md#production-checklist) in the configuration reference for the full list of values to rotate.
 
 ---
 
@@ -185,6 +184,8 @@ Models without a matching secret are silently skipped at execution time — the 
 
 To add a new platform model or change its metadata (label, description, temperatures), edit `platform.toml` and restart the stack. See `platform.toml.example` for the format.
 
+> For a complete field-by-field reference for both `.env` and `platform.toml`, see [docs/configuration.md](docs/configuration.md).
+
 ---
 
 ### Running integration tests
@@ -244,7 +245,7 @@ See the [Configuration](#configuration) section and [docs/configuration.md](docs
 
 - [docs/architecture.md](docs/architecture.md) — system overview and component diagram
 - [docs/integration-api.md](docs/integration-api.md) — integration API reference
-- [docs/configuration.md](docs/configuration.md) — environment variable reference for all services
+- [docs/configuration.md](docs/configuration.md) — configuration reference: all environment variables and `platform.toml` fields
 - [docs/durable-execution.md](docs/durable-execution.md) — durable execution architecture (Temporal, AgentWorkflow, HITL signal bridge)
 - [docs/testing.md](docs/testing.md) — unit and integration test guide
 
