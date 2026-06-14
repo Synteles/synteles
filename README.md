@@ -19,7 +19,6 @@ Synteles is a platform for AI workers, called ([agentlets](https://github.com/Sy
 **If you find this useful, please consider [starring this repository](https://github.com/Synteles/synteles) to help other developers discover it!** ⭐
 
 <img src="docs/images/Screenshot1.png" width="49%"/> <img src="docs/images/Screenshot2.png" width="49%"/>
-<img src="docs/images/Screenshot3.png" width="49%"/> <img src="docs/images/Screenshot4.png" width="49%"/>
 
 ## Why Synteles?
 
@@ -30,6 +29,8 @@ Synteles is designed for organizations that need AI workers to be:
 - **Stateful**: long-running workflows can survive failures and wait for human input.
 - **Portable**: run locally with Docker Compose and evolve toward controlled infrastructure deployments.
 - **Traceable**: executions expose tool calls, workflow state, and operational history.
+
+<img src="docs/images/Screenshot3.png" width="49%"/> <img src="docs/images/Screenshot4.png" width="49%"/>
 
 ## Quick Start
 
