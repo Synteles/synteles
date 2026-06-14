@@ -12,9 +12,9 @@
 
 **Open-source platform for AI workers and enterprise workflows.**
 
-Synteles is a platform for AI workers ([agentlets](https://github.com/Synteles/agentlet)) that run long-running resilient workflows. Business users can describe tasks in plain language and Synteles creates and launches multi-agent AI workers in minutes. Engineers can customize them using a [YAML definition](https://github.com/Synteles/agentlet/blob/main/docs/reference/configuration.md) and integrate into existing technology landscape via [APIs](docs/integration-api.md) and MCP connectors. AI workers run ephemerally when a task completes in a single uninterrupted pass, or [durably](docs/durable-execution.md) for workflows that must survive failures, resume after restarts, or involve human-in-the-loop decisions. Synteles runs on public cloud, on-premise, or air-gapped infrastructure.
+Synteles is a platform for AI workers ([agentlets](https://github.com/Synteles/agentlet)) that run long-running resilient workflows. Business users can describe tasks in plain language and Synteles creates and launches multi-agent AI workers in minutes. Engineers can customize them using a [YAML definition](https://github.com/Synteles/agentlet/blob/main/docs/reference/configuration.md) and integrate into existing technology landscape via [APIs](docs/integration-api.md) and MCP connectors. AI workers run ephemerally when a task completes in a single uninterrupted pass, or [durably](docs/durable-execution.md) for workflows that must survive failures, resume after restarts, or involve human-in-the-loop decisions. Synteles runs on public cloud, on-premises, or air-gapped infrastructure.
 
-⚠️ **Early Development**: Synteles is pre-v1.0. APIs and definitions and deployment structure may change.
+⚠️ **Early Development**: Synteles is pre-v1.0. APIs, definitions, and deployment structure may change.
 
 **If you find this useful, please consider [starring this repository](https://github.com/Synteles/synteles) to help other developers discover it!** ⭐
 
@@ -41,7 +41,7 @@ cd synteles
 ./install.sh
 ```
 
-This walks you through selecting LLM providers and generates `.env` and `platform.toml`. Open `.env` after the script finishes and fill in your provider API keys.
+The script walks you through selecting LLM providers and generates `.env` and `platform.toml`. Open `.env` after the script finishes and fill in your provider API keys.
 
 **3. Start the stack**
 
@@ -91,7 +91,7 @@ Once the stack is running, these URLs are available in your browser:
 | **Temporal Web UI**       | http://localhost:8088                  | _(no login)_                   | Temporal cluster UI — inspect durable workflow history, task queues, and execution state |
 | **API (all routes)**      | http://localhost:8080                  | Bearer token or API key        | Entry point for all API calls (proxied via Traefik) |
 
-> Default credentials are defined in `.env`. Change them before deploying outside of a local dev environment. See the [Production Checklist](docs/configuration.md#production-checklist) in the configuration reference for the full list of values to rotate.
+> Default credentials are for local development only. Change them before any shared, remote, or production-like deployment. See the [Production Checklist](docs/configuration.md#production-checklist) in the configuration reference for the full list of values to rotate.
 
 ---
 
@@ -272,11 +272,15 @@ Stable release tags are published alongside each GitHub release. See [docs/confi
 
 Planned areas of work include:
 
-- Governance, identity and access management enhancements
-- Kubernetes deployment support (Helm charts)
+- Examples of agentlet definitions
+- Kubernetes deployment support with Helm charts
+- Evals framework 
+- Guardrails implementation
 - Security hardening
+- Governance, identity, and access management enhancements
 - Agentlet versioning
-- API stabilization
+- API and configuration stabilization
+- Documentation and developer experience improvements
 
 The roadmap may change based on user feedback and maintainer capacity.
 
@@ -287,11 +291,12 @@ Contributions are welcome.
 Good first contribution areas include:
 
 - Bug reports and reproducible issues
-- Governance, identity and access management capabilities
-- Kubernetes deployment support (Helm charts) 
-- Security hardening
 - Documentation improvements
+- Examples of agentlet definitions
 - Tests
+- Docker Compose and local setup improvements
+- Kubernetes / Helm deployment templates
+- Security hardening suggestions
 
 
 Please read:
