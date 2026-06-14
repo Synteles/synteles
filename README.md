@@ -10,22 +10,32 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Powered by Synteles Agentlet](https://img.shields.io/badge/powered%20by-Synteles%20Agentlet-6f42c1)](https://github.com/Synteles/agentlet)
 
-**Open-source platform for AI workers and enterprise workflows.**
+**Open-source platform for AI workers and resilient enterprise workflows.**
 
-Synteles is a platform for AI workers ([agentlets](https://github.com/Synteles/agentlet)) that run long-running resilient workflows. Business users can describe tasks in plain language and Synteles creates and launches multi-agent AI workers in minutes. Engineers can customize them using a [YAML definition](https://github.com/Synteles/agentlet/blob/main/docs/reference/configuration.md) and integrate into existing technology landscape via [APIs](docs/integration-api.md) and MCP connectors. AI workers run ephemerally when a task completes in a single uninterrupted pass, or [durably](docs/durable-execution.md) for workflows that must survive failures, resume after restarts, or involve human-in-the-loop decisions. Synteles runs on public cloud, on-premise, or air-gapped infrastructure.
+Synteles is a platform for AI workers, called ([agentlets](https://github.com/Synteles/agentlet)), that execute resilient long-running workflows. Business users can describe tasks in plain language, and Synteles generates and launches multi-agent AI workers in minutes. Engineers can customize them using a [YAML definition](https://github.com/Synteles/agentlet/blob/main/docs/reference/configuration.md) and integrate into existing systems via [APIs](docs/integration-api.md) and MCP connectors. AI workers can run as quick tasks or as stateful workflows that survive failures, resume after restarts, and pause for human input. Synteles runs locally and designed for self-hosted, cloud, on-premises, and air-gapped environments.
 
-⚠️ **Early Development**: Synteles is pre-v1.0. APIs and definitions and deployment structure may change.
+⚠️ **Early Development**: Synteles is pre-v1.0. APIs, definitions, and deployment structure may change.
 
 **If you find this useful, please consider [starring this repository](https://github.com/Synteles/synteles) to help other developers discover it!** ⭐
 
 <img src="docs/images/Screenshot1.png" width="49%"/> <img src="docs/images/Screenshot2.png" width="49%"/>
+<img src="docs/images/Screenshot3.png" width="49%"/> <img src="docs/images/Screenshot4.png" width="49%"/>
+
+## Why Synteles?
+
+Synteles is designed for organizations that need AI workers to be:
+
+- **Fast to launch**: business teams can describe workflows and run AI workers in minutes.
+- **Customizable**: agentlets are defined in YAML and can be reviewed, and adapted by engineers.
+- **Stateful**: long-running workflows can survive failures and wait for human input.
+- **Portable**: run locally with Docker Compose and evolve toward controlled infrastructure deployments.
+- **Traceable**: executions expose tool calls, workflow state, and operational history.
 
 ## Quick Start
 
 ### Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) 24+ with Docker Compose v2
-- ~5 GB free RAM for the full stack
 
 ### First-time setup
 
@@ -39,10 +49,10 @@ cd synteles
 **2. Run the install script**
 
 ```bash
-bash install.sh
+./install.sh
 ```
 
-This walks you through selecting LLM providers and generates `.env` and `platform.toml`. Open `.env` after the script finishes and fill in your provider API keys.
+The script walks you through selecting LLM providers and generates `.env` and `platform.toml`. Open `.env` after the script finishes and fill in your provider API keys.
 
 **3. Start the stack**
 
@@ -92,7 +102,7 @@ Once the stack is running, these URLs are available in your browser:
 | **Temporal Web UI**       | http://localhost:8088                  | _(no login)_                   | Temporal cluster UI — inspect durable workflow history, task queues, and execution state |
 | **API (all routes)**      | http://localhost:8080                  | Bearer token or API key        | Entry point for all API calls (proxied via Traefik) |
 
-> Default credentials are defined in `.env`. Change them before deploying outside of a local dev environment.
+> Default credentials are for local development only. Change them before any shared, remote, or production-like deployment. See the [Production Checklist](docs/configuration.md#production-checklist) in the configuration reference for the full list of values to rotate.
 
 ---
 
@@ -185,32 +195,7 @@ Models without a matching secret are silently skipped at execution time — the 
 
 To add a new platform model or change its metadata (label, description, temperatures), edit `platform.toml` and restart the stack. See `platform.toml.example` for the format.
 
----
-
-### Running integration tests
-
-The integration test suite requires the full stack to be running.
-
-```bash
-cd tests/integration
-uv sync
-cp .env.example .env   # then fill in values
-```
-
-| Variable | Value (local dev defaults) |
-|---|---|
-| `API_BASE_URL` | `http://localhost:8080` |
-| `OIDC_ISSUER_URL` | `http://localhost:8080/auth/realms/synteles` |
-| `OIDC_CLIENT_ID` | `synteles-app` |
-| `OIDC_CLIENT_SECRET` | `synteles-dev-secret` |
-| `TEST_USER` | `synteles-test` |
-| `TEST_USER_PASSWORD` | `synteles-test` |
-
-Run all tests:
-
-```bash
-uv run pytest
-```
+> For a complete field-by-field reference for both `.env` and `platform.toml`, see [docs/configuration.md](docs/configuration.md).
 
 ## Repository Structure
 
@@ -244,7 +229,7 @@ See the [Configuration](#configuration) section and [docs/configuration.md](docs
 
 - [docs/architecture.md](docs/architecture.md) — system overview and component diagram
 - [docs/integration-api.md](docs/integration-api.md) — integration API reference
-- [docs/configuration.md](docs/configuration.md) — environment variable reference for all services
+- [docs/configuration.md](docs/configuration.md) — configuration reference: all environment variables and `platform.toml` fields
 - [docs/durable-execution.md](docs/durable-execution.md) — durable execution architecture (Temporal, AgentWorkflow, HITL signal bridge)
 - [docs/testing.md](docs/testing.md) — unit and integration test guide
 
@@ -271,11 +256,15 @@ Stable release tags are published alongside each GitHub release. See [docs/confi
 
 Planned areas of work include:
 
-- Governance, identity and access management enhancements
-- Kubernetes deployment support (Helm charts)
+- Examples of agentlet definitions
+- Kubernetes deployment support with Helm charts
+- Evals framework 
+- Guardrails implementation
 - Security hardening
+- Governance, identity, and access management enhancements
 - Agentlet versioning
-- API stabilization
+- API and configuration stabilization
+- Documentation and developer experience improvements
 
 The roadmap may change based on user feedback and maintainer capacity.
 
@@ -286,11 +275,12 @@ Contributions are welcome.
 Good first contribution areas include:
 
 - Bug reports and reproducible issues
-- Governance, identity and access management capabilities
-- Kubernetes deployment support (Helm charts) 
-- Security hardening
 - Documentation improvements
+- Examples of agentlet definitions
 - Tests
+- Docker Compose and local setup improvements
+- Kubernetes / Helm deployment templates
+- Security hardening suggestions
 
 
 Please read:
