@@ -19,6 +19,7 @@ Synteles is a platform for AI workers, called ([agentlets](https://github.com/Sy
 **If you find this useful, please consider [starring this repository](https://github.com/Synteles/synteles) to help other developers discover it!** ⭐
 
 <img src="docs/images/Screenshot1.png" width="49%"/> <img src="docs/images/Screenshot2.png" width="49%"/>
+<img src="docs/images/Screenshot3.png" width="49%"/> <img src="docs/images/Screenshot4.png" width="49%"/>
 
 ## Why Synteles?
 
