@@ -196,33 +196,6 @@ To add a new platform model or change its metadata (label, description, temperat
 
 > For a complete field-by-field reference for both `.env` and `platform.toml`, see [docs/configuration.md](docs/configuration.md).
 
----
-
-### Running integration tests
-
-The integration test suite requires the full stack to be running.
-
-```bash
-cd tests/integration
-uv sync
-cp .env.example .env   # then fill in values
-```
-
-| Variable | Value (local dev defaults) |
-|---|---|
-| `API_BASE_URL` | `http://localhost:8080` |
-| `OIDC_ISSUER_URL` | `http://localhost:8080/auth/realms/synteles` |
-| `OIDC_CLIENT_ID` | `synteles-app` |
-| `OIDC_CLIENT_SECRET` | `synteles-dev-secret` |
-| `TEST_USER` | `synteles-test` |
-| `TEST_USER_PASSWORD` | `synteles-test` |
-
-Run all tests:
-
-```bash
-uv run pytest
-```
-
 ## Repository Structure
 
 ```text
