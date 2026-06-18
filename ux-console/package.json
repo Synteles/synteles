@@ -50,7 +50,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.5.0",
     "@vitest/coverage-v8": "^3.2.0",
-    "jsdom": "^26.1.0",
+    "jsdom": "^29.1.1",
     "msw": "^2.10.0",
     "postcss": "^8.5.14",
     "tailwindcss": "^4.3.0",
